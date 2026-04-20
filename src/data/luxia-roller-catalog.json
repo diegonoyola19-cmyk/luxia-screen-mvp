@@ -1,0 +1,787 @@
+{
+  "generatedAt": "2026-04-20T17:12:54.721Z",
+  "sourceFile": "C:\\Users\\diego\\Downloads\\BASE PARA PRECIOS (1).xlsx",
+  "totalItems": 78,
+  "items": [
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR White/Snow Flakes",
+      "itemCode": "0-002-67-90072",
+      "description": "Rollux NEW Pinpointe Blackout FR White/Snow Flakes 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026790072.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.4332
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR White/Snow Flakes",
+      "itemCode": "0-002-67-90098",
+      "description": "Rollux NEW Pinpointe Blackout FR White/Snow Flakes 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026790098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.4314
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Light Grey/Grey-Grey",
+      "itemCode": "0-002-67-91072",
+      "description": "Rollux NEW Pinpointe Blackout FR Light Grey/Grey-Grey 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026791072.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.4062
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Light Grey/Grey-Grey",
+      "itemCode": "0-002-67-91098",
+      "description": "Rollux NEW Pinpointe Blackout FR Light Grey/Grey-Grey 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026791098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.1667
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Smoke",
+      "itemCode": "0-002-67-91198",
+      "description": "Rollux NEW Pinpointe Blackout FR Smoke 98.43\"",
+      "imageUrl": null,
+      "widthMeters": 2.5,
+      "costPerYd2": 3.3781
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Black/Black",
+      "itemCode": "0-002-67-93172",
+      "description": "Rollux NEW Pinpointe Blackout FR Black/Black 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793172.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.4623
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Black/Black",
+      "itemCode": "0-002-67-93198",
+      "description": "Rollux NEW Pinpointe Blackout FR Black/Black 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793198.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.5437
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Beige/Bisque",
+      "itemCode": "0-002-67-93372",
+      "description": "Rollux NEW Pinpointe Blackout FR Beige/Bisque 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793372.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.4084
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Beige/Bisque",
+      "itemCode": "0-002-67-93398",
+      "description": "Rollux NEW Pinpointe Blackout FR Beige/Bisque 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793398.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.5675
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Fawn/Off White",
+      "itemCode": "0-002-67-93472",
+      "description": "Rollux NEW Pinpointe Blackout FR Fawn/Off White 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793472.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.3924
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Fawn/Off White",
+      "itemCode": "0-002-67-93498",
+      "description": "Rollux NEW Pinpointe Blackout FR Fawn/Off White 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026793498.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.4188
+    },
+    {
+      "family": "Pinpointe",
+      "openness": "Blackout",
+      "color": "e Blackout FR Stone/Dark Grey",
+      "itemCode": "0-002-67-94672",
+      "description": "Rollux NEW Pinpointe Blackout FR Stone/Dark Grey 72\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00026794672.jpg",
+      "widthMeters": 1.83,
+      "costPerYd2": 3.4091
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Light Grey",
+      "itemCode": "0-002-70-90918",
+      "description": "Rollux Premium Plus Blackout FR Light Grey 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027090918.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.9739
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Light Grey",
+      "itemCode": "0-002-70-90996",
+      "description": "Rollux Premium Plus Blackout FR Light Grey 96.06\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027090996.jpg",
+      "widthMeters": 2.44,
+      "costPerYd2": 4.7535
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Beige",
+      "itemCode": "0-002-70-92118",
+      "description": "Rollux Premium Plus Blackout FR Beige 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027092118.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.0558
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Black",
+      "itemCode": "0-002-70-93118",
+      "description": "Rollux Premium Plus Blackout FR Black 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027093118.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.1966
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Bisque",
+      "itemCode": "0-002-70-93318",
+      "description": "Rollux Premium Plus Blackout FR Bisque 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027093318.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.2965
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Bisque",
+      "itemCode": "0-002-70-93396",
+      "description": "Rollux Premium Plus Blackout Bisque 96\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027093396.jpg",
+      "widthMeters": 2.44,
+      "costPerYd2": 4.7538
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Off White",
+      "itemCode": "0-002-70-93418",
+      "description": "Rollux Premium Plus Blackout FR Off White 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027093418.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.5805
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Off White",
+      "itemCode": "0-002-70-93496",
+      "description": "Rollux Premium Plus Blackout FR Off White 96.06\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027093496.jpg",
+      "widthMeters": 2.44,
+      "costPerYd2": 5.2188
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Stone Grey",
+      "itemCode": "0-002-70-94618",
+      "description": "Rollux Premium Plus Blackout FR Stone Grey 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027094618.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.3157
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Stone Grey",
+      "itemCode": "0-002-70-94696",
+      "description": "Rollux Premium Plus Blackout FR Stone Grey 96.06\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027094696.jpg",
+      "widthMeters": 2.44,
+      "costPerYd2": 3.9739
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Snow Flakes",
+      "itemCode": "0-002-70-96018",
+      "description": "Rollux Premium Plus Blackout FR Snow Flakes 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027096018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.9362
+    },
+    {
+      "family": "Premium",
+      "openness": "Blackout",
+      "color": "Snow Flakes",
+      "itemCode": "0-002-70-96096",
+      "description": "Rollux Premium Plus Blackout FR Snow Flakes 96.06\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00027096096.jpg",
+      "widthMeters": 2.44,
+      "costPerYd2": 3.935
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Sand Custard",
+      "itemCode": "0-004-21-00198",
+      "description": "Polyscreen Vision Calico 550 Sand Custard 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042100198.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.1339
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Sand Linen",
+      "itemCode": "0-004-21-00298",
+      "description": "Polyscreen Vision Calico 550 Sand Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042100298.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.3681
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Gold Custard",
+      "itemCode": "0-004-21-00598",
+      "description": "Polyscreen Vision Calico 550 Gold Custard 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042100598.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.4007
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Sand Ebony",
+      "itemCode": "0-004-21-00798",
+      "description": "Polyscreen Vision Calico 550 Sand Ebony 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042100798.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.0425
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Bronze Custard",
+      "itemCode": "0-004-21-00998",
+      "description": "Polyscreen Vision Calico 550 Bronze Custard 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042100998.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.554
+    },
+    {
+      "family": "Screen",
+      "openness": "550",
+      "color": "Calico 550 Ebony Sand",
+      "itemCode": "0-004-21-01298",
+      "description": "Polyscreen Vision Calico 550 Ebony Sand 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00042101298.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 10.9777
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White",
+      "itemCode": "0-004-62-00218",
+      "description": "VX Screen 3000-5 White 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046200218.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.8674
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White",
+      "itemCode": "0-004-62-00298",
+      "description": "VX Screen 3000-5 White 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046200298.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.35
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Linen",
+      "itemCode": "0-004-62-00318",
+      "description": "VX Screen 3000-5 Linen 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046200318.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.7551
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Linen",
+      "itemCode": "0-004-62-00398",
+      "description": "VX Screen 3000-5 Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046200398.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.1527
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Ebony",
+      "itemCode": "0-004-62-01918",
+      "description": "VX Screen 3000-5 Ebony 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046201918.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.1116
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Ebony",
+      "itemCode": "0-004-62-01998",
+      "description": "VX Screen 3000-5 Ebony 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046201998.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.4832
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-62-02518",
+      "description": "VX Screen 3000-5 Brown/ Chocolate 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046202518.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.375
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-62-02598",
+      "description": "VX Screen 3000-5 Brown/ Chocolate 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046202598.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.1443
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White Pearl",
+      "itemCode": "0-004-62-02718",
+      "description": "VX Screen 3000-5 White Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046202718.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 2.8988
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White Pearl",
+      "itemCode": "0-004-62-02798",
+      "description": "VX Screen 3000-5 White Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046202798.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 2.8954
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Taupe",
+      "itemCode": "0-004-62-07018",
+      "description": "VX Screen 3000-5 Taupe 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046207018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.2919
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Taupe",
+      "itemCode": "0-004-62-07098",
+      "description": "VX Screen 3000-5 Taupe 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046207098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.1177
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-62-20018",
+      "description": "VX Screen 3000-5 Ebony Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046220018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 2.9973
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-62-20098",
+      "description": "VX Screen 3000-5 Ebony Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046220098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.2132
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White Linen",
+      "itemCode": "0-004-62-22018",
+      "description": "VX Screen 3000-5 White Linen 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046222018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 3.5586
+    },
+    {
+      "family": "Screen",
+      "openness": "5%",
+      "color": "White Linen",
+      "itemCode": "0-004-62-22098",
+      "description": "VX Screen 3000-5 White Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00046222098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 3.3477
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White",
+      "itemCode": "0-004-86-00218",
+      "description": "VX Screen 3000-1 White 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048600218.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.863
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White",
+      "itemCode": "0-004-86-00298",
+      "description": "VX Screen 3000-1 White 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048600298.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.9282
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Linen",
+      "itemCode": "0-004-86-00318",
+      "description": "VX Screen 3000-1 Linen 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048600318.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.9055
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Linen",
+      "itemCode": "0-004-86-00398",
+      "description": "VX Screen 3000-1 Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048600398.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 5.0062
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Ebony",
+      "itemCode": "0-004-86-01918",
+      "description": "VX Screen 3000-1 Ebony 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048601918.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.8873
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Ebony",
+      "itemCode": "0-004-86-01998",
+      "description": "VX Screen 3000-1 Ebony 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048601998.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.8838
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-86-02518",
+      "description": "VX Screen 3000-1 Brown/ Chocolate 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048602518.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 5.0374
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-86-02598",
+      "description": "VX Screen 3000-1 Brown/ Chocolate 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048602598.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.9992
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White Pearl",
+      "itemCode": "0-004-86-02718",
+      "description": "VX Screen 3000-1 White Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048602718.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.988
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White Pearl",
+      "itemCode": "0-004-86-02798",
+      "description": "VX Screen 3000-1 White Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048602798.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.9406
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Taupe",
+      "itemCode": "0-004-86-07018",
+      "description": "VX Screen 3000-1 Taupe 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048607018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.9911
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Taupe",
+      "itemCode": "0-004-86-07098",
+      "description": "VX Screen 3000-1 Taupe 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048607098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.9714
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-86-20018",
+      "description": "VX Screen 3000-1 Ebony Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048620018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 5.0304
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-86-20098",
+      "description": "VX Screen 3000-1 Ebony Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048620098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.9919
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White Linen",
+      "itemCode": "0-004-86-22018",
+      "description": "VX Screen 3000-1 White Linen 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048622018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.9448
+    },
+    {
+      "family": "Screen",
+      "openness": "1%",
+      "color": "White Linen",
+      "itemCode": "0-004-86-22098",
+      "description": "VX Screen 3000-1 White Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048622098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 5.0448
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White",
+      "itemCode": "0-004-87-00218",
+      "description": "VX Screen 3000-3 White 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048700218.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.5369
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White",
+      "itemCode": "0-004-87-00298",
+      "description": "VX Screen 3000-3 White 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048700298.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.53
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Linen",
+      "itemCode": "0-004-87-00318",
+      "description": "VX Screen 3000-3 Linen 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048700318.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.6256
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Linen",
+      "itemCode": "0-004-87-00398",
+      "description": "VX Screen 3000-3 Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048700398.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.5985
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Ebony",
+      "itemCode": "0-004-87-01918",
+      "description": "VX Screen 3000-3 Ebony 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048701918.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.7817
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Ebony",
+      "itemCode": "0-004-87-01998",
+      "description": "VX Screen 3000-3 Ebony 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048701998.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.457
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-87-02518",
+      "description": "VX Screen 3000-3 Brown/ Chocolate 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048702518.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.5837
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Brown/Chocolate",
+      "itemCode": "0-004-87-02598",
+      "description": "VX Screen 3000-3 Brown/ Chocolate 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048702598.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.4826
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White Pearl",
+      "itemCode": "0-004-87-02718",
+      "description": "VX Screen 3000-3 White Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048702718.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.5336
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White Pearl",
+      "itemCode": "0-004-87-02798",
+      "description": "VX Screen 3000-3 White Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048702798.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.5456
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Taupe",
+      "itemCode": "0-004-87-07018",
+      "description": "VX Screen 3000-3 Taupe 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048707018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.4948
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Taupe",
+      "itemCode": "0-004-87-07098",
+      "description": "Solar Screen 3000-3 Taupe 98\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048707098.jpg",
+      "widthMeters": 2.49,
+      "costPerYd2": 4.6293
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-87-20018",
+      "description": "VX Screen 3000-3 Ebony Pearl 118.11\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048720018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.5943
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "Ebony Pearl",
+      "itemCode": "0-004-87-20098",
+      "description": "VX Screen 3000-3 Ebony Pearl 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048720098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.511
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White Linen",
+      "itemCode": "0-004-87-22018",
+      "description": "Solar Screen 3000-3 White Linen 118\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048722018.jpg",
+      "widthMeters": 3,
+      "costPerYd2": 4.6311
+    },
+    {
+      "family": "Screen",
+      "openness": "3%",
+      "color": "White Linen",
+      "itemCode": "0-004-87-22098",
+      "description": "VX Screen 3000-3 White Linen 98.43\"",
+      "imageUrl": "https://vertilux-website.s3.amazonaws.com/public/original/00048722098.jpg",
+      "widthMeters": 2.5,
+      "costPerYd2": 4.5785
+    }
+  ]
+}
