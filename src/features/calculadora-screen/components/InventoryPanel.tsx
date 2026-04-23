@@ -1,4 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
+import { animate } from 'framer-motion';
+
+function AnimatedNumber({ value }: { value: number }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration: 0.6,
+      onUpdate: (v) => setDisplayValue(v),
+    });
+    return controls.stop;
+  }, [value]);
+
+  return <>{formatNumber(displayValue)}</>;
+}
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type {
@@ -7,22 +22,17 @@ import type {
 } from '../../../domain/curtains/types';
 import { formatDate, formatNumber } from '../../../lib/format';
 import { getSuggestedScreenRollCosts } from '../../../lib/priceCatalog';
-
-interface InventoryPanelProps {
-  inventory: ProductionInventory;
-  movements: InventoryMovement[];
-  onSaveRollCosts: (costsByWidth: Record<string, number>) => void;
-}
-
+import { useCalculatorStore } from '../store/useCalculatorStore';
+import { YARD2_PER_M2 } from '../utils';
 function isAvailable(status: string) {
   return status === 'available';
 }
 
-export function InventoryPanel({
-  inventory,
-  movements,
-  onSaveRollCosts,
-}: InventoryPanelProps) {
+export function InventoryPanel() {
+  const inventory = useCalculatorStore((state) => state.productionInventory);
+  const movements = useCalculatorStore((state) => state.inventoryMovements);
+  const onSaveRollCosts = useCalculatorStore((state) => state.saveRollCosts);
+
   const availableRolls = useMemo(
     () =>
       inventory.fabrics.filter(
@@ -62,12 +72,28 @@ export function InventoryPanel({
   );
   const lastMovement = movements[0] ?? null;
   const [draftCostsByWidth, setDraftCostsByWidth] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<'resumen' | 'rollos' | 'retazos'>('resumen');
   const catalogRollSuggestions = useMemo(() => getSuggestedScreenRollCosts(), []);
 
   const totalScrapArea = availableScraps.reduce(
     (sum, item) => sum + item.widthMeters * item.lengthMeters,
     0,
   );
+  const totalRollArea = availableRolls.reduce(
+    (sum, item) => sum + item.widthMeters * item.lengthMeters,
+    0,
+  );
+  const totalScrapValue = availableScraps.reduce(
+    (sum, item) => sum + item.widthMeters * item.lengthMeters * YARD2_PER_M2 * item.costPerYd2,
+    0,
+  );
+  const totalRollValue = availableRolls.reduce(
+    (sum, item) => sum + item.widthMeters * item.lengthMeters * YARD2_PER_M2 * item.costPerYd2,
+    0,
+  );
+  const totalFabricValue = totalRollValue + totalScrapValue;
+  const totalFabricArea = totalRollArea + totalScrapArea;
+  const scrapPercentage = totalFabricArea > 0 ? (totalScrapArea / totalFabricArea) * 100 : 0;
   const totalTubeOffcutMeters = tubeOffcuts.reduce((sum, item) => sum + item.lengthMeters, 0);
   const totalBottomOffcutMeters = bottomOffcuts.reduce(
     (sum, item) => sum + item.lengthMeters,
@@ -153,7 +179,58 @@ export function InventoryPanel({
 
   return (
     <section className="inventory-page">
-      <Card className="inventory-card">
+      <div className="summary-grid" style={{ marginBottom: '1.5rem' }}>
+        <Card className="summary-card summary-card--accent">
+          <span className="section-heading__eyebrow" style={{ color: 'var(--color-primary-600)' }}>Tela Nueva</span>
+          <strong style={{ fontSize: '1.75rem', marginTop: '0.25rem', color: 'var(--color-primary-700)' }}>$<AnimatedNumber value={totalRollValue} /></strong>
+          <small style={{ marginTop: '0.25rem' }}>{formatNumber(totalRollArea)} m2 en {availableRolls.length} rollos</small>
+        </Card>
+        <Card className="summary-card">
+          <span className="section-heading__eyebrow" style={{ color: '#d97706' }}>Merma Recuperable</span>
+          <strong style={{ fontSize: '1.75rem', color: '#f59e0b', marginTop: '0.25rem' }}>$<AnimatedNumber value={totalScrapValue} /></strong>
+          <small style={{ marginTop: '0.25rem' }}>{formatNumber(totalScrapArea)} m2 en {availableScraps.length} retazos</small>
+        </Card>
+        <Card className="summary-card">
+          <span className="section-heading__eyebrow">Inversión Total</span>
+          <strong style={{ fontSize: '1.75rem', marginTop: '0.25rem' }}>$<AnimatedNumber value={totalFabricValue} /></strong>
+          <small style={{ marginTop: '0.25rem' }}>Valorización de bodega</small>
+        </Card>
+        <Card className="summary-card">
+          <span className="section-heading__eyebrow">Índice de Merma</span>
+          <strong style={{ fontSize: '1.75rem', color: scrapPercentage > 15 ? '#ef4444' : 'inherit', marginTop: '0.25rem' }}>
+            <AnimatedNumber value={scrapPercentage} />%
+          </strong>
+          <small style={{ marginTop: '0.25rem' }}>% del área total en bodega</small>
+        </Card>
+      </div>
+
+      <div className="inventory-tabs">
+        <button 
+          type="button" 
+          className={`inventory-tab ${activeTab === 'resumen' ? 'inventory-tab--active' : ''}`}
+          onClick={() => setActiveTab('resumen')}
+        >
+          Resumen
+        </button>
+        <button 
+          type="button" 
+          className={`inventory-tab ${activeTab === 'rollos' ? 'inventory-tab--active' : ''}`}
+          onClick={() => setActiveTab('rollos')}
+        >
+          Rollos y Lineales
+        </button>
+        <button 
+          type="button" 
+          className={`inventory-tab ${activeTab === 'retazos' ? 'inventory-tab--active' : ''}`}
+          onClick={() => setActiveTab('retazos')}
+        >
+          Retazos
+        </button>
+      </div>
+
+      {activeTab === 'resumen' && (
+        <>
+          <Card className="inventory-card" style={{ marginBottom: '1.5rem' }}>
         <div className="inventory-pricing">
           <div className="inventory-pricing__header">
             <div className="inventory-pricing__intro">
@@ -174,7 +251,7 @@ export function InventoryPanel({
                 </small>
               </div>
 
-              <div className="inventory-pricing__actions">
+              <div className="inventory-pricing__actions inventory-pricing__actions--grid">
                 <Button
                   type="button"
                   onClick={handleSaveRollCosts}
@@ -188,7 +265,7 @@ export function InventoryPanel({
                   onClick={handleApplyCatalogCosts}
                   disabled={catalogRollSuggestions.length === 0}
                 >
-                  Aplicar base de precios
+                  Aplicar base
                 </Button>
                 <Button
                   type="button"
@@ -198,7 +275,7 @@ export function InventoryPanel({
                   }
                   disabled={!hasUnsavedChanges}
                 >
-                  Descartar cambios
+                  Descartar
                 </Button>
               </div>
             </div>
@@ -272,15 +349,6 @@ export function InventoryPanel({
             )}
 
             <div className="summary-grid summary-grid--compact inventory-summary-grid">
-              <div className="summary-card summary-card--accent">
-                <span>Rollos</span>
-                <strong>{availableRolls.length}</strong>
-              </div>
-              <div className="summary-card summary-card--accent">
-                <span>Retazos</span>
-                <strong>{availableScraps.length}</strong>
-                <small>{formatNumber(totalScrapArea)} m2</small>
-              </div>
               <div className="summary-card">
                 <span>Merma tubo</span>
                 <strong>{tubeOffcuts.length}</strong>
@@ -295,81 +363,46 @@ export function InventoryPanel({
           </div>
         </div>
       </Card>
+      </>
+      )}
 
-      <div className="inventory-sections">
-        <details className="inventory-section" open>
-          <summary className="inventory-section__summary">
-            <div>
-              <span className="section-heading__eyebrow">Tela</span>
-              <h3>Rollos</h3>
+      {activeTab === 'rollos' && (
+        <div className="inventory-sections">
+          <details className="inventory-section" open>
+            <summary className="inventory-section__summary">
+              <div>
+                <span className="section-heading__eyebrow">Tela</span>
+                <h3>Rollos</h3>
+              </div>
+              <strong>{availableRolls.length} disponibles</strong>
+            </summary>
+            <div className="inventory-table">
+              {availableRolls.length === 0 ? (
+                <p className="history-panel__empty">No hay rollos disponibles.</p>
+              ) : (
+                availableRolls.map((fabric) => (
+                  <article key={fabric.id} className="inventory-row">
+                    <div className="inventory-row__main">
+                      <strong>{fabric.code}</strong>
+                      <span>{fabric.family ? `${fabric.family} - ${fabric.color}` : fabric.color}</span>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Ancho</span>
+                      <strong>{formatNumber(fabric.widthMeters)} m</strong>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Disponible</span>
+                      <strong>{formatNumber(fabric.lengthMeters)} m</strong>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Costo yd2</span>
+                      <strong>${formatNumber(fabric.costPerYd2)}</strong>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
-            <strong>{availableRolls.length} disponibles</strong>
-          </summary>
-          <div className="inventory-table">
-            {availableRolls.length === 0 ? (
-              <p className="history-panel__empty">No hay rollos disponibles.</p>
-            ) : (
-              availableRolls.map((fabric) => (
-                <article key={fabric.id} className="inventory-row">
-                  <div className="inventory-row__main">
-                    <strong>{fabric.code}</strong>
-                    <span>{fabric.family ? `${fabric.family} - ${fabric.color}` : fabric.color}</span>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Ancho</span>
-                    <strong>{formatNumber(fabric.widthMeters)} m</strong>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Disponible</span>
-                    <strong>{formatNumber(fabric.lengthMeters)} m</strong>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Costo yd2</span>
-                    <strong>${formatNumber(fabric.costPerYd2)}</strong>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </details>
-
-        <details className="inventory-section">
-          <summary className="inventory-section__summary">
-            <div>
-              <span className="section-heading__eyebrow">Tela</span>
-              <h3>Retazos</h3>
-            </div>
-            <strong>{availableScraps.length} disponibles</strong>
-          </summary>
-          <div className="inventory-table">
-            {availableScraps.length === 0 ? (
-              <p className="history-panel__empty">No hay retazos disponibles.</p>
-            ) : (
-              availableScraps.map((fabric) => (
-                <article key={fabric.id} className="inventory-row">
-                  <div className="inventory-row__main">
-                    <strong>{fabric.code}</strong>
-                    <span>{fabric.family ? `${fabric.family} - ${fabric.color}` : fabric.color}</span>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Medida</span>
-                    <strong>
-                      {formatNumber(fabric.widthMeters)} x {formatNumber(fabric.lengthMeters)} m
-                    </strong>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Area</span>
-                    <strong>{formatNumber(fabric.widthMeters * fabric.lengthMeters)} m2</strong>
-                  </div>
-                  <div className="inventory-row__meta">
-                    <span>Costo yd2</span>
-                    <strong>${formatNumber(fabric.costPerYd2)}</strong>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </details>
+          </details>
 
         <details className="inventory-section">
           <summary className="inventory-section__summary">
@@ -464,7 +497,52 @@ export function InventoryPanel({
             ) : null}
           </div>
         </details>
+        </div>
+      )}
 
+      {activeTab === 'retazos' && (
+        <div className="inventory-sections">
+          <details className="inventory-section" open>
+            <summary className="inventory-section__summary">
+              <div>
+                <span className="section-heading__eyebrow">Tela</span>
+                <h3>Retazos</h3>
+              </div>
+              <strong>{availableScraps.length} disponibles</strong>
+            </summary>
+            <div className="inventory-table">
+              {availableScraps.length === 0 ? (
+                <p className="history-panel__empty">No hay retazos disponibles.</p>
+              ) : (
+                availableScraps.map((fabric) => (
+                  <article key={fabric.id} className="inventory-row">
+                    <div className="inventory-row__main">
+                      <strong>{fabric.code}</strong>
+                      <span>{fabric.family ? `${fabric.family} - ${fabric.color}` : fabric.color}</span>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Medida</span>
+                      <strong>
+                        {formatNumber(fabric.widthMeters)} x {formatNumber(fabric.lengthMeters)} m
+                      </strong>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Area</span>
+                      <strong>{formatNumber(fabric.widthMeters * fabric.lengthMeters)} m2</strong>
+                    </div>
+                    <div className="inventory-row__meta">
+                      <span>Costo yd2</span>
+                      <strong>${formatNumber(fabric.costPerYd2)}</strong>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </details>
+        </div>
+      )}
+
+      {activeTab === 'resumen' && (
         <div className="inventory-page__grid inventory-page__grid--aside">
           <Card className="inventory-card">
             <span className="section-heading__eyebrow">Control</span>
@@ -501,7 +579,7 @@ export function InventoryPanel({
             </div>
           </details>
         </div>
-      </div>
+      )}
     </section>
   );
 }

@@ -128,6 +128,11 @@ export function getRollerFabricVariants(
     .sort((left, right) => left.widthMeters - right.widthMeters);
 }
 
+export function getAvailableWidths(family: string, openness: string, color: string): number[] {
+  const variants = getRollerFabricVariants(family, openness, color);
+  return [...new Set(variants.map((v) => v.widthMeters))].sort((a, b) => a - b);
+}
+
 export function getRollerFabricSelectionDefaults() {
   const family = getRollerFabricFamilies()[0] ?? '';
   const openness = family ? getRollerFabricOpennessOptions(family)[0] ?? '' : '';

@@ -42,7 +42,6 @@ export async function importSavedOrdersFile(file: File): Promise<SavedOrder[]> {
     .filter(isSavedOrderLike)
     .map((order) => ({
       ...order,
-      customerName: typeof order.customerName === 'string' ? order.customerName : '',
       items: Array.isArray(order.items) ? order.items : [],
     }));
 }

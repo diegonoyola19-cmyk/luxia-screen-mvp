@@ -8,7 +8,6 @@ interface OrderPanelProps {
   order: OrderDraft;
   currentWastePieces: WastePiece[];
   savedWastePieces: WastePiece[];
-  onCustomerNameChange: (value: string) => void;
   onRemoveItem: (id: string) => void;
   onClearOrder: () => void;
   onSaveOrder: () => void;
@@ -28,7 +27,6 @@ export function OrderPanel({
   order,
   currentWastePieces,
   savedWastePieces,
-  onCustomerNameChange,
   onRemoveItem,
   onClearOrder,
   onSaveOrder,
@@ -54,17 +52,6 @@ export function OrderPanel({
         </Button>
       </div>
 
-      <div className="order-form-grid order-form-grid--single">
-        <label className="field">
-          <span>Cliente o referencia</span>
-          <input
-            type="text"
-            value={order.customerName}
-            placeholder="Oficina central"
-            onChange={(event) => onCustomerNameChange(event.target.value)}
-          />
-        </label>
-      </div>
 
       <div className="mini-metrics-grid">
         <MiniMetric label="Cortinas" value={String(totals.curtains)} />

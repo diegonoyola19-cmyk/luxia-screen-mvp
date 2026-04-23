@@ -5,33 +5,12 @@ import type {
   ScreenRuleConfigFormValues,
 } from '../../../domain/curtains/types';
 
-interface RulesPanelProps {
-  values: ScreenRuleConfigFormValues;
-  errors: ScreenRuleConfigErrors;
-  onChange: (field: keyof ScreenRuleConfigFormValues, value: string) => void;
-  onFixedComponentChange: (index: number, value: string) => void;
-  onFixedComponentQuantityChange: (index: number, value: string) => void;
-  onFixedComponentUnitChange: (index: number, value: string) => void;
-  onFixedComponentCostChange: (index: number, value: string) => void;
-  onAddFixedComponent: () => void;
-  onRemoveFixedComponent: (index: number) => void;
-  onSave: () => void;
-  onReset: () => void;
-}
-
-export function RulesPanel({
-  values,
-  errors,
-  onChange,
-  onFixedComponentChange,
-  onFixedComponentQuantityChange,
-  onFixedComponentUnitChange,
-  onFixedComponentCostChange,
-  onAddFixedComponent,
-  onRemoveFixedComponent,
-  onSave,
-  onReset,
-}: RulesPanelProps) {
+import { useCalculatorStore } from '../store/useCalculatorStore';
+export function RulesPanel() {
+  const store = useCalculatorStore();
+  const values = store.ruleFormValues;
+  const errors = store.ruleErrors;
+  
   return (
     <Card className="rules-panel">
       <div className="results-header">
@@ -54,7 +33,7 @@ export function RulesPanel({
             step="0.01"
             value={values.cutHeightExtraMeters}
             onChange={(event) =>
-              onChange('cutHeightExtraMeters', event.target.value)
+              store.handleRuleChange('cutHeightExtraMeters', event.target.value)
             }
           />
           {errors.cutHeightExtraMeters ? (
@@ -69,7 +48,7 @@ export function RulesPanel({
             min="0"
             step="0.01"
             value={values.maxWidthMeters}
-            onChange={(event) => onChange('maxWidthMeters', event.target.value)}
+            onChange={(event) => store.handleRuleChange('maxWidthMeters', event.target.value)}
           />
           {errors.maxWidthMeters ? (
             <small className="field__error">{errors.maxWidthMeters}</small>
@@ -83,7 +62,7 @@ export function RulesPanel({
             min="0"
             step="0.01"
             value={values.chainMultiplier}
-            onChange={(event) => onChange('chainMultiplier', event.target.value)}
+            onChange={(event) => store.handleRuleChange('chainMultiplier', event.target.value)}
           />
           {errors.chainMultiplier ? (
             <small className="field__error">{errors.chainMultiplier}</small>
@@ -97,7 +76,7 @@ export function RulesPanel({
             min="0"
             step="0.01"
             value={values.smallRollMeters}
-            onChange={(event) => onChange('smallRollMeters', event.target.value)}
+            onChange={(event) => store.handleRuleChange('smallRollMeters', event.target.value)}
           />
           {errors.smallRollMeters ? (
             <small className="field__error">{errors.smallRollMeters}</small>
@@ -111,13 +90,12 @@ export function RulesPanel({
             min="0"
             step="0.01"
             value={values.largeRollMeters}
-            onChange={(event) => onChange('largeRollMeters', event.target.value)}
+            onChange={(event) => store.handleRuleChange('largeRollMeters', event.target.value)}
           />
           {errors.largeRollMeters ? (
             <small className="field__error">{errors.largeRollMeters}</small>
           ) : null}
         </label>
-
       </div>
 
       <div className="field field--components">
@@ -129,7 +107,7 @@ export function RulesPanel({
               para que no robe espacio visual a la calculadora.
             </p>
           </div>
-          <Button type="button" variant="ghost" onClick={onAddFixedComponent}>
+          <Button type="button" variant="ghost" onClick={store.handleAddFixedComponent}>
             Agregar
           </Button>
         </div>
@@ -146,7 +124,7 @@ export function RulesPanel({
                 value={component.quantity}
                 placeholder="Cant."
                 onChange={(event) =>
-                  onFixedComponentQuantityChange(index, event.target.value)
+                  store.handleFixedComponentQuantityChange(index, event.target.value)
                 }
               />
               <input
@@ -154,7 +132,7 @@ export function RulesPanel({
                 value={component.name}
                 placeholder="Nombre del componente"
                 onChange={(event) =>
-                  onFixedComponentChange(index, event.target.value)
+                  store.handleFixedComponentChange(index, event.target.value)
                 }
               />
               <input
@@ -162,7 +140,7 @@ export function RulesPanel({
                 value={component.unit}
                 placeholder="Unidad"
                 onChange={(event) =>
-                  onFixedComponentUnitChange(index, event.target.value)
+                  store.handleFixedComponentUnitChange(index, event.target.value)
                 }
               />
               <input
@@ -172,13 +150,13 @@ export function RulesPanel({
                 value={component.cost}
                 placeholder="Costo"
                 onChange={(event) =>
-                  onFixedComponentCostChange(index, event.target.value)
+                  store.handleFixedComponentCostChange(index, event.target.value)
                 }
               />
               <Button
                 type="button"
                 variant="danger"
-                onClick={() => onRemoveFixedComponent(index)}
+                onClick={() => store.handleRemoveFixedComponent(index)}
                 disabled={values.fixedComponents.length <= 1}
               >
                 Eliminar
@@ -195,10 +173,10 @@ export function RulesPanel({
       {errors.general ? <div className="alert alert--error">{errors.general}</div> : null}
 
       <div className="button-row">
-        <Button type="button" onClick={onSave}>
+        <Button type="button" onClick={store.saveRules}>
           Guardar reglas
         </Button>
-        <Button type="button" variant="secondary" onClick={onReset}>
+        <Button type="button" variant="secondary" onClick={store.resetRules}>
           Restaurar valores base
         </Button>
       </div>

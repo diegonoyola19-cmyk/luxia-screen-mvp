@@ -1,4 +1,8 @@
-import { DEFAULT_SCREEN_RULE_CONFIG } from './constants';
+import { 
+  DEFAULT_SCREEN_RULE_CONFIG, 
+  FEET_PER_METER, 
+  YARD2_PER_M2
+} from './constants';
 import type {
   CalculationInput,
   CalculationResult,
@@ -8,10 +12,10 @@ import type {
   ScreenValidationErrors,
   WastePiece,
   WasteReuseMatch,
+  ProductionBatchItem,
+  BatchCalculationResult,
 } from './types';
 
-const FEET_PER_METER = 3.28084;
-const YARD2_PER_M2 = 1.19599;
 const LINEAR_DISCOUNT_METERS = 0.03;
 
 export function validateScreenInput(
@@ -141,26 +145,31 @@ interface ScreenCalculationOption {
   orientationUsed: 'normal' | 'volteada';
   recommendedRollWidthMeters: number;
   cutLengthMeters: number;
+  cutWidthMeters: number;
   occupiedRollWidthMeters: number;
 }
 
 function buildCalculationOption(
   input: CalculationInput,
   config: ScreenRuleConfig,
+  availableWidths: number[]
 ): ScreenCalculationOption {
+  const cutWidthMeters = input.widthMeters + 0.10;
   return {
     orientationUsed: 'normal',
-    recommendedRollWidthMeters: getRecommendedRollWidth(input.widthMeters, config),
-    cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters,
-    occupiedRollWidthMeters: input.widthMeters,
+    recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
+    cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
+    cutWidthMeters,
+    occupiedRollWidthMeters: cutWidthMeters,
   };
 }
 
 function pickBestOption(
   input: CalculationInput,
   config: ScreenRuleConfig,
+  availableWidths: number[]
 ): ScreenCalculationOption {
-  const options = getCalculationOptions(input, config);
+  const options = getCalculationOptions(input, config, availableWidths);
 
   if (options.length === 0) {
     throw new Error('No hay una orientacion valida para estas medidas.');
@@ -190,28 +199,86 @@ function pickBestOption(
 function getCalculationOptions(
   input: CalculationInput,
   config: ScreenRuleConfig,
+  availableWidths: number[]
 ): ScreenCalculationOption[] {
-  return [buildCalculationOption(input, config)];
+  return [buildCalculationOption(input, config, availableWidths)];
 }
 
-export function getRecommendedRollWidth(
-  widthMeters: number,
-  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+export function selectRollo(
+  cutWidthMeters: number,
+  availableWidths: number[]
 ): number {
-  if (widthMeters <= config.smallRollMeters) {
-    return config.smallRollMeters;
+  const valid = availableWidths
+    .filter((w) => w >= cutWidthMeters)
+    .sort((a, b) => a - b);
+
+  if (valid.length === 0) {
+    throw new Error('No hay rollo disponible para este ancho con la tela seleccionada');
   }
 
-  if (widthMeters <= config.largeRollMeters) {
-    return config.largeRollMeters;
+  return valid[0];
+}
+
+export function calculateBatchMaterials(
+  items: ProductionBatchItem[],
+  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  availableWidths: number[] = [2.5, 3.0]
+): BatchCalculationResult {
+  if (items.length === 0) {
+    throw new Error('Batch vacio');
   }
 
-  throw new Error('El ancho excede el rollo maximo permitido para Screen.');
+  let totalCutWidthMeters = 0;
+  let maxCutLengthMeters = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const cutWidth = item.input.widthMeters + 0.10; // Encuadre base
+    const cutLength = item.input.heightMeters + config.cutHeightExtraMeters + 0.10; // Encuadre base
+
+    totalCutWidthMeters += cutWidth;
+    if (i > 0) {
+      totalCutWidthMeters += 0.05; // 5 cm de separacion entre piezas
+    }
+
+    if (cutLength > maxCutLengthMeters) {
+      maxCutLengthMeters = cutLength;
+    }
+  }
+
+  let recommendedRollWidthMeters = 0;
+  let error: string | undefined;
+
+  try {
+    recommendedRollWidthMeters = selectRollo(totalCutWidthMeters, availableWidths);
+  } catch {
+    error = 'Ancho excedido para esta tela';
+  }
+
+  const fabricDownloadedM2 = recommendedRollWidthMeters * maxCutLengthMeters;
+  const fabricUsefulM2 = totalCutWidthMeters * maxCutLengthMeters;
+  const wasteM2 = fabricDownloadedM2 - fabricUsefulM2;
+
+  const fabricDownloadedYd2 = fabricDownloadedM2 * YARD2_PER_M2;
+  const wasteYd2 = wasteM2 * YARD2_PER_M2;
+
+  return {
+    fabricFamily: items[0].input.fabricFamily,
+    fabricColor: items[0].input.fabricColor,
+    items,
+    totalCutWidthMeters,
+    maxCutLengthMeters,
+    recommendedRollWidthMeters,
+    fabricDownloadedYd2,
+    wasteYd2,
+    error
+  };
 }
 
 export function calculateScreenMaterials(
   input: CalculationInput,
   config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  availableWidths: number[] = [2.5, 3.0]
 ): CalculationResult {
   const validationErrors = validateScreenInput(input, config);
 
@@ -226,7 +293,7 @@ export function calculateScreenMaterials(
     throw new Error(firstErrorMessage);
   }
 
-  const selectedOption = pickBestOption(input, config);
+  const selectedOption = pickBestOption(input, config, availableWidths);
   const wasteWidthMeters =
     selectedOption.recommendedRollWidthMeters - selectedOption.occupiedRollWidthMeters;
   const tubeMeters = Math.max(input.widthMeters - LINEAR_DISCOUNT_METERS, 0);
@@ -245,6 +312,7 @@ export function calculateScreenMaterials(
     orientationUsed: selectedOption.orientationUsed,
     recommendedRollWidthMeters: selectedOption.recommendedRollWidthMeters,
     cutLengthMeters: selectedOption.cutLengthMeters,
+    cutWidthMeters: selectedOption.cutWidthMeters,
     occupiedRollWidthMeters: selectedOption.occupiedRollWidthMeters,
     wasteWidthMeters,
     wastePieceWidthMeters: wasteWidthMeters,
@@ -277,8 +345,9 @@ export function findReusableWasteMatches(
   wastePieces: WastePiece[],
   marginMeters: number,
   config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  availableWidths: number[] = [2.5, 3.0]
 ): WasteReuseMatch[] {
-  const options = getCalculationOptions(input, config);
+  const options = getCalculationOptions(input, config, availableWidths);
 
   return wastePieces
     .map((wastePiece) => {
@@ -308,4 +377,11 @@ export function findReusableWasteMatches(
     })
     .filter((match): match is WasteReuseMatch => match !== null)
     .sort((left, right) => left.wastePiece.areaM2 - right.wastePiece.areaM2);
+}
+
+export function calcularDescargoRetazo(requerido: number, retazo: number) {
+  const alcanza = retazo >= requerido;
+  const merma = alcanza ? retazo - requerido : 0;
+  const descargar = alcanza ? retazo : 0;
+  return { alcanza, merma, descargar };
 }

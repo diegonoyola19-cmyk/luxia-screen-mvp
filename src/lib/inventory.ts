@@ -388,11 +388,16 @@ export function applyOrderToInventory(
       itemLabel: `Orden ${order.orderNumber}`,
       quantity: order.items.length,
       unit: 'cortinas',
-      notes: order.customerName || 'Produccion',
+      notes: order.orderNumber || 'Produccion',
     },
   ];
 
   order.items.forEach((item) => {
+    const consumedLinearMeters =
+      item.result.recommendedRollWidthMeters > 0
+        ? item.result.fabricDownloadedM2 / item.result.recommendedRollWidthMeters
+        : item.result.cutLengthMeters;
+
     if (item.reusedWastePiece?.id) {
       const fabricIndex = nextInventory.fabrics.findIndex(
         (fabric) => fabric.id === item.reusedWastePiece?.id,
@@ -426,7 +431,7 @@ export function applyOrderToInventory(
             fabric.status === 'available' &&
             fabric.kind === 'roll' &&
             fabric.widthMeters === item.result.recommendedRollWidthMeters &&
-            fabric.lengthMeters >= item.result.cutLengthMeters,
+            fabric.lengthMeters >= consumedLinearMeters,
         )
         .sort((left, right) => left.lengthMeters - right.lengthMeters);
       const candidate =
@@ -435,7 +440,7 @@ export function applyOrderToInventory(
 
       if (candidate) {
         const index = nextInventory.fabrics.findIndex((fabric) => fabric.id === candidate.id);
-        const remainingLength = candidate.lengthMeters - item.result.cutLengthMeters;
+        const remainingLength = candidate.lengthMeters - consumedLinearMeters;
 
         nextInventory.fabrics[index] = {
           ...candidate,
@@ -453,7 +458,7 @@ export function applyOrderToInventory(
           itemLabel: item.result.selectedFabric
             ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
             : `${candidate.color} rollo ${candidate.widthMeters.toFixed(2)} m`,
-          quantity: item.result.cutLengthMeters,
+          quantity: consumedLinearMeters,
           unit: 'm lineales',
           notes: item.result.selectedFabric
             ? `${item.result.selectedFabric.itemCode} - ${item.title} - ancho de tela ${item.result.recommendedRollWidthMeters.toFixed(2)} m.`

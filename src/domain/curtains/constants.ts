@@ -5,6 +5,16 @@ import type {
   ScreenRuleConfigFormValues,
 } from './types';
 
+export const FEET_PER_METER = 3.28084;
+export const YARD2_PER_M2 = 1.19599;
+
+export function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+}
+
 export const CURTAIN_OPTIONS: Array<{ value: CurtainType; label: string }> = [
   { value: 'screen', label: 'Roller' },
 ];

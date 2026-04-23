@@ -29,12 +29,30 @@ export interface SelectedFabric {
   costPerYd2: number;
 }
 
+export interface ProductionBatchItem {
+  id: string;
+  input: CalculationInput;
+}
+
+export interface BatchCalculationResult {
+  fabricFamily: string;
+  fabricColor: string;
+  items: ProductionBatchItem[];
+  totalCutWidthMeters: number;
+  maxCutLengthMeters: number;
+  recommendedRollWidthMeters: number;
+  fabricDownloadedYd2: number;
+  wasteYd2: number;
+  error?: string;
+}
+
 export interface CalculationResult {
   curtainType: CurtainType;
   selectedFabric: SelectedFabric | null;
   orientationUsed: 'normal' | 'volteada';
   recommendedRollWidthMeters: number;
   cutLengthMeters: number;
+  cutWidthMeters: number;
   occupiedRollWidthMeters: number;
   wasteWidthMeters: number;
   wastePieceWidthMeters: number;
@@ -98,6 +116,19 @@ export interface SavedCalculation {
   result: CalculationResult;
 }
 
+export interface SessionCalculationRecord {
+  id: string;
+  createdAt: string;
+  widthMeters: number;
+  heightMeters: number;
+  fabricFamily: string;
+  fabricOpenness: string;
+  fabricColor: string;
+  fabricLabel: string;
+  yd2: number;
+  wasteYd2: number;
+}
+
 export interface ProjectCurtainItem {
   id: string;
   createdAt: string;
@@ -114,7 +145,6 @@ export interface ProjectDraft {
 
 export interface OrderDraft {
   orderNumber: string;
-  customerName: string;
   items: ProjectCurtainItem[];
 }
 
@@ -239,4 +269,10 @@ export interface InventoryMovement {
   quantity: number;
   unit: string;
   notes?: string;
+}
+
+export interface DescargoRetazoResult {
+  alcanza: boolean;
+  merma: number;
+  descargar: number;
 }

@@ -125,13 +125,13 @@ export function saveScreenRuleConfig(config: ScreenRuleConfig) {
 
 export function loadProjectDraft(): OrderDraft {
   if (!isBrowserAvailable()) {
-    return { orderNumber: '', customerName: '', items: [] };
+    return { orderNumber: '', items: [] };
   }
 
   const rawValue = window.localStorage.getItem(STORAGE_KEYS.projectDraft);
 
   if (!rawValue) {
-    return { orderNumber: '', customerName: '', items: [] };
+    return { orderNumber: '', items: [] };
   }
 
   try {
@@ -142,18 +142,12 @@ export function loadProjectDraft(): OrderDraft {
     return {
       orderNumber:
         typeof parsedValue.orderNumber === 'string' ? parsedValue.orderNumber : '',
-      customerName:
-        typeof parsedValue.customerName === 'string'
-          ? parsedValue.customerName
-          : typeof parsedValue.name === 'string'
-            ? parsedValue.name
-            : '',
       items: Array.isArray(parsedValue.items)
         ? parsedValue.items.map(normalizeOrderItemFixedComponents)
         : [],
     };
   } catch {
-    return { orderNumber: '', customerName: '', items: [] };
+    return { orderNumber: '', items: [] };
   }
 }
 
