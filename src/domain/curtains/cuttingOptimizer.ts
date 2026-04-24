@@ -151,7 +151,7 @@ function calculateGroupStats(
     fabricFamily,
     fabricColor,
     rollWidth,
-    items: groupItems,
+    items: [...groupItems],
     totalCutWidth,
     cutHeight: maxCutHeight,
     waste,

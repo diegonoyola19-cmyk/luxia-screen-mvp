@@ -95,6 +95,17 @@ export function ProductionModule() {
     displayResult
   } = useCalculatorDerivedState();
 
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveOrder = async () => {
+    try {
+      setIsSaving(true);
+      store.saveOrder();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const [useManualRetazo, setUseManualRetazo] = useState(false);
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
 
@@ -244,13 +255,12 @@ export function ProductionModule() {
           </label>
 
           <label className="field">
-            <span>Ancho</span>
+            <span>Ancho (m)</span>
             <input
               ref={widthInputRef}
               inputMode="decimal"
-              pattern="[0-9]*"
               type="text"
-              placeholder="30 - 600 cm"
+              placeholder="1.80"
               value={store.formValues.widthMeters}
               onChange={(event) => store.setFormValue('widthMeters', event.target.value)}
               onBlur={() => store.handleFieldBlur('widthMeters')}
@@ -261,12 +271,11 @@ export function ProductionModule() {
           </label>
 
           <label className="field">
-            <span>Alto</span>
+            <span>Alto (m)</span>
             <input
               inputMode="decimal"
-              pattern="[0-9]*"
               type="text"
-              placeholder="30 - 400 cm"
+              placeholder="1.80"
               value={store.formValues.heightMeters}
               onChange={(event) => store.setFormValue('heightMeters', event.target.value)}
               onBlur={() => store.handleFieldBlur('heightMeters')}
@@ -314,6 +323,26 @@ export function ProductionModule() {
         </div>
 
         <div className="production-live-result-container">
+          {displayResult?.orientationUsed === 'volteada' && (
+            <div className="alert alert--info" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔄</span>
+              <div>
+                <strong>Fabricación Rotada (90°)</strong>
+                <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.9 }}>Esta cortina debe fabricarse girada para cumplir con las medidas.</p>
+              </div>
+            </div>
+          )}
+
+          {displayResult?.requiresReinforcedTube && (
+            <div className="alert alert--warning" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+              <div>
+                <strong>Aviso de Estructura</strong>
+                <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.9 }}>{displayResult.tubeRecommendation}</p>
+              </div>
+            </div>
+          )}
+
           <div className="production-live-result">
             <article className="production-live-result__metric">
               <span>Alto corte</span>
@@ -587,231 +616,64 @@ export function ProductionModule() {
       </Card>
 
       <Card className="production-module__order">
-        <div className="production-order-dashboard">
-          <div className="production-order-dashboard__hero">
-            <div className="production-order-dashboard__hero-main">
-              <span className="section-heading__eyebrow production-order-dashboard__eyebrow">
-                Orden actual
-              </span>
-              <div className="production-order-dashboard__title-row">
-                <div>
-                  <h2 className="production-order-dashboard__title">
-                    {store.orderDraft.orderNumber || 'Sin numero de orden'}
-                  </h2>
-                  <p className="production-order-dashboard__subtitle">
-                    {pendingSummary.curtains} cortina{pendingSummary.curtains !== 1 ? 's' : ''} en{' '}
-                    {pendingSummary.cuts} corte{pendingSummary.cuts !== 1 ? 's' : ''}
-                    {pendingSummary.blockedCuts > 0
-                      ? ` · ${pendingSummary.blockedCuts} pendiente${pendingSummary.blockedCuts !== 1 ? 's' : ''} de ajuste`
-                      : ' · listo para guardar'}
-                  </p>
-                </div>
-                <div className="production-order-dashboard__status">
-                  <span>Estado</span>
-                  <strong>{canSaveOrder ? 'Estable' : 'En armado'}</strong>
-                </div>
-              </div>
-            </div>
-
+        <div className="production-order-compact-header">
+          <div>
+            <strong>{store.orderDraft.orderNumber || "OC-PENDIENTE"}</strong>
+            <span className="production-order-status">{canSaveOrder ? 'ESTABLE' : 'EN ARMADO'}</span>
           </div>
 
-          <div className="production-order-dashboard__metrics">
-            <article className="production-order-kpi production-order-kpi--accent">
-              <span>Piezas en cola</span>
-              <strong>{pendingSummary.curtains}</strong>
-              <small>Cortinas listas para este lote</small>
-            </article>
-            <article className="production-order-kpi">
-              <span>Cortes activos</span>
-              <strong>{pendingSummary.validCuts}</strong>
-              <small>{pendingSummary.cuts} cortes calculados</small>
-            </article>
-            <article className="production-order-kpi">
-              <span>Eficiencia</span>
-              <strong>{formatNumber(pendingSummary.efficiency)} %</strong>
-              <small>Aprovechamiento lateral del rollo</small>
-            </article>
-            <article className="production-order-kpi">
-              <span>Merma total</span>
-              <strong>{formatNumber(pendingSummary.totalWasteMeters)} m</strong>
-              <small>Solo cortes válidos del lote</small>
-            </article>
-          </div>
+          <p>
+            {pendingSummary.curtains} cortinas · {store.cuttingGroups.length} cortes · {pendingSummary.efficiency.toFixed(2)}% efic · {pendingSummary.totalWasteMeters.toFixed(2)}m merma
+          </p>
         </div>
 
-        {store.itemsAProducir.length === 0 ? (
-          <p className="production-module__empty">Agrega cortinas usando el botón "Agregar a Lote".</p>
-        ) : (
-          <div className="production-cut-list">
-            <AnimatePresence>
-              {store.cuttingGroups.map((group, groupIdx) => (
-                <motion.article
-                  key={group.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  transition={{ duration: 0.2 }}
-                  layout
-                  className={[
-                    'production-cut-card',
-                    group.error ? 'production-cut-card--error' : '',
-                    `production-cut-card--${getWasteTone(group.waste)}`,
-                  ].join(' ')}
-                >
-                  <div className="production-cut-card__header">
-                    <div className="production-cut-card__identity">
-                      <span className="production-cut-card__eyebrow">
-                        Corte #{groupIdx + 1}
-                      </span>
-                      <div className="production-cut-card__title-row">
-                        <span
-                          className="production-cut-card__swatch"
-                          style={{ backgroundColor: getFabricSwatchColor(group.fabricColor) }}
-                        />
-                        <div>
-                          <strong>{group.fabricFamily}</strong>
-                          <p>{group.fabricColor}</p>
-                        </div>
-                      </div>
+        <div className="production-order-content-area" style={{ marginTop: '14px' }}>
+          {store.itemsAProducir.length === 0 ? (
+            <p className="production-module__empty">Agrega cortinas usando el botón "Agregar a Lote".</p>
+          ) : (
+          <>
+            <div className="production-cuts-table">
+              {store.cuttingGroups.map((cut, index) => (
+                <div className="production-cut-row" key={cut.id}>
+                  <div className="production-cut-row-main">
+                    <strong>Corte #{index + 1}</strong>
+                    <span>Rollo: {cut.rollWidth.toFixed(2)}m</span>
+                    <span>Usado: {cut.totalCutWidth.toFixed(2)}m</span>
+                    <span>Alto: {cut.cutHeight.toFixed(2)}m</span>
+                    <span>Piezas: {cut.items.length}</span>
+                    <span>Merma: {cut.waste.toFixed(2)}m · {getWasteLabel(getWasteTone(cut.waste))}</span>
+
+                    <div className="production-cut-row-bar">
+                      <div style={{ width: `${Math.min((cut.waste / Math.max(cut.rollWidth, 0.01)) * 100, 100)}%` }} />
                     </div>
-
-                    {group.error ? (
-                      <span className="production-cut-card__flag production-cut-card__flag--error">
-                        {group.error}
-                      </span>
-                    ) : (
-                      <span className="production-cut-card__flag">
-                        Rollo {formatNumber(group.rollWidth)} m
-                      </span>
-                    )}
                   </div>
 
-                  <div className="production-cut-card__stats">
-                    <article className="production-cut-stat">
-                      <span>Rollo</span>
-                      <strong>{formatNumber(group.rollWidth)} m</strong>
-                    </article>
-                    <article className="production-cut-stat">
-                      <span>Ancho usado</span>
-                      <strong>{formatNumber(group.totalCutWidth)} m</strong>
-                    </article>
-                    <article className="production-cut-stat">
-                      <span>Alto de corte</span>
-                      <strong>{formatNumber(group.cutHeight)} m</strong>
-                    </article>
-                    <article className="production-cut-stat">
-                      <span>Piezas</span>
-                      <strong>{group.items.length}</strong>
-                    </article>
-                  </div>
-
-                  <div className="production-cut-card__body">
-                    {group.items.map((item, itemIdx) => (
-                      <div
-                        key={item.id}
-                        className="production-cut-piece"
-                      >
-                        <div className="production-cut-piece__main">
-                          <span className="production-cut-piece__index">
-                            #{itemIdx + 1}
-                          </span>
-                          <div className="production-cut-piece__copy">
-                            <strong>
-                            {formatNumber(item.input.widthMeters)} x {formatNumber(item.input.heightMeters)} m
-                          </strong>
-                          <small>
-                            (corte {formatNumber(item.input.widthMeters + 0.10)} x{' '}
-                              {formatNumber(item.input.heightMeters + store.ruleConfig.cutHeightExtraMeters + 0.10)} m
-                            )
-                          </small>
-                        </div>
-                      </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="production-cut-piece__action"
-                          onClick={() => handleRemoveFromBatch(item.id)}
-                        >
-                          Quitar
-                        </Button>
+                  <div className="production-cut-row-items">
+                    {cut.items.map((item, itemIndex) => (
+                      <div className="production-cut-row-item" key={item.id}>
+                        <b>#{itemIndex + 1}</b>
+                        <span>{item.input.widthMeters.toFixed(2)} × {item.input.heightMeters.toFixed(2)}m</span>
+                        <small>Corte {(item.input.widthMeters + 0.10).toFixed(2)} × {(item.input.heightMeters + store.ruleConfig.cutHeightExtraMeters + 0.10).toFixed(2)}m</small>
+                        <button type="button" onClick={() => handleRemoveFromBatch(item.id)}>Quitar</button>
                       </div>
                     ))}
                   </div>
-                  
-                  {!group.error ? (
-                    <div className="production-cut-card__footer">
-                      <div className="production-cut-card__waste">
-                        <div className="production-cut-card__waste-copy">
-                          <span>△ Merma lateral</span>
-                          <strong>{formatNumber(group.waste)} m</strong>
-                          <small>{getWasteLabel(getWasteTone(group.waste))}</small>
-                        </div>
-                        <div className="production-cut-card__waste-bar">
-                          <span
-                            className={[
-                              'production-cut-card__waste-fill',
-                              `production-cut-card__waste-fill--${getWasteTone(group.waste)}`,
-                            ].join(' ')}
-                            style={{
-                              width: `${Math.min((group.waste / Math.max(group.rollWidth, 0.01)) * 100, 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {group.items.length > 1 ? (
-                        <div className="production-cut-card__footer-badge">
-                          ✓ Optimizado
-                        </div>
-                      ) : (
-                        <div className="production-cut-card__footer-badge production-cut-card__footer-badge--muted">
-                          Aprovechado {formatNumber(group.rollWidth === 0 ? 0 : (group.totalCutWidth / group.rollWidth) * 100)} %
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="production-cut-card__footer production-cut-card__footer--error">
-                      Revisa el ancho combinado de este corte o separa las piezas en otro lote.
-                    </div>
-                  )}
-                </motion.article>
+                </div>
               ))}
-            </AnimatePresence>
-          </div>
-        )}
+            </div>
 
-        <div className="production-order-sticky-bar">
-          <div className="production-order-sticky-bar__metrics">
-            <article className="production-order-sticky-metric">
-              <span>Total cortinas</span>
-              <strong>{pendingSummary.curtains}</strong>
-            </article>
-            <article className="production-order-sticky-metric">
-              <span>Total Y2</span>
-              <strong>{formatNumber(pendingSummary.totalYd2)} yd2</strong>
-            </article>
-            <article className="production-order-sticky-metric">
-              <span>Total merma</span>
-              <strong>{formatNumber(pendingSummary.totalWasteMeters)} m</strong>
-            </article>
-          </div>
+            <div className="production-order-footer-compact">
+              <span><b>{pendingSummary.curtains}</b> cortinas</span>
+              <span><b>{pendingSummary.totalYd2.toFixed(2)}</b> yd²</span>
+              <span><b>{pendingSummary.totalWasteMeters.toFixed(2)}</b> m merma</span>
 
-          <div className="production-module__order-actions production-module__order-actions--dashboard">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => store.itemsAProducir.forEach((item) => store.removeProductionItem(item.id))}
-              disabled={store.itemsAProducir.length === 0}
-            >
-              Vaciar
-            </Button>
-            <span title={saveDisabledReason || undefined} className="production-order-sticky-bar__save-wrap">
-              <Button type="button" onClick={store.saveOrder} disabled={!canSaveOrder} aria-label={saveDisabledReason || 'Guardar orden'}>
-                Guardar orden
+              <Button variant="secondary" onClick={() => store.clearOrder()} disabled={isSaving}>Vaciar</Button>
+              <Button variant="primary" onClick={handleSaveOrder} disabled={!canSaveOrder || isSaving}>
+                {isSaving ? 'Guardando...' : 'Guardar orden'}
               </Button>
-            </span>
-          </div>
+            </div>
+          </>
+        )}
         </div>
       </Card>
     </section>

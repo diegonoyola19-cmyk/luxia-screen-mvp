@@ -76,6 +76,8 @@ export interface CalculationResult {
   fabricWasteCost: number;
   fabricSavingsCost: number;
   fixedComponents: ScreenFixedComponent[];
+  requiresReinforcedTube: boolean;
+  tubeRecommendation?: string;
 }
 
 export interface WastePiece {

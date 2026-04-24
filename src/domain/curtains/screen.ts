@@ -17,6 +17,8 @@ import type {
 } from './types';
 
 const LINEAR_DISCOUNT_METERS = 0.03;
+const MAX_TUBE_WIDTH = 5.79;
+const REINFORCED_TUBE_THRESHOLD = 3.0;
 
 export function validateScreenInput(
   input: Partial<CalculationInput>,
@@ -44,9 +46,8 @@ export function validateScreenInput(
     errors.widthMeters = 'Ingresa el ancho terminado en metros.';
   } else if (input.widthMeters <= 0) {
     errors.widthMeters = 'El ancho debe ser mayor que cero.';
-  } else if (input.widthMeters > config.maxWidthMeters) {
-    errors.widthMeters =
-      `El ancho maximo permitido para Screen es ${config.maxWidthMeters.toFixed(2)} m.`;
+  } else if (input.widthMeters > MAX_TUBE_WIDTH) {
+    errors.widthMeters = `Excede el ancho maximo de tubo (19 ft / ${MAX_TUBE_WIDTH} m).`;
   }
 
   if (input.heightMeters === undefined || Number.isNaN(input.heightMeters)) {
@@ -152,16 +153,29 @@ interface ScreenCalculationOption {
 function buildCalculationOption(
   input: CalculationInput,
   config: ScreenRuleConfig,
-  availableWidths: number[]
+  availableWidths: number[],
+  orientation: 'normal' | 'volteada'
 ): ScreenCalculationOption {
-  const cutWidthMeters = input.widthMeters + 0.10;
-  return {
-    orientationUsed: 'normal',
-    recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
-    cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
-    cutWidthMeters,
-    occupiedRollWidthMeters: cutWidthMeters,
-  };
+  if (orientation === 'normal') {
+    const cutWidthMeters = input.widthMeters + 0.10;
+    return {
+      orientationUsed: 'normal',
+      recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
+      cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
+      cutWidthMeters,
+      occupiedRollWidthMeters: cutWidthMeters,
+    };
+  } else {
+    // Volteada: El alto (con extra) se acomoda al ancho del rollo
+    const cutWidthMeters = input.heightMeters + config.cutHeightExtraMeters + 0.10;
+    return {
+      orientationUsed: 'volteada',
+      recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
+      cutLengthMeters: input.widthMeters + 0.10,
+      cutWidthMeters,
+      occupiedRollWidthMeters: cutWidthMeters,
+    };
+  }
 }
 
 function pickBestOption(
@@ -175,25 +189,23 @@ function pickBestOption(
     throw new Error('No hay una orientacion valida para estas medidas.');
   }
 
-  return options.reduce((best, current) => {
-    const bestDownloadedArea =
-      best.recommendedRollWidthMeters * best.cutLengthMeters;
-    const currentDownloadedArea =
-      current.recommendedRollWidthMeters * current.cutLengthMeters;
+  const normalOption = options.find(o => o.orientationUsed === 'normal');
+  const volteadaOption = options.find(o => o.orientationUsed === 'volteada');
 
-    if (currentDownloadedArea < bestDownloadedArea) {
-      return current;
+  // Si ambas son validas
+  if (normalOption && volteadaOption) {
+    // 1. Si Volteada permite un rollo mas pequeño, es mas eficiente en costo
+    if (volteadaOption.recommendedRollWidthMeters < normalOption.recommendedRollWidthMeters) {
+      return volteadaOption;
     }
+    
+    // 2. Si usan el mismo rollo (o Normal usa uno menor, raro pero posible), 
+    // preferimos siempre Normal por el hilo de la tela.
+    return normalOption;
+  }
 
-    if (
-      currentDownloadedArea === bestDownloadedArea &&
-      current.orientationUsed === 'normal'
-    ) {
-      return current;
-    }
-
-    return best;
-  });
+  // Si solo hay una valida, retornar esa
+  return options[0];
 }
 
 function getCalculationOptions(
@@ -201,7 +213,23 @@ function getCalculationOptions(
   config: ScreenRuleConfig,
   availableWidths: number[]
 ): ScreenCalculationOption[] {
-  return [buildCalculationOption(input, config, availableWidths)];
+  const options: ScreenCalculationOption[] = [];
+
+  // Intenta Normal
+  try {
+    options.push(buildCalculationOption(input, config, availableWidths, 'normal'));
+  } catch {
+    // No cabe normal
+  }
+
+  // Intenta Volteada
+  try {
+    options.push(buildCalculationOption(input, config, availableWidths, 'volteada'));
+  } catch {
+    // No cabe volteada
+  }
+
+  return options;
 }
 
 export function selectRollo(
@@ -306,6 +334,11 @@ export function calculateScreenMaterials(
     selectedOption.occupiedRollWidthMeters * selectedOption.cutLengthMeters;
   const wasteM2 = fabricDownloadedM2 - fabricUsefulM2;
 
+  const requiresReinforcedTube = input.widthMeters > REINFORCED_TUBE_THRESHOLD;
+  const tubeRecommendation = requiresReinforcedTube 
+    ? "Requiere tubo reforzado. Producción debe definir si corresponde tubo de 45 mm o 63 mm." 
+    : undefined;
+
   return {
     curtainType: input.curtainType,
     selectedFabric: null,
@@ -337,6 +370,8 @@ export function calculateScreenMaterials(
     fabricWasteCost: 0,
     fabricSavingsCost: 0,
     fixedComponents: config.fixedComponents.map(formatFixedComponent),
+    requiresReinforcedTube,
+    tubeRecommendation,
   };
 }
 
