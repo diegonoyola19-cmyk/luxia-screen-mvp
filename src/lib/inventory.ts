@@ -8,6 +8,7 @@ import type {
   SavedOrder,
   ScreenFixedComponent,
   ScreenRuleConfig,
+  BaseRuleConfig,
 } from '../domain/curtains/types';
 
 const FEET_PER_METER = 3.28084;
@@ -368,7 +369,7 @@ function matchesSelectedFabric(
 export function applyOrderToInventory(
   inventory: ProductionInventory,
   order: SavedOrder,
-  ruleConfig: ScreenRuleConfig,
+  ruleConfig: BaseRuleConfig,
 ): { inventory: ProductionInventory; movements: InventoryMovement[] } {
   let nextInventory: ProductionInventory = {
     fabrics: [...inventory.fabrics],

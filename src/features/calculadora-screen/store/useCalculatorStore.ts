@@ -6,6 +6,7 @@ import { createInventorySlice } from './slices/inventorySlice';
 import { createOrderSlice } from './slices/orderSlice';
 import { createWasteSlice } from './slices/wasteSlice';
 import { createRulesSlice } from './slices/rulesSlice';
+import { createMultiConfigSlice } from './slices/multiConfigSlice';
 import { getAvailableWidths } from '../../../lib/priceCatalog';
 
 export const useCalculatorStore = create<CalculatorStore>()((...a) => ({
@@ -15,4 +16,5 @@ export const useCalculatorStore = create<CalculatorStore>()((...a) => ({
   ...createOrderSlice(...a),
   ...createWasteSlice(...a),
   ...createRulesSlice(...a),
+  ...createMultiConfigSlice(...a),
 }));

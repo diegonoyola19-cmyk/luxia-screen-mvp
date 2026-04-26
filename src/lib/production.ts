@@ -73,24 +73,37 @@ function optimizeLinearCuts(cutsFeet: number[], stockLengthFeet: number): Linear
 function summarizeFixedComponents(items: ProjectCurtainItem[]): FixedComponentSummary[] {
   const totals = new Map<string, FixedComponentSummary>();
 
+  const addComponent = (name: string, unit: string, quantity: number, cost: number) => {
+    const key = `${name.toLowerCase()}::${unit.toLowerCase()}`;
+    const existing = totals.get(key);
+    if (existing) {
+      existing.quantity += quantity;
+      existing.totalCost += quantity * cost;
+    } else {
+      totals.set(key, { name, quantity, unit, totalCost: quantity * cost });
+    }
+  };
+
   items.forEach((item) => {
     item.result.fixedComponents.forEach((component) => {
-      const key = `${component.name.toLowerCase()}::${component.unit.toLowerCase()}`;
-      const existing = totals.get(key);
-
-      if (existing) {
-        existing.quantity += component.quantity;
-        existing.totalCost += component.quantity * component.cost;
-        return;
-      }
-
-      totals.set(key, {
-        name: component.name,
-        quantity: component.quantity,
-        unit: component.unit,
-        totalCost: component.quantity * component.cost,
-      });
+      addComponent(component.name, component.unit, component.quantity, component.cost);
     });
+
+    if (item.result.ruleComponents) {
+      const { tube, bottom, chain } = item.result.ruleComponents;
+      if (tube?.itemCode) {
+        const qty = tube.unit === 'm' ? item.result.tubeMeters : tube.unit === 'ft' ? item.result.tubeFeet : 1;
+        addComponent(tube.name || 'Tubo', tube.unit, qty, tube.cost);
+      }
+      if (bottom?.itemCode) {
+        const qty = bottom.unit === 'm' ? item.result.bottomRailMeters : bottom.unit === 'ft' ? item.result.bottomRailFeet : 1;
+        addComponent(bottom.name || 'Bottom', bottom.unit, qty, bottom.cost);
+      }
+      if (chain?.itemCode) {
+        const qty = chain.unit === 'm' ? item.result.chainMeters : chain.unit === 'ft' ? item.result.chainFeet : 1;
+        addComponent(chain.name || 'Cadena', chain.unit, qty, chain.cost);
+      }
+    }
   });
 
   return [...totals.values()].sort((left, right) => left.name.localeCompare(right.name, 'es'));
@@ -121,12 +134,19 @@ export function summarizeProduction(items: ProjectCurtainItem[]): ProductionSumm
     0,
   );
   const fixedComponentsCost = items.reduce(
-    (sum, item) =>
-      sum +
-      item.result.fixedComponents.reduce(
+    (sum, item) => {
+      let cost = item.result.fixedComponents.reduce(
         (componentSum, component) => componentSum + component.quantity * component.cost,
         0,
-      ),
+      );
+      if (item.result.ruleComponents) {
+        const { tube, bottom, chain } = item.result.ruleComponents;
+        if (tube?.itemCode) cost += (tube.unit === 'm' ? item.result.tubeMeters : tube.unit === 'ft' ? item.result.tubeFeet : 1) * tube.cost;
+        if (bottom?.itemCode) cost += (bottom.unit === 'm' ? item.result.bottomRailMeters : bottom.unit === 'ft' ? item.result.bottomRailFeet : 1) * bottom.cost;
+        if (chain?.itemCode) cost += (chain.unit === 'm' ? item.result.chainMeters : chain.unit === 'ft' ? item.result.chainFeet : 1) * chain.cost;
+      }
+      return sum + cost;
+    },
     0,
   );
   const chainFeet = items.reduce((sum, item) => sum + item.result.chainFeet, 0);

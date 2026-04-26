@@ -17,8 +17,8 @@ const InventoryPanel = lazy(async () => {
   return { default: module.InventoryPanel };
 });
 const RulesPanel = lazy(async () => {
-  const module = await import('./components/RulesPanel');
-  return { default: module.RulesPanel };
+  const module = await import('./components/MultiProductConfigPanel');
+  return { default: module.MultiProductConfigPanel };
 });
 const SavedOrdersPanel = lazy(async () => {
   const module = await import('./components/SavedOrdersPanel');

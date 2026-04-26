@@ -110,7 +110,7 @@ export const createOrderSlice: StateCreator<
   })),
 
   saveOrder: () => {
-    const { orderDraft, itemsAProducir, cuttingGroups, productionInventory, ruleConfig } = get();
+    const { orderDraft, itemsAProducir, cuttingGroups, productionInventory, multiConfig } = get();
     const trimmedOrderNumber = orderDraft.orderNumber.trim();
 
     if (trimmedOrderNumber === '') {
@@ -169,8 +169,8 @@ export const createOrderSlice: StateCreator<
       );
       const baseResult = calculateScreenMaterials(
         batchItem.input,
-        ruleConfig,
-        availableWidths.length > 0 ? availableWidths : [ruleConfig.smallRollMeters, ruleConfig.largeRollMeters],
+        state.multiConfig.rollux,
+        availableWidths.length > 0 ? availableWidths : [state.multiConfig.rollux.smallRollMeters, state.multiConfig.rollux.largeRollMeters],
       );
       const vals = itemValues.get(batchItem.id) ?? {
         downloadedYd2: baseResult.fabricDownloadedYd2,
@@ -239,7 +239,7 @@ export const createOrderSlice: StateCreator<
     const inventoryResult = applyOrderToInventory(
       productionInventory,
       savedOrder,
-      ruleConfig,
+      multiConfig.rollux,
     );
 
     set((state) => ({

@@ -98,14 +98,14 @@ export function useCalculatorDerivedState() {
     }
 
     try {
-      store.setResult(calculateScreenMaterials(parsedFormValues as CalculationInput, store.ruleConfig, rollOptions));
+      store.setResult(calculateScreenMaterials(parsedFormValues as CalculationInput, store.multiConfig.rollux, rollOptions));
       store.setErrors((prev) => ({ ...prev, general: undefined }));
     } catch (error: any) {
       store.setResult(null);
       store.setErrors((prev) => ({ ...prev, general: error.message }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasValidDimensions, parsedFormValues, store.ruleConfig, rollOptions]);
+  }, [hasValidDimensions, parsedFormValues, store.multiConfig.rollux, rollOptions]);
 
   const savedWastePieces = useMemo(() => {
     const usedWastePieceIds = collectUsedWastePieceIds(store.orderDraft);
@@ -139,10 +139,10 @@ export function useCalculatorDerivedState() {
       parsedFormValues as CalculationInput,
       savedWastePieces,
       DEFAULT_WASTE_REUSE_MARGIN_METERS,
-      store.ruleConfig,
+      store.multiConfig.rollux,
       rollOptions
     );
-  }, [parsedFormValues, store.result, store.ruleConfig, savedWastePieces, rollOptions]);
+  }, [parsedFormValues, store.result, store.multiConfig.rollux, savedWastePieces, rollOptions]);
 
   useEffect(() => {
     if (!store.result) {

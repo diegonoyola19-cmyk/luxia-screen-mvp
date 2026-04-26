@@ -3,6 +3,10 @@ import type {
   CurtainType,
   ScreenRuleConfig,
   ScreenRuleConfigFormValues,
+  MultiProductConfig,
+  MultiProductConfigFormValues,
+  BaseRuleConfig,
+  BaseRuleConfigFormValues,
 } from './types';
 
 export const FEET_PER_METER = 3.28084;
@@ -16,7 +20,11 @@ export function generateId() {
 }
 
 export const CURTAIN_OPTIONS: Array<{ value: CurtainType; label: string }> = [
-  { value: 'screen', label: 'Roller' },
+  { value: 'screen', label: 'Screen (Legacy)' },
+  { value: 'rollux', label: 'Rollux' },
+  { value: 'neolux', label: 'Neolux' },
+  { value: 'vertical', label: 'Vertical' },
+  { value: 'madera', label: 'Madera' },
 ];
 
 export const DEFAULT_FORM_VALUES: CalculationFormValues = {
@@ -67,8 +75,53 @@ export const STORAGE_KEYS = {
   history: 'luxia-screen-history',
   formDraft: 'luxia-screen-form-draft',
   screenRuleConfig: 'luxia-screen-rule-config',
+  multiProductConfig: 'luxia-multi-product-config',
   projectDraft: 'luxia-screen-project-draft',
   savedOrders: 'luxia-screen-saved-orders',
   productionInventory: 'luxia-screen-production-inventory',
   inventoryMovements: 'luxia-screen-inventory-movements',
 } as const;
+
+const DEFAULT_BASE_RULE_CONFIG: BaseRuleConfig = {
+  cutHeightExtraMeters: 0.3,
+  maxWidthMeters: 3,
+  chainMultiplier: 2,
+  smallRollMeters: 2.5,
+  largeRollMeters: 3,
+  ruleComponents: {
+    tube: null,
+    bottom: null,
+    chain: null,
+  },
+  fixedComponents: [],
+};
+
+const DEFAULT_BASE_RULE_CONFIG_FORM_VALUES: BaseRuleConfigFormValues = {
+  cutHeightExtraMeters: '0.30',
+  maxWidthMeters: '3.00',
+  chainMultiplier: '2',
+  smallRollMeters: '2.50',
+  largeRollMeters: '3.00',
+  ruleComponents: {
+    tube: null,
+    bottom: null,
+    chain: null,
+  },
+  fixedComponents: [],
+};
+
+export const DEFAULT_MULTI_PRODUCT_CONFIG: MultiProductConfig = {
+  screen: DEFAULT_BASE_RULE_CONFIG, // Legacy
+  rollux: DEFAULT_BASE_RULE_CONFIG,
+  neolux: DEFAULT_BASE_RULE_CONFIG,
+  vertical: DEFAULT_BASE_RULE_CONFIG,
+  madera: DEFAULT_BASE_RULE_CONFIG,
+};
+
+export const DEFAULT_MULTI_PRODUCT_CONFIG_FORM_VALUES: MultiProductConfigFormValues = {
+  screen: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
+  rollux: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
+  neolux: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
+  vertical: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
+  madera: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
+};

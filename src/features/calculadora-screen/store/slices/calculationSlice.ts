@@ -19,7 +19,7 @@ export const createCalculationSlice = (
 
   const buildOptimizedGroups = (
     items: CalculatorStore['itemsAProducir'],
-    ruleConfig: CalculatorStore['ruleConfig'],
+    ruleConfig: BaseRuleConfig,
   ) => {
     if (items.length === 0) {
       return [];
@@ -182,7 +182,7 @@ export const createCalculationSlice = (
           set({ itemsAProducir: nextItems });
           return;
         }
-        const nextGroups = buildOptimizedGroups(nextItems, state.ruleConfig);
+        const nextGroups = buildOptimizedGroups(nextItems, state.multiConfig.rollux);
 
         set({ 
           itemsAProducir: nextItems,
@@ -200,7 +200,7 @@ export const createCalculationSlice = (
     removeProductionItem: (id) => {
       const state = get();
       const nextItems = state.itemsAProducir.filter(i => i.id !== id);
-      const nextGroups = buildOptimizedGroups(nextItems, state.ruleConfig);
+      const nextGroups = buildOptimizedGroups(nextItems, state.multiConfig.rollux);
       
       set({ 
         itemsAProducir: nextItems,
@@ -209,7 +209,7 @@ export const createCalculationSlice = (
     },
 
     recalculateOptimizedGroups: (fetchWidths) => {
-      const { itemsAProducir, ruleConfig } = get();
+      const { itemsAProducir, multiConfig } = get();
       if (itemsAProducir.length === 0) {
         set({ cuttingGroups: [] });
         return;
@@ -236,7 +236,7 @@ export const createCalculationSlice = (
           firstItem.input.fabricColor,
         );
 
-        return optimizeCuts(groupItems, widths, ruleConfig);
+        return optimizeCuts(groupItems, widths, multiConfig.rollux as any);
       });
 
       set({ cuttingGroups: nextGroups });

@@ -1,6 +1,7 @@
 import {
   DEFAULT_FORM_VALUES,
   DEFAULT_SCREEN_RULE_CONFIG,
+  DEFAULT_MULTI_PRODUCT_CONFIG,
   STORAGE_KEYS,
 } from '../domain/curtains/constants';
 import type {
@@ -14,6 +15,7 @@ import type {
   ScreenRuleConfig,
   SelectedFabric,
   WastePiece,
+  MultiProductConfig,
 } from '../domain/curtains/types';
 
 function isBrowserAvailable() {
@@ -109,6 +111,30 @@ export function loadScreenRuleConfig(): ScreenRuleConfig {
     };
   } catch {
     return DEFAULT_SCREEN_RULE_CONFIG;
+  }
+}
+
+export function saveMultiProductConfig(config: MultiProductConfig): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.multiProductConfig, JSON.stringify(config));
+  } catch (error) {
+    console.error('Failed to save multi product config:', error);
+  }
+}
+
+export function loadMultiProductConfig(): MultiProductConfig {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.multiProductConfig);
+    if (!data) return DEFAULT_MULTI_PRODUCT_CONFIG;
+    
+    // Merge con los defaults por si hay nuevos campos o tipos de cortinas
+    const parsed = JSON.parse(data);
+    return {
+      ...DEFAULT_MULTI_PRODUCT_CONFIG,
+      ...parsed,
+    };
+  } catch {
+    return DEFAULT_MULTI_PRODUCT_CONFIG;
   }
 }
 

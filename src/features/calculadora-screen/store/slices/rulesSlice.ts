@@ -4,7 +4,7 @@ import {
   DEFAULT_SCREEN_RULE_CONFIG, 
   DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
 } from '../../../../domain/curtains/constants';
-import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
+import { validateBaseRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
 import { loadScreenRuleConfig } from '../../../../lib/storage';
 
@@ -142,7 +142,7 @@ export const createRulesSlice: StateCreator<
   saveRules: () => {
     const { ruleFormValues } = get();
     const parsedConfig = parseConfigFormValues(ruleFormValues);
-    const validationErrors = validateScreenRuleConfig(parsedConfig);
+    const validationErrors = validateBaseRuleConfig(parsedConfig);
 
     if (Object.keys(validationErrors).length > 0) {
       set({ ruleErrors: validationErrors });

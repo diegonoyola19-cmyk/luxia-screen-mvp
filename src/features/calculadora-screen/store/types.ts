@@ -12,6 +12,9 @@ import type {
   SessionCalculationRecord,
   WastePiece,
   ProductionBatchItem,
+  MultiProductConfig,
+  CurtainType,
+  BaseRuleConfig,
 } from '../../../domain/curtains/types';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
@@ -111,9 +114,23 @@ export interface RulesSlice {
   resetRules: () => void;
 }
 
+export interface MultiConfigSlice {
+  multiConfig: MultiProductConfig;
+  activeConfigTab: CurtainType;
+
+  setActiveConfigTab: (tab: CurtainType) => void;
+  updateBaseRule: (model: CurtainType, field: keyof Omit<BaseRuleConfig, 'ruleComponents' | 'fixedComponents'>, value: number) => void;
+  updateRuleComponent: (model: CurtainType, role: 'tube' | 'bottom' | 'chain', itemCode: string, name: string, unit: string, cost: number) => void;
+  addFixedComponent: (model: CurtainType) => void;
+  removeFixedComponent: (model: CurtainType, index: number) => void;
+  updateFixedComponent: (model: CurtainType, index: number, field: string, value: any) => void;
+  saveMultiConfig: () => void;
+}
+
 export type CalculatorStore = UiSlice &
   CalculationSlice &
   InventorySlice &
   OrderSlice &
   WasteSlice &
-  RulesSlice;
+  RulesSlice &
+  MultiConfigSlice;
