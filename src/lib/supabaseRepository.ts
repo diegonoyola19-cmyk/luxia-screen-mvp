@@ -52,6 +52,7 @@ interface DbRecipeComponent {
 }
 
 interface DbFabricToneRule {
+  id: string;
   family: string;
   openness: string;
   color: string;
@@ -67,11 +68,12 @@ function mapCatalogItem(row: DbCatalogItem): CatalogItem {
     description:       row.description,
     category:          row.category as CatalogItem['category'],
     suggestedCategory: row.category as CatalogItem['category'],
-    color:             row.color ?? undefined,
-    suggestedColor:    row.color ?? undefined,
+    color:             row.color ?? null,
+    suggestedColor:    row.color ?? null,
     unit:              row.unit,
     avgCost:           row.avg_cost,
-    imageUrl:          row.image_url ?? undefined,
+    salePrice:         null,
+    imageUrl:          row.image_url ?? null,
   };
 }
 
@@ -93,6 +95,7 @@ function mapRecipeComponent(row: DbRecipeComponent): RecipeComponentRule {
 
 function mapFabricToneRule(row: DbFabricToneRule): FabricToneRule {
   return {
+    id:        row.id || `${row.family}-${row.openness}-${row.color}`,
     family:    row.family,
     openness:  row.openness,
     color:     row.color,

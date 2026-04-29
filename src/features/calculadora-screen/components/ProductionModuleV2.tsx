@@ -605,7 +605,7 @@ export function ProductionModuleV2() {
               </h4>
               <p className="pv2-fabric-sku">
                 {selectedFabricPreview
-                  ? `Rollo: ${formatNumber(selectedFabricPreview.rollWidthMeters ?? 0, 2)}m ancho`
+                  ? `Rollo: ${formatNumber(selectedFabricPreview.widthMeters ?? 0, 2)}m ancho`
                   : 'Selecciona una tela para ver detalles'}
               </p>
               <div className="pv2-fabric-tags">
@@ -613,7 +613,7 @@ export function ProductionModuleV2() {
                   <>
                     <span className="pv2-fabric-tag">
                       <span className="material-symbols-outlined" style={{ fontSize: 13 }}>straighten</span>
-                      {formatNumber(selectedFabricPreview.rollWidthMeters ?? 0, 2)}m ancho
+                      {formatNumber(selectedFabricPreview.widthMeters ?? 0, 2)}m ancho
                     </span>
                     {displayResult && (
                       <span className="pv2-fabric-tag">
