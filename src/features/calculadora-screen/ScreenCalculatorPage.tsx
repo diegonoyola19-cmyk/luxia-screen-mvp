@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
 import { ProductionModule } from './components/ProductionModule';
+import { ProductionModuleV2 } from './components/ProductionModuleV2';
 
 
 const InventoryPanel = lazy(async () => {
@@ -63,6 +64,17 @@ export function ScreenCalculatorPage() {
             type="button"
             className={[
               'view-switcher__tab',
+              activeView === 'production-v2' ? 'view-switcher__tab--active' : '',
+            ].join(' ')}
+            aria-pressed={activeView === 'production-v2'}
+            onClick={() => setActiveView('production-v2')}
+          >
+            Producción V2
+          </button>
+          <button
+            type="button"
+            className={[
+              'view-switcher__tab',
               activeView === 'inventory' ? 'view-switcher__tab--active' : '',
             ].join(' ')}
             aria-pressed={activeView === 'inventory'}
@@ -94,7 +106,7 @@ export function ScreenCalculatorPage() {
           </button>
         </div>
 
-        <div className="page-content">
+        <div className={`page-content${activeView === 'production-v2' ? ' page-content--fullwidth' : ''}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -105,6 +117,8 @@ export function ScreenCalculatorPage() {
             >
               {activeView === 'production' ? (
                 <ProductionModule />
+              ) : activeView === 'production-v2' ? (
+                <ProductionModuleV2 />
               ) : activeView === 'inventory' ? (
                 <DeferredPanel>
                   <InventoryPanel />

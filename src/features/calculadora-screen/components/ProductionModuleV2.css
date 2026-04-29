@@ -1,0 +1,1053 @@
+/* ============================================================
+   ProductionModuleV2.css — Stitch "Luxia Industrial Intelligence"
+   Glass panels, high-density layout, dark #121317 theme
+   ============================================================ */
+
+/* ── Root & Layout ──────────────────────────────────────────────────────── */
+.pv2-root {
+  width: 100%;
+  min-height: calc(100vh - 64px);
+  padding-bottom: 60px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Grid 3 columnas: tela | resumen | sistema */
+.pv2-grid-3 {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr 1.2fr;
+  gap: 16px;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: start;
+}
+
+/* Paneles laterales: sticky bajo el view-switcher (64px) */
+.pv2-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 64px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(192,37,58,0.3) transparent;
+}
+
+.pv2-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* El panel central NO es sticky — permite ver toda la tabla */
+}
+
+.pv2-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 64px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(192,37,58,0.3) transparent;
+}
+
+
+/* ── Glass panel ────────────────────────────────────────────────────────── */
+.pv2-glass {
+  background: rgba(21, 21, 26, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+}
+
+/* ── Config panel ───────────────────────────────────────────────────────── */
+.pv2-config-panel {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pv2-config-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv2-headline {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.pv2-icon-red { color: #c0253a; font-size: 18px; }
+
+/* ── Form elements ──────────────────────────────────────────────────────── */
+.pv2-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pv2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pv2-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a98989;
+}
+
+.pv2-select,
+.pv2-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #343539;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  color: #e3e2e7;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.pv2-select:focus,
+.pv2-input:focus {
+  border-color: rgba(192, 37, 58, 0.5);
+  box-shadow: 0 0 0 2px rgba(192, 37, 58, 0.12);
+}
+
+.pv2-select option { background: #1e1f23; }
+
+/* ── Color swatches — 2 filas, distribuidas por total ───────────────────── */
+.pv2-swatches {
+  display: grid;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px 10px;
+  width: 100%;
+}
+
+.pv2-swatch-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  min-width: 0;
+}
+
+.pv2-swatch-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+  flex-shrink: 0;
+}
+
+.pv2-swatch-btn--active .pv2-swatch-circle {
+  border-color: #c0253a;
+  box-shadow: 0 0 8px rgba(192, 37, 58, 0.45);
+  transform: scale(1.1);
+}
+
+.pv2-swatch-btn:hover:not(.pv2-swatch-btn--active) .pv2-swatch-circle {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Swatch con imagen real del catálogo */
+.pv2-swatch-img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+  display: block;
+  flex-shrink: 0;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.pv2-swatch-btn--active .pv2-swatch-img {
+  border-color: #c0253a;
+  box-shadow: 0 0 8px rgba(192, 37, 58, 0.45);
+  transform: scale(1.1);
+}
+
+.pv2-swatch-btn:hover:not(.pv2-swatch-btn--active) .pv2-swatch-img {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.pv2-swatch-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #a98989;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.pv2-swatch-btn--active .pv2-swatch-label { color: #c0253a; }
+
+/* ── Action buttons ─────────────────────────────────────────────────────── */
+.pv2-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pv2-btn-grow { flex: 1; }
+
+.pv2-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #c0253a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: filter 0.18s ease, transform 0.1s ease;
+}
+
+.pv2-btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+.pv2-btn-primary:active:not(:disabled) { transform: scale(0.97); }
+.pv2-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pv2-btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #a98989;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.pv2-btn-ghost:hover { background: rgba(255, 255, 255, 0.05); color: #e3e2e7; }
+.pv2-btn-icon { padding: 12px; }
+
+.pv2-new-curtain-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.2) !important;
+  color: #a98989;
+  background: none !important;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.pv2-new-curtain-btn:hover:not(.pv2-disabled) {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #e3e2e7;
+}
+
+.pv2-disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Metrics row ────────────────────────────────────────────────────────── */
+.pv2-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* 2 columnas x 3 filas (si hay 5 métricas) */
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pv2-metric-card {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+}
+
+.pv2-metric-card--red    { border-left: 2px solid rgba(192, 37, 58, 0.6); }
+.pv2-metric-card--yellow { border-left: 2px solid rgba(202, 138, 4, 0.6); }
+.pv2-metric-card--green  { border-left: 2px solid rgba(74, 222, 128, 0.6); }
+
+.pv2-metric-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #a98989;
+  margin-bottom: 6px;
+}
+
+.pv2-metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.pv2-metric-number {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv2-metric-unit {
+  font-size: 12px;
+  color: #5a4040;
+}
+
+/* ── Table panel ────────────────────────────────────────────────────────── */
+.pv2-table-panel { overflow: hidden; }
+
+.pv2-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pv2-table-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.pv2-badge {
+  background: rgba(192, 37, 58, 0.15);
+  color: #c0253a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 37, 58, 0.25);
+}
+
+.pv2-table-scroll { overflow-x: auto; }
+
+.pv2-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.pv2-thead-row { background: rgba(52, 53, 57, 0.4); }
+
+.pv2-th {
+  padding: 10px 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a98989;
+  white-space: nowrap;
+}
+
+.pv2-th-right { text-align: right; }
+
+.pv2-tbody-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.12s ease;
+}
+
+.pv2-tbody-row:hover { background: rgba(255, 255, 255, 0.02); }
+
+.pv2-td {
+  padding: 14px 20px;
+  font-size: 13px;
+  color: #e3e2e7;
+  white-space: nowrap;
+}
+
+.pv2-td-mono { font-variant-numeric: tabular-nums; font-weight: 500; }
+.pv2-td-muted { color: #a98989; }
+.pv2-td-right { text-align: right; }
+.pv2-td-eff  { min-width: 160px; }
+
+.pv2-eff-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pv2-eff-bar-bg {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.pv2-eff-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.pv2-eff-pct {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.pv2-table-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: #5a4040;
+  font-size: 13px;
+}
+
+.pv2-row-action {
+  background: none;
+  border: none;
+  color: #5a4040;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+
+.pv2-row-action:hover { color: #e3e2e7; background: rgba(255, 255, 255, 0.07); }
+
+/* ── Fabric preview ─────────────────────────────────────────────────────── */
+.pv2-fabric-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.pv2-fabric-swatch {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Imagen real del catálogo en el preview */
+.pv2-fabric-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.pv2-fabric-img:hover {
+  transform: scale(1.05);
+}
+
+.pv2-fabric-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+
+.pv2-fabric-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.pv2-fabric-sku { margin: 0; font-size: 12px; color: #a98989; }
+
+.pv2-fabric-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+
+.pv2-fabric-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #5a4040;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.pv2-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(10, 10, 11, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -4px 20px rgba(192, 37, 58, 0.08);
+  font-family: 'Inter', sans-serif;
+}
+
+.pv2-footer-left  { display: flex; align-items: center; gap: 24px; }
+.pv2-footer-right { display: flex; align-items: center; gap: 24px; }
+
+.pv2-footer-kpi {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a98989;
+}
+
+.pv2-footer-kpi--red {
+  color: #c0253a;
+  background: rgba(192, 37, 58, 0.1);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 37, 58, 0.22);
+}
+
+.pv2-footer-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pv2-footer-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a4040;
+}
+
+.pv2-footer-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv2-footer-stat--sep {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 24px;
+}
+
+.pv2-status-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: pv2-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pv2-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+  50%       { opacity: 0.8; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+
+.pv2-footer-active { font-size: 11px; font-weight: 700; color: #4ade80; letter-spacing: 0.05em; }
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+.pv2-muted-sm { font-size: 12px; color: #5a4040; }
+
+/* ── Waste / Retazo banner ──────────────────────────────────────────────── */
+.pv2-waste-banner {
+  background: rgba(74, 222, 128, 0.06);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: pv2-fade-in 0.25s ease;
+}
+
+@keyframes pv2-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pv2-waste-banner-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv2-waste-icon {
+  font-size: 16px;
+  color: #4ade80;
+  flex-shrink: 0;
+}
+
+.pv2-waste-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pv2-waste-banner-text strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.pv2-waste-banner-text span {
+  font-size: 11px;
+  color: #a98989;
+}
+
+.pv2-waste-toggle {
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 4px;
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: 'Inter', sans-serif;
+  white-space: nowrap;
+}
+
+.pv2-waste-toggle:hover { background: rgba(74, 222, 128, 0.2); }
+
+.pv2-waste-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.pv2-waste-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  color: #a98989;
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  width: 100%;
+}
+
+.pv2-waste-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e3e2e7;
+}
+
+.pv2-waste-option--active {
+  background: rgba(192, 37, 58, 0.12);
+  border-color: rgba(192, 37, 58, 0.35);
+  color: #e3e2e7;
+}
+
+.pv2-waste-rotated {
+  font-style: italic;
+  color: #ca8a04;
+  font-size: 11px;
+}
+
+.pv2-waste-active-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #4ade80;
+  padding-top: 2px;
+}
+
+/* ── Panel de Retazo ────────────────────────────────────────────────────── */
+.pv2-retazo-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.pv2-retazo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: default;
+}
+
+.pv2-retazo-icon {
+  font-size: 16px;
+  color: #a98989;
+  flex-shrink: 0;
+}
+
+.pv2-retazo-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e3e2e7;
+  flex: 1;
+}
+
+.pv2-retazo-badge {
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: #4ade80;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.pv2-retazo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pv2-retazo-section-title {
+  margin: 8px 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a4040;
+}
+
+.pv2-retazo-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 0;
+}
+
+.pv2-retazo-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #a98989;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.pv2-retazo-checkbox {
+  accent-color: #c0253a;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pv2-retazo-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 22px;
+}
+
+.pv2-retazo-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  line-height: 1.4;
+}
+
+.pv2-retazo-result--ok {
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.pv2-retazo-result--err {
+  background: rgba(192, 37, 58, 0.08);
+  border: 1px solid rgba(192, 37, 58, 0.2);
+  color: #f87171;
+}
+
+.pv2-retazo-result strong { font-weight: 700; }
+
+/* ── Alert banners ──────────────────────────────────────────────────────── */
+.pv2-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.pv2-alert p { margin: 4px 0 0; font-size: 11px; opacity: 0.85; }
+.pv2-alert strong { font-size: 12px; font-weight: 700; }
+
+.pv2-alert--info {
+  background: rgba(99, 179, 237, 0.08);
+  border: 1px solid rgba(99, 179, 237, 0.2);
+  color: #90cdf4;
+}
+
+.pv2-alert--warning {
+  background: rgba(202, 138, 4, 0.08);
+  border: 1px solid rgba(202, 138, 4, 0.25);
+  color: #fbbf24;
+}
+
+/* ── Panel de Sistema ───────────────────────────────────────────────────── */
+.pv2-sys-panel {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pv2-sys-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Toggle group: Manual / Motorizado */
+.pv2-sys-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pv2-sys-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  color: #9a9099;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.pv2-sys-toggle:hover:not(.pv2-sys-toggle--active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e3e2e7;
+}
+
+.pv2-sys-toggle--active {
+  background: rgba(192, 37, 58, 0.12);
+  border-color: rgba(192, 37, 58, 0.4);
+  color: #f87171;
+}
+
+/* Option group: tubo, bracket, endplug */
+.pv2-sys-option-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pv2-sys-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.02);
+  color: #9a9099;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.pv2-sys-option:hover:not(.pv2-sys-option--active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e3e2e7;
+}
+
+.pv2-sys-option--active {
+  background: rgba(192, 37, 58, 0.12);
+  border-color: rgba(192, 37, 58, 0.35);
+  color: #f87171;
+}
+
+.pv2-sys-option--warn {
+  border-color: rgba(202, 138, 4, 0.35);
+}
+
+/* Alerta dentro de sección de tubo */
+.pv2-sys-alert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #fbbf24;
+  background: rgba(202, 138, 4, 0.08);
+  border: 1px solid rgba(202, 138, 4, 0.2);
+  padding: 6px 8px;
+  border-radius: 5px;
+  line-height: 1.4;
+}
+
+/* Resumen de config al final */
+.pv2-sys-summary {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pv2-sys-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.pv2-sys-summary-key {
+  color: #5a4040;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.pv2-sys-summary-val {
+  color: #e3e2e7;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* ══ Responsive ═════════════════════════════════════════════════════════════
+   Desktop  ≥ 1200px : 3 columnas
+   Tablet   768-1199 : 2 columnas (extra baja al fondo, full-width)
+   Mobile   < 768px  : 1 columna apilada
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (768 – 1199px) ──────────────────────────────────────────────── */
+@media (max-width: 1199px) {
+  .pv2-grid-3 {
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    grid-template-areas:
+      'left  center'
+      'extra extra';
+  }
+  .pv2-left   { grid-area: left; }
+  .pv2-right  { grid-area: center; }
+  .pv2-extra  {
+    grid-area: extra;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .pv2-extra .pv2-glass { flex: 1; min-width: 260px; }
+
+  /* Top bar: ocultar KPIs intermedios en tablet */
+  .pv2-topbar-kpis { display: none; }
+}
+
+/* ── Mobile (< 768px) ───────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .pv2-root { padding-top: 48px; }
+
+  .pv2-topbar {
+    height: 48px;
+    padding: 0 12px;
+  }
+
+  .pv2-topbar-order { display: none; }
+  .pv2-topbar-sep   { display: none; }
+
+  .pv2-grid-3 {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'left'
+      'center'
+      'extra';
+    padding: 10px;
+    gap: 12px;
+  }
+  .pv2-left   { grid-area: left; }
+  .pv2-right  { grid-area: center; }
+  .pv2-extra  { grid-area: extra; flex-direction: column; }
+
+  .pv2-metrics-row  { grid-template-columns: 1fr 1fr; }
+  .pv2-sys-option-group { grid-template-columns: 1fr 1fr; }
+  .pv2-sys-toggle-group { flex-direction: row; }
+
+  /* Footer compacto */
+  .pv2-footer { flex-direction: column; gap: 6px; height: auto; padding: 8px 12px; }
+  .pv2-footer-left, .pv2-footer-right { flex-wrap: wrap; gap: 8px; }
+  .pv2-footer-stat--sep { display: none; }
+
+  /* Swatches: 2 filas, más columnas */
+  .pv2-swatches { gap: 6px 8px; }
+}
+
+/* ── Pantallas muy pequeñas (< 400px) ───────────────────────────────────── */
+@media (max-width: 399px) {
+  .pv2-metrics-row { grid-template-columns: 1fr; }
+  .pv2-topbar-title { font-size: 11px; }
+}

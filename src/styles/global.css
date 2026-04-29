@@ -1,32 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
+/* =========================================================================
+   LUXIA DESIGN SYSTEM — tokens extraídos del proyecto Stitch
+   "Luxia Production Dashboard" (ID: 14978990908497440509)
+   ========================================================================= */
 :root {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Inter', sans-serif;
   line-height: 1.5;
-  font-weight: 500;
-  color: #18181b;
-  background:
-    linear-gradient(135deg, rgba(124, 17, 31, 0.08) 0%, transparent 26%),
-    linear-gradient(225deg, rgba(124, 17, 31, 0.08) 0%, transparent 22%),
-    linear-gradient(180deg, #f7f5f3 0%, #efeae6 100%);
+  font-weight: 400;
+  color: #e3e2e7;
+  background: #121317;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --surface: rgba(255, 255, 255, 0.92);
-  --surface-strong: #ffffff;
-  --surface-soft: #f5efec;
-  --line: rgba(24, 24, 27, 0.1);
-  --text: #18181b;
-  --muted: #66605b;
-  --primary: #8d1628;
-  --primary-dark: #66101d;
-  --success: #2f6b49;
-  --danger: #a3202f;
-  --shadow: 0 18px 40px rgba(68, 40, 34, 0.12);
-  --radius-xl: 22px;
-  --radius-md: 14px;
-  --radius-sm: 12px;
+
+  /* ── Surfaces (Material You dark tier) ── */
+  --surface:            #121317;
+  --surface-dim:        #121317;
+  --surface-bright:     #38393d;
+  --surface-container-lowest:  #0d0e12;
+  --surface-container-low:     #1a1b1f;
+  --surface-container:         #1e1f23;
+  --surface-container-high:    #292a2e;
+  --surface-container-highest: #343539;
+
+  /* Aliases cortos usados en componentes */
+  --surface-strong:     #1e1f23;
+  --surface-soft:       #1a1b1f;
+  --surface-hover:      #292a2e;
+
+  /* ── Texto ── */
+  --text:               #e3e2e7;
+  --muted:              #a98989;
+  --muted-strong:       #e2bebd;
+
+  /* ── Bordes ── */
+  --line:               rgba(255, 255, 255, 0.06);
+  --line-strong:        rgba(255, 255, 255, 0.12);
+
+  /* ── Brand / Primary ── */
+  --primary:            #C0253A;   /* primary-container = botón principal */
+  --primary-dark:       #920022;
+  --primary-on:         #ffd9d9;   /* on-primary-container */
+  --primary-glow:       rgba(192, 37, 58, 0.18);
+
+  /* ── Estado ── */
+  --success:            #22C55E;
+  --danger:             #ffb4ab;
+  --danger-container:   #93000a;
+  --warning:            #F59E0B;
+
+  /* ── Outline ── */
+  --outline:            #a98989;
+  --outline-variant:    #5a4040;
+
+  /* ── Efectos ── */
+  --shadow:             0 4px 32px rgba(0, 0, 0, 0.5);
+  --shadow-lg:          0 8px 48px rgba(0, 0, 0, 0.7);
+
+  /* ── Radios (sistema Stitch: ROUND_FOUR) ── */
+  --radius-xl:          4px;
+  --radius-md:          4px;
+  --radius-sm:          2px;
+  --radius-full:        9999px;
+  --radius-card:        8px;
+
+  /* ── Espaciado (base-4) ── */
+  --space-1:            4px;
+  --space-2:            8px;
+  --space-3:            12px;
+  --space-4:            16px;
+  --space-5:            20px;
+  --space-6:            24px;
 }
 
 * {
@@ -44,7 +90,7 @@ body {
   margin: 0;
   min-width: 320px;
   color: var(--text);
-  background-attachment: fixed;
+  background: #121317;
   overflow-x: hidden;
 }
 
@@ -56,89 +102,119 @@ summary {
 }
 
 .page-shell {
-  width: min(1240px, calc(100% - 28px));
-  margin: 0 auto;
-  padding: 16px 0 24px;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 60px;
+  min-height: 100vh;
 }
 
 .page-frame {
-  padding: 10px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  box-shadow: 0 18px 38px rgba(68, 40, 34, 0.08);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .page-content {
-  margin-top: 12px;
+  margin-top: 0;
   min-width: 0;
+  padding: 24px;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Producción V2: sin max-width ni padding para full-bleed */
+.page-content--fullwidth {
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.page-shell--fullwidth {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.view-switcher--fullwidth {
+  max-width: none !important;
+  padding: 0 24px !important;
 }
 
 .view-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
+  align-items: center;
   width: 100%;
-  gap: 6px;
-  padding: 5px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(56, 51, 54, 0.96) 0%, rgba(37, 33, 36, 0.98) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 14px 28px rgba(68, 40, 34, 0.14);
+  height: 64px;
+  gap: 0;
+  padding: 0 24px;
+  border-radius: 0;
+  background: rgba(13, 14, 18, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.5);
+}
+
+/* Logo LUXIA */
+.view-switcher::before {
+  content: 'LUXIA';
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: #fff;
+  text-transform: uppercase;
+  margin-right: 40px;
+  flex-shrink: 0;
+  font-family: 'Inter', sans-serif;
 }
 
 .view-switcher__tab {
   flex: 1;
+  justify-content: center;
   border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: rgba(255, 255, 255, 0.68);
-  padding: 9px 14px;
-  border-radius: 999px;
-  font-size: 0.95rem;
-  font-weight: 800;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0 16px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
-  text-align: center;
-  position: relative;
   white-space: nowrap;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  border-radius: 0;
+  transition: color 0.18s ease, border-color 0.18s ease;
 }
 
 .view-switcher__tab::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 9px;
-  border-radius: 999px;
-  vertical-align: middle;
-  background: rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: none;
 }
 
 .view-switcher__tab:hover {
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .view-switcher__tab--active {
-  background: linear-gradient(180deg, #c21d36 0%, #a9192f 100%);
-  color: white;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 8px 18px rgba(141, 22, 40, 0.28);
+  background: transparent;
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  box-shadow: none;
+  font-weight: 600;
 }
 
 .view-switcher__tab--active::before {
-  background: #fff3f5;
-  box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.12),
-    0 0 12px rgba(255, 255, 255, 0.3);
+  display: none;
 }
 
 .view-switcher__tab[aria-pressed='true'] {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .hero-panel,
@@ -169,23 +245,23 @@ summary {
 }
 
 .card {
-  background: var(--surface);
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 20px;
+  background: var(--surface-container);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow);
 }
 
 .section-heading__eyebrow {
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(141, 22, 40, 0.1);
-  color: var(--primary-dark);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  background: var(--primary-glow);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -196,20 +272,20 @@ summary {
 .workflow-block {
   margin-top: 18px;
   padding: 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(24, 24, 27, 0.06);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .workflow-block--compact {
   margin-top: 14px;
   padding: 14px;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .workflow-block--actions,
 .workflow-block--decision {
-  background: rgba(245, 239, 236, 0.78);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .workflow-step {
@@ -352,24 +428,27 @@ summary {
 }
 
 .button--primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #b32037 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
+  box-shadow: 0 4px 16px rgba(232, 19, 42, 0.3);
 }
 
 .button--secondary {
-  background: #ede4de;
-  color: var(--primary-dark);
+  background: var(--surface-strong);
+  color: var(--muted-strong);
+  border: 1px solid var(--line-strong);
 }
 
 .button--ghost {
   background: transparent;
-  color: var(--text);
+  color: var(--muted-strong);
   border: 1px solid var(--line);
 }
 
 .button--danger {
-  background: rgba(163, 32, 47, 0.12);
+  background: rgba(232, 19, 42, 0.12);
   color: var(--danger);
+  border: 1px solid rgba(232, 19, 42, 0.2);
 }
 
 .button--sm {
@@ -525,8 +604,8 @@ summary {
 .mini-metric {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  background: rgba(245, 239, 236, 0.9);
-  border: 1px solid rgba(24, 24, 27, 0.06);
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .mini-metric span,
@@ -627,19 +706,21 @@ summary {
 }
 
 .scrap-chip {
-  border: 1px solid rgba(141, 22, 40, 0.14);
-  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
   color: var(--text);
   border-radius: 999px;
   padding: 9px 12px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .scrap-chip--active {
-  background: linear-gradient(135deg, var(--primary) 0%, #b32037 100%);
+  background: var(--primary);
   color: white;
   border-color: transparent;
+  box-shadow: 0 4px 12px rgba(232, 19, 42, 0.3);
 }
 
 .reuse-item__action--active {
@@ -696,8 +777,8 @@ summary {
   align-items: center;
   padding: 8px 10px;
   border-radius: var(--radius-md);
-  background: rgba(245, 239, 236, 0.9);
-  border: 1px solid rgba(24, 24, 27, 0.08);
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .component-item__index {
@@ -793,8 +874,8 @@ summary {
   gap: 12px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(24, 24, 27, 0.06);
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .component-summary__item span {
@@ -808,9 +889,9 @@ summary {
 
 .project-item--phone {
   padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(245, 239, 236, 0.84);
-  border: 1px solid rgba(24, 24, 27, 0.06);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .component-list--phone {
@@ -819,9 +900,9 @@ summary {
 
 .component-card {
   padding: 14px;
-  border-radius: 18px;
-  background: rgba(245, 239, 236, 0.84);
-  border: 1px solid rgba(24, 24, 27, 0.06);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
 }
 
 .component-card__header {
@@ -896,7 +977,8 @@ summary {
 
 @media (min-width: 721px) {
   .page-shell {
-    width: min(1280px, calc(100% - 32px));
+    width: 100%;
+    max-width: none;
   }
 
   .page-frame {
@@ -904,7 +986,7 @@ summary {
   }
 
   .view-switcher {
-    max-width: 560px;
+    max-width: none;
   }
 
   .component-card__grid {
@@ -1067,12 +1149,12 @@ summary {
 .metric-info__trigger {
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(24, 24, 27, 0.14);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--primary-dark);
+  background: var(--surface-strong);
+  color: var(--muted-strong);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   display: inline-flex;
   align-items: center;

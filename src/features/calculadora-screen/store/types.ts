@@ -27,9 +27,9 @@ export interface SessionWastePiece extends WastePiece {
 }
 
 export interface UiSlice {
-  activeView: 'production' | 'inventory' | 'orders' | 'settings';
+  activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2';
   copyFeedbackVisible: boolean;
-  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings') => void;
+  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2') => void;
   setCopyFeedbackVisible: (visible: boolean) => void;
 }
 
