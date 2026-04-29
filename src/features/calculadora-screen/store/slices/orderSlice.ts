@@ -1,11 +1,57 @@
 import { StateCreator } from 'zustand';
 import { CalculatorStore, OrderSlice, SessionWastePiece } from '../types';
-import { ProjectCurtainItem, SavedCalculation, SavedOrder, CalculationInput } from '../../../../domain/curtains/types';
-import { DEFAULT_FORM_VALUES, YARD2_PER_M2, generateId } from '../../../../domain/curtains/constants';
+import { ProjectCurtainItem, SavedCalculation, SavedOrder, CalculationInput, ProductionBatchItem } from '../../../../domain/curtains/types';
+import { DEFAULT_FORM_VALUES, FEET_PER_METER, YARD2_PER_M2, generateId } from '../../../../domain/curtains/constants';
 import { applyOrderToInventory } from '../../../../lib/inventory';
-import { loadProjectDraft, loadSavedOrders } from '../../../../lib/storage';
+// storage removed
 import { getAvailableWidths, resolveFabricSelection } from '../../../../lib/priceCatalog';
 import { calculateScreenMaterials } from '../../../../domain/curtains/screen';
+import {
+  materialLinesToFixedComponents,
+  resolveScreenRecipeMaterials,
+} from '../../../../lib/recipeResolver';
+
+const LINEAR_STOCK_FEET = 19;
+const LINEAR_DISCOUNT_METERS = 0.03;
+
+function calculateLinearDownloadedFeetByItem(items: ProductionBatchItem[]) {
+  const cuts = items
+    .map((item) => ({
+      id: item.id,
+      feet: Math.max(item.input.widthMeters - LINEAR_DISCOUNT_METERS, 0) * FEET_PER_METER,
+    }))
+    .filter((cut) => cut.feet > 0)
+    .sort((left, right) => right.feet - left.feet);
+  const downloadedByItem = new Map<string, number>();
+  const bars: Array<{ remainingFeet: number; cuts: typeof cuts }> = [];
+
+  cuts.forEach((cut) => {
+    const bar = bars.find((current) => current.remainingFeet >= cut.feet);
+
+    if (!bar) {
+      bars.push({
+        remainingFeet: LINEAR_STOCK_FEET - cut.feet,
+        cuts: [cut],
+      });
+      return;
+    }
+
+    bar.remainingFeet -= cut.feet;
+    bar.cuts.push(cut);
+  });
+
+  bars.forEach((bar) => {
+    const usedFeet = bar.cuts.reduce((sum, cut) => sum + cut.feet, 0);
+    const downloadedFeet = LINEAR_STOCK_FEET;
+
+    bar.cuts.forEach((cut) => {
+      const share = usedFeet > 0 ? cut.feet / usedFeet : 0;
+      downloadedByItem.set(cut.id, (downloadedByItem.get(cut.id) ?? 0) + downloadedFeet * share);
+    });
+  });
+
+  return downloadedByItem;
+}
 
 export const createOrderSlice: StateCreator<
   CalculatorStore,
@@ -13,11 +59,11 @@ export const createOrderSlice: StateCreator<
   [],
   OrderSlice
 > = (set, get) => ({
-  orderDraft: loadProjectDraft() || {
+  orderDraft: {
     orderNumber: '',
     items: [],
   },
-  savedOrders: loadSavedOrders() || [],
+  savedOrders: [],
   selectedOrderId: null,
 
   setOrderDraft: (updater) => set((state) => ({ orderDraft: typeof updater === 'function' ? updater(state.orderDraft) : updater })),
@@ -110,7 +156,16 @@ export const createOrderSlice: StateCreator<
   })),
 
   saveOrder: () => {
-    const { orderDraft, itemsAProducir, cuttingGroups, productionInventory, multiConfig } = get();
+    const {
+      orderDraft,
+      itemsAProducir,
+      cuttingGroups,
+      productionInventory,
+      ruleConfig,
+      screenRecipe,
+      fabricToneRules,
+      catalogItems,
+    } = get();
     const trimmedOrderNumber = orderDraft.orderNumber.trim();
 
     if (trimmedOrderNumber === '') {
@@ -125,7 +180,13 @@ export const createOrderSlice: StateCreator<
 
     const itemValues = new Map<
       string,
-      { downloadedYd2: number; wasteYd2: number; rollWidth: number }
+      {
+        downloadedYd2: number;
+        wasteYd2: number;
+        rollWidth: number;
+        wastePieceWidthMeters: number;
+        wastePieceHeightMeters: number;
+      }
     >();
 
     cuttingGroups.forEach((group) => {
@@ -135,6 +196,8 @@ export const createOrderSlice: StateCreator<
             downloadedYd2: 0,
             wasteYd2: 0,
             rollWidth: 0,
+            wastePieceWidthMeters: 0,
+            wastePieceHeightMeters: 0,
           });
         });
         return;
@@ -144,23 +207,29 @@ export const createOrderSlice: StateCreator<
         (sum, item) => sum + item.input.widthMeters + 0.1,
         0,
       );
-      const groupWasteYd2 = Math.max(group.waste, 0) * group.cutHeight * YARD2_PER_M2;
+      const groupWasteYd2 =
+        Math.max(group.rollWidth - totalItemCutWidth, 0) * group.cutHeight * YARD2_PER_M2;
 
-      group.items.forEach((item) => {
+      group.items.forEach((item, itemIndex) => {
         const itemCutWidth = item.input.widthMeters + 0.1;
         const share =
           totalItemCutWidth > 0 ? itemCutWidth / totalItemCutWidth : 1 / group.items.length;
         const usefulYd2 = itemCutWidth * group.cutHeight * YARD2_PER_M2;
         const wasteYd2 = groupWasteYd2 * share;
+        const ownsPhysicalScrap = itemIndex === 0 && group.waste > 0;
 
         itemValues.set(item.id, {
           downloadedYd2: usefulYd2 + wasteYd2,
           wasteYd2,
           rollWidth: group.rollWidth,
+          wastePieceWidthMeters: ownsPhysicalScrap ? group.waste : 0,
+          wastePieceHeightMeters: ownsPhysicalScrap ? group.cutHeight : 0,
         });
       });
     });
 
+    const materialIssues: string[] = [];
+    const linearDownloadedFeetByItem = calculateLinearDownloadedFeetByItem(itemsAProducir);
     const orderItems: ProjectCurtainItem[] = itemsAProducir.map((batchItem, idx) => {
       const availableWidths = getAvailableWidths(
         batchItem.input.fabricFamily,
@@ -169,14 +238,24 @@ export const createOrderSlice: StateCreator<
       );
       const baseResult = calculateScreenMaterials(
         batchItem.input,
-        state.multiConfig.rollux,
-        availableWidths.length > 0 ? availableWidths : [state.multiConfig.rollux.smallRollMeters, state.multiConfig.rollux.largeRollMeters],
+        ruleConfig,
+        availableWidths.length > 0 ? availableWidths : [ruleConfig.smallRollMeters, ruleConfig.largeRollMeters],
       );
-      const vals = itemValues.get(batchItem.id) ?? {
-        downloadedYd2: baseResult.fabricDownloadedYd2,
-        wasteYd2: baseResult.wasteYd2,
-        rollWidth: baseResult.recommendedRollWidthMeters,
-      };
+      const vals = batchItem.reusedWastePiece
+        ? {
+            downloadedYd2: 0,
+            wasteYd2: 0,
+            rollWidth: baseResult.recommendedRollWidthMeters,
+            wastePieceWidthMeters: 0,
+            wastePieceHeightMeters: 0,
+          }
+        : itemValues.get(batchItem.id) ?? {
+            downloadedYd2: baseResult.fabricDownloadedYd2,
+            wasteYd2: baseResult.wasteYd2,
+            rollWidth: baseResult.recommendedRollWidthMeters,
+            wastePieceWidthMeters: baseResult.wastePieceWidthMeters,
+            wastePieceHeightMeters: baseResult.wastePieceHeightMeters,
+          };
       const recommendedRollWidth =
         vals.rollWidth > 0 ? vals.rollWidth : baseResult.recommendedRollWidthMeters;
       const selectedFabric = resolveFabricSelection(
@@ -200,46 +279,91 @@ export const createOrderSlice: StateCreator<
       const fabricUsefulM2 = Math.max(fabricDownloadedM2 - wasteM2, 0);
       const fabricUsefulYd2 = fabricUsefulM2 * YARD2_PER_M2;
 
+      const calculatedResult = {
+        ...baseResult,
+        selectedFabric,
+        recommendedRollWidthMeters: recommendedRollWidth,
+        fabricCostPerYd2,
+        fabricDownloadedM2,
+        fabricUsefulM2,
+        wasteM2,
+        fabricDownloadedYd2: vals.downloadedYd2,
+        fabricUsefulYd2,
+        wasteYd2: vals.wasteYd2,
+        wastePercentage: fabricDownloadedM2 === 0 ? 0 : (wasteM2 / fabricDownloadedM2) * 100,
+        fabricDownloadedCost: vals.downloadedYd2 * fabricCostPerYd2,
+        fabricUsefulCost: fabricUsefulYd2 * fabricCostPerYd2,
+        fabricWasteCost: vals.wasteYd2 * fabricCostPerYd2,
+        fabricSavingsCost: batchItem.reusedWastePiece
+          ? baseResult.fabricDownloadedYd2 * fabricCostPerYd2
+          : 0,
+        wasteWidthMeters: vals.wastePieceWidthMeters,
+        wastePieceWidthMeters: vals.wastePieceWidthMeters,
+        wastePieceHeightMeters: vals.wastePieceHeightMeters,
+        tubeDownloadedFeet: linearDownloadedFeetByItem.get(batchItem.id) ?? baseResult.tubeFeet,
+        bottomRailDownloadedFeet:
+          linearDownloadedFeetByItem.get(batchItem.id) ?? baseResult.bottomRailFeet,
+      };
+
+      const recipeResolution = resolveScreenRecipeMaterials(
+        batchItem.input,
+        calculatedResult,
+        screenRecipe,
+        fabricToneRules,
+        catalogItems,
+      );
+
+      if (recipeResolution.warnings.length > 0) {
+        materialIssues.push(
+          `Cortina ${idx + 1}: ${recipeResolution.warnings.join(' ')}`,
+        );
+      }
+
+      const resultWithMaterials = {
+        ...calculatedResult,
+        fixedComponents: materialLinesToFixedComponents(
+          recipeResolution.materialLines,
+          calculatedResult.fixedComponents,
+        ),
+        materialLines: recipeResolution.materialLines,
+        materialWarnings: recipeResolution.warnings,
+      };
+
       return {
         id: batchItem.id,
         createdAt: new Date().toISOString(),
         title: `Cortina ${idx + 1}`,
         input: batchItem.input,
-        result: {
-          ...baseResult,
-          selectedFabric,
-          recommendedRollWidthMeters: recommendedRollWidth,
-          fabricCostPerYd2,
-          fabricDownloadedM2,
-          fabricUsefulM2,
-          wasteM2,
-          fabricDownloadedYd2: vals.downloadedYd2,
-          fabricUsefulYd2,
-          wasteYd2: vals.wasteYd2,
-          wastePercentage: fabricDownloadedM2 === 0 ? 0 : (wasteM2 / fabricDownloadedM2) * 100,
-          fabricDownloadedCost: vals.downloadedYd2 * fabricCostPerYd2,
-          fabricUsefulCost: fabricUsefulYd2 * fabricCostPerYd2,
-          fabricWasteCost: vals.wasteYd2 * fabricCostPerYd2,
-          fabricSavingsCost: 0,
-          wasteWidthMeters: 0,
-          wastePieceWidthMeters: 0,
-          wastePieceHeightMeters: 0,
-        },
-        reusedWastePiece: null,
+        result: resultWithMaterials,
+        materialLines: recipeResolution.materialLines,
+        materialWarnings: recipeResolution.warnings,
+        reusedWastePiece: batchItem.reusedWastePiece ?? null,
       };
     });
+
+    if (materialIssues.length > 0) {
+      set((state) => ({
+        errors: {
+          ...state.errors,
+          general: `Completa la receta antes de guardar. ${materialIssues.join(' ')}`,
+        },
+      }));
+      return;
+    }
 
     const savedOrder: SavedOrder = {
       id: generateId(),
       createdAt: new Date().toISOString(),
       orderNumber: trimmedOrderNumber,
       items: orderItems,
+      status: 'pending',
+      sageExportedAt: null,
     };
 
     const inventoryResult = applyOrderToInventory(
       productionInventory,
       savedOrder,
-      multiConfig.rollux,
+      ruleConfig,
     );
 
     set((state) => ({
@@ -263,6 +387,33 @@ export const createOrderSlice: StateCreator<
     selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
   })),
 
+  updateSavedOrderStatus: (id, status) => set((state) => ({
+    savedOrders: state.savedOrders.map((order) =>
+      order.id === id
+        ? {
+            ...order,
+            status: status ?? 'pending',
+            sageExportedAt: status === 'sent_to_sage'
+              ? order.sageExportedAt ?? new Date().toISOString()
+              : null,
+          }
+        : order,
+    ),
+  })),
+
+  markOrdersSentToSage: (ids) => set((state) => {
+    const idSet = new Set(ids);
+    const exportedAt = new Date().toISOString();
+
+    return {
+      savedOrders: state.savedOrders.map((order) =>
+        idSet.has(order.id)
+          ? { ...order, status: 'sent_to_sage', sageExportedAt: exportedAt }
+          : order,
+      ),
+    };
+  }),
+
   setSelectedOrderId: (id) => set({ selectedOrderId: id }),
 
   setSavedOrders: (updater) => set((state) => ({ savedOrders: typeof updater === 'function' ? updater(state.savedOrders) : updater })),
@@ -276,7 +427,11 @@ export const createOrderSlice: StateCreator<
     importedOrders.forEach((order) => {
       const exists = mergedOrders.some((currentOrder) => currentOrder.id === order.id);
       if (!exists) {
-        mergedOrders.push(order);
+        mergedOrders.push({
+          ...order,
+          status: order.status ?? 'pending',
+          sageExportedAt: order.sageExportedAt ?? null,
+        });
       }
     });
 

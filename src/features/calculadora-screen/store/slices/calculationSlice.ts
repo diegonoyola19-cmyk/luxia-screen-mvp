@@ -3,7 +3,7 @@ import { CalculatorStore, CalculationSlice } from '../types';
 import { DEFAULT_FORM_VALUES, generateId } from '../../../../domain/curtains/constants';
 import { getRollerFabricSelectionDefaults, getRollerFabricOpennessOptions, getRollerFabricColorOptions } from '../../../../lib/priceCatalog';
 import { formatNumber } from '../../../../lib/format';
-import { loadFormDraft } from '../../../../lib/storage';
+// storage removed
 import { optimizeCuts } from '../../../../domain/curtains/cuttingOptimizer';
 
 export const createCalculationSlice = (
@@ -15,11 +15,11 @@ export const createCalculationSlice = (
   CalculationSlice
 > => (set, get) => {
   const defaultFabricSelection = getRollerFabricSelectionDefaults();
-  const draft = loadFormDraft();
+  const draft = DEFAULT_FORM_VALUES;
 
   const buildOptimizedGroups = (
     items: CalculatorStore['itemsAProducir'],
-    ruleConfig: BaseRuleConfig,
+    ruleConfig: CalculatorStore['ruleConfig'],
   ) => {
     if (items.length === 0) {
       return [];
@@ -27,7 +27,9 @@ export const createCalculationSlice = (
 
     const itemsByFabric = new Map<string, CalculatorStore['itemsAProducir']>();
 
-    items.forEach((item) => {
+    items
+      .filter((item) => !item.reusedWastePiece)
+      .forEach((item) => {
       const key = [
         item.input.fabricFamily,
         item.input.fabricOpenness,
@@ -182,7 +184,7 @@ export const createCalculationSlice = (
           set({ itemsAProducir: nextItems });
           return;
         }
-        const nextGroups = buildOptimizedGroups(nextItems, state.multiConfig.rollux);
+        const nextGroups = buildOptimizedGroups(nextItems, state.ruleConfig);
 
         set({ 
           itemsAProducir: nextItems,
@@ -200,7 +202,7 @@ export const createCalculationSlice = (
     removeProductionItem: (id) => {
       const state = get();
       const nextItems = state.itemsAProducir.filter(i => i.id !== id);
-      const nextGroups = buildOptimizedGroups(nextItems, state.multiConfig.rollux);
+      const nextGroups = buildOptimizedGroups(nextItems, state.ruleConfig);
       
       set({ 
         itemsAProducir: nextItems,
@@ -209,7 +211,7 @@ export const createCalculationSlice = (
     },
 
     recalculateOptimizedGroups: (fetchWidths) => {
-      const { itemsAProducir, multiConfig } = get();
+      const { itemsAProducir, ruleConfig } = get();
       if (itemsAProducir.length === 0) {
         set({ cuttingGroups: [] });
         return;
@@ -217,7 +219,7 @@ export const createCalculationSlice = (
 
       const itemsByFabric = new Map<string, typeof itemsAProducir>();
 
-      itemsAProducir.forEach((item) => {
+      itemsAProducir.filter((item) => !item.reusedWastePiece).forEach((item) => {
         const key = [
           item.input.fabricFamily,
           item.input.fabricOpenness,
@@ -236,7 +238,7 @@ export const createCalculationSlice = (
           firstItem.input.fabricColor,
         );
 
-        return optimizeCuts(groupItems, widths, multiConfig.rollux as any);
+        return optimizeCuts(groupItems, widths, ruleConfig);
       });
 
       set({ cuttingGroups: nextGroups });

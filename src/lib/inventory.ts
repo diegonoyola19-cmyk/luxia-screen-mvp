@@ -8,7 +8,6 @@ import type {
   SavedOrder,
   ScreenFixedComponent,
   ScreenRuleConfig,
-  BaseRuleConfig,
 } from '../domain/curtains/types';
 
 const FEET_PER_METER = 3.28084;
@@ -16,7 +15,7 @@ const STOCK_BAR_METERS = 19 / FEET_PER_METER;
 const TUBE_BOTTOM_DISCOUNT_METERS = 0.03;
 const CUT_LOSS_METERS = 0.01;
 const MIN_LINEAR_OFFCUT_METERS = 1;
-const MIN_FABRIC_SCRAP_SIDE_METERS = 0.8;
+const MIN_FABRIC_SCRAP_SIDE_METERS = 1;
 
 function isBrowserAvailable() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -369,7 +368,7 @@ function matchesSelectedFabric(
 export function applyOrderToInventory(
   inventory: ProductionInventory,
   order: SavedOrder,
-  ruleConfig: BaseRuleConfig,
+  ruleConfig: ScreenRuleConfig,
 ): { inventory: ProductionInventory; movements: InventoryMovement[] } {
   let nextInventory: ProductionInventory = {
     fabrics: [...inventory.fabrics],
@@ -466,49 +465,52 @@ export function applyOrderToInventory(
             : `${item.title} - ancho de tela ${candidate.widthMeters.toFixed(2)} m.`,
         });
 
-        if (
-          item.result.wastePieceWidthMeters >= MIN_FABRIC_SCRAP_SIDE_METERS &&
-          item.result.wastePieceHeightMeters >= MIN_FABRIC_SCRAP_SIDE_METERS
-        ) {
-          const scrapCode = buildFabricScrapCode(
-            nextInventory,
-            candidate.color,
-            candidate.openness,
-          );
+      }
 
-          nextInventory.fabrics.push({
-            id: createId(),
-            code: scrapCode,
-            family: item.result.selectedFabric?.family ?? candidate.family,
-            color: item.result.selectedFabric?.color ?? candidate.color,
-            openness: item.result.selectedFabric?.openness ?? candidate.openness,
-            imageUrl: item.result.selectedFabric?.imageUrl ?? candidate.imageUrl ?? null,
-            costPerYd2: item.result.selectedFabric?.costPerYd2 ?? candidate.costPerYd2,
-            widthMeters: item.result.wastePieceWidthMeters,
-            lengthMeters: item.result.wastePieceHeightMeters,
-            kind: 'scrap',
-            createdAt: new Date().toISOString(),
-            status: 'available',
-          });
+      if (
+        item.result.wastePieceWidthMeters >= MIN_FABRIC_SCRAP_SIDE_METERS &&
+        item.result.wastePieceHeightMeters >= MIN_FABRIC_SCRAP_SIDE_METERS
+      ) {
+        const scrapFamily =
+          item.result.selectedFabric?.family ?? candidate?.family ?? item.input.fabricFamily;
+        const scrapColor =
+          item.result.selectedFabric?.color ?? candidate?.color ?? item.input.fabricColor;
+        const scrapOpenness =
+          item.result.selectedFabric?.openness ?? candidate?.openness ?? item.input.fabricOpenness;
+        const scrapCode = buildFabricScrapCode(nextInventory, scrapColor, scrapOpenness);
+        const scrapAreaM2 =
+          item.result.wastePieceWidthMeters * item.result.wastePieceHeightMeters;
 
-          movements.push({
-            id: createId(),
-            createdAt: new Date().toISOString(),
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            category: 'fabric',
-            action: 'create_scrap',
-            itemCode: item.result.selectedFabric?.itemCode ?? scrapCode,
-            itemLabel: item.result.selectedFabric
-              ? `Retazo ${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
-              : `Retazo ${candidate.color}`,
-            quantity: item.result.wasteM2,
-            unit: 'm2',
-            notes: item.result.selectedFabric
-              ? `${item.result.selectedFabric.itemCode} - ${item.result.wastePieceWidthMeters.toFixed(2)} x ${item.result.wastePieceHeightMeters.toFixed(2)} m`
-              : `${item.result.wastePieceWidthMeters.toFixed(2)} x ${item.result.wastePieceHeightMeters.toFixed(2)} m`,
-          });
-        }
+        nextInventory.fabrics.push({
+          id: createId(),
+          code: scrapCode,
+          family: scrapFamily,
+          color: scrapColor,
+          openness: scrapOpenness,
+          imageUrl: item.result.selectedFabric?.imageUrl ?? candidate?.imageUrl ?? null,
+          costPerYd2: item.result.selectedFabric?.costPerYd2 ?? candidate?.costPerYd2 ?? 0,
+          widthMeters: item.result.wastePieceWidthMeters,
+          lengthMeters: item.result.wastePieceHeightMeters,
+          kind: 'scrap',
+          createdAt: new Date().toISOString(),
+          status: 'available',
+        });
+
+        movements.push({
+          id: createId(),
+          createdAt: new Date().toISOString(),
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          category: 'fabric',
+          action: 'create_scrap',
+          itemCode: item.result.selectedFabric?.itemCode ?? scrapCode,
+          itemLabel: `Retazo ${scrapFamily} ${scrapOpenness} ${scrapColor}`,
+          quantity: scrapAreaM2,
+          unit: 'm2',
+          notes: item.result.selectedFabric
+            ? `${item.result.selectedFabric.itemCode} - ${item.result.wastePieceWidthMeters.toFixed(2)} x ${item.result.wastePieceHeightMeters.toFixed(2)} m`
+            : `${item.result.wastePieceWidthMeters.toFixed(2)} x ${item.result.wastePieceHeightMeters.toFixed(2)} m`,
+        });
       }
     }
 

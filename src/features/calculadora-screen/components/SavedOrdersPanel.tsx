@@ -7,6 +7,11 @@ import { formatDate, formatNumber } from '../../../lib/format';
 import { summarizeOrdersProduction, summarizeProduction } from '../../../lib/production';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { downloadSavedOrders, importSavedOrdersFile } from '../../../lib/orderTransfer';
+import { downloadCsvReport } from '../../../lib/csvExport';
+import {
+  downloadSageOrderEntry,
+  getSageExportableLineCount,
+} from '../../../lib/sageExport';
 
 interface OrderReportRow {
   order: SavedOrder;
@@ -17,6 +22,16 @@ interface OrderReportRow {
 
 type WasteLevel = 'healthy' | 'warning' | 'critical';
 type OrderSortMode = 'recent' | 'waste' | 'cost' | 'curtains';
+type OrderStatusFilter = 'all' | 'pending' | 'sent_to_sage';
+type DateRange = 'all' | 'today' | 'week' | 'month';
+
+function getOrderStatus(order: SavedOrder) {
+  return order.status ?? 'pending';
+}
+
+function getOrderStatusLabel(order: SavedOrder) {
+  return getOrderStatus(order) === 'sent_to_sage' ? 'Completada' : 'Pendiente';
+}
 
 function getWasteLevel(wastePercentage: number): WasteLevel {
   if (wastePercentage > 50) return 'critical';
@@ -139,20 +154,37 @@ export function SavedOrdersPanel() {
   const store = useCalculatorStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reportRows = useMemo(() => store.savedOrders.map(getOrderReportRow), [store.savedOrders]);
-  const globalSummary = summarizeOrdersProduction(store.savedOrders);
-  const totalLinealWaste = globalSummary.tube.wasteFeet + globalSummary.bottom.wasteFeet;
+  
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('all');
+  const [dateRange, setDateRange] = useState<DateRange>('all');
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   const filteredRows = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
     const nextRows = reportRows.filter((row) => {
+      const orderDate = new Date(row.order.createdAt);
+      if (dateRange === 'today' && orderDate < today) return false;
+      if (dateRange === 'week' && orderDate < startOfWeek) return false;
+      if (dateRange === 'month' && orderDate < startOfMonth) return false;
+
+      if (statusFilter !== 'all' && getOrderStatus(row.order) !== statusFilter) {
+        return false;
+      }
+
       if (!deferredQuery) {
         return true;
       }
 
       const searchable = [
         row.order.orderNumber,
+        getOrderStatusLabel(row.order),
         row.order.items.length.toString(),
         row.order.items
           .map((item) =>
@@ -180,7 +212,20 @@ export function SavedOrdersPanel() {
           return new Date(right.order.createdAt).getTime() - new Date(left.order.createdAt).getTime();
       }
     });
-  }, [deferredQuery, reportRows, sortMode]);
+  }, [deferredQuery, reportRows, sortMode, statusFilter, dateRange]);
+
+  const filteredOrders = useMemo(() => filteredRows.map((r) => r.order), [filteredRows]);
+  const globalSummary = useMemo(() => summarizeOrdersProduction(filteredOrders), [filteredOrders]);
+
+  const exportableSageOrders = useMemo(
+    () => filteredOrders.filter((order) => getSageExportableLineCount([order]) > 0),
+    [filteredOrders],
+  );
+  const sageLineCount = useMemo(
+    () => getSageExportableLineCount(filteredOrders),
+    [filteredOrders],
+  );
+  const totalLinealWaste = globalSummary.tube.wasteFeet + globalSummary.bottom.wasteFeet;
 
   const selectedRow =
     filteredRows.find((row) => row.order.id === store.selectedOrderId) ??
@@ -188,27 +233,12 @@ export function SavedOrdersPanel() {
     null;
   const selectedWasteLevel = selectedRow ? getWasteLevel(selectedRow.wastePercentage) : 'healthy';
 
-  // % Retazo utilizado: área total cubierta con retazos / área total producida
-  const totalReusedArea = store.savedOrders
+  const totalReusedArea = filteredOrders
     .flatMap((order) => order.items)
     .reduce((sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0), 0);
-  const reusePercentage = getReusePercentage(totalReusedArea, globalSummary.curtainAreaM2);
-  const reuseLevel = getReuseLevel(reusePercentage);
-
-  // % Merma promedio global (para la cabecera)
-  const globalAvgWaste =
-    reportRows.length === 0
-      ? 0
-      : reportRows.reduce((sum, row) => sum + row.wastePercentage, 0) / reportRows.length;
-  const globalAvgWasteLevel = getWasteLevel(globalAvgWaste);
-
-  // Merma Real global = wasteM2 / (fabricDownloaded + totalReused)
-  const realWastePercentage = getRealWastePercentage(
-    globalSummary.fabricWasteM2,
-    globalSummary.fabricDownloadedM2,
-    totalReusedArea,
-  );
-  const realWasteLevel = getWasteLevel(realWastePercentage);
+  const grossWasteM2 = globalSummary.fabricWasteM2 + totalReusedArea;
+  const scrapRecoveryPercentage = grossWasteM2 === 0 ? 0 : (totalReusedArea / grossWasteM2) * 100;
+  const scrapRecoveryLevel = getReuseLevel(scrapRecoveryPercentage);
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const isMobile = useIsMobile(640);
@@ -224,7 +254,6 @@ export function SavedOrdersPanel() {
         exit: { opacity: 0, x: 16 },
       };
 
-  // % Retazo utilizado per-order (para el detail panel)
   const reusedWasteArea = selectedRow
     ? selectedRow.order.items.reduce(
         (sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0),
@@ -251,123 +280,71 @@ export function SavedOrdersPanel() {
           `orders-detail-alert--${selectedWasteLevel}`,
         ].join(' ')}
       >
-        <strong>Merma {getWasteLabel(selectedWasteLevel).toLowerCase()}</strong>
+        <strong>{getOrderStatusLabel(selectedRow.order)}</strong>
         <span>
-          Esta orden registra {formatNumber(selectedRow.wastePercentage)} % de merma de tela.
+          {getOrderStatus(selectedRow.order) === 'sent_to_sage'
+            ? `Exportada a Sage${selectedRow.order.sageExportedAt ? ` el ${formatDate(selectedRow.order.sageExportedAt)}` : ''}. No se incluirá en futuros descargos.`
+            : `Esta orden registra ${formatNumber(selectedRow.wastePercentage)} % de merma de tela y está pendiente de descargo.`}
         </span>
       </div>
 
-      <div className="orders-detail-strip">
-        <article className="summary-card">
-          <span>Fecha</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+        <div>
+          <h2 style={{ margin: '0 0 6px 0', fontSize: '1.25rem' }}>
+            Orden {selectedRow.order.orderNumber || `#${selectedRow.order.id.slice(0, 6)}`}
+          </h2>
+          <span className={['order-status-pill', `order-status-pill--${getOrderStatus(selectedRow.order)}`].join(' ')}>
+            {getOrderStatus(selectedRow.order) === 'sent_to_sage' ? 'Enviada a Sage' : 'Pendiente de descargo'}
+          </span>
+        </div>
+        <div style={{ textAlign: 'right', color: 'var(--muted)', fontSize: '0.85rem' }}>
           <strong>{getRelativeDateLabel(selectedRow.order.createdAt)}</strong>
-          <small>{formatDate(selectedRow.order.createdAt)}</small>
-        </article>
-        <article className="summary-card">
-          <span>Cortinas</span>
+          <br />
+          {formatDate(selectedRow.order.createdAt)}
+        </div>
+      </div>
+
+      <div className="orders-summary-top orders-summary-top--4col">
+        <article className="summary-card summary-card--accent">
+          <span>Producción</span>
           <strong>{selectedRow.summary.curtains}</strong>
-          <small>Items en esta orden</small>
+          <small>{formatNumber(selectedRow.summary.curtainAreaM2)} m2 útiles</small>
         </article>
         <article className="summary-card">
-          <span>Tela nueva</span>
-          <strong>{formatNumber(selectedRow.summary.fabricDownloadedM2)} m2</strong>
-          <small>Descargada desde rollo</small>
+          <span>Costo</span>
+          <strong>${formatNumber(selectedRow.summary.totalOrderCost)}</strong>
+          <small>Total materiales</small>
+        </article>
+        <article className="summary-card">
+          <span>Merma</span>
+          <strong>{formatNumber(selectedRow.wastePercentage)} %</strong>
+          <small>Desperdicio tela</small>
         </article>
         <article className="summary-card summary-card--efficiency">
-          <span>% Uso de retazo</span>
-          <strong>{formatNumber(orderReusePercentage)} %</strong>
-          <span
-            className={['waste-indicator', `waste-indicator--${orderReuseLevel}`].join(' ')}
-          >
-            {getReuseLabel(orderReuseLevel)}
-          </span>
-          <small>{formatNumber(reusedWasteArea)} m2 reutilizados</small>
-        </article>
-        <article className="summary-card">
-          <span>Costo total</span>
-          <strong>${formatNumber(selectedRow.summary.totalOrderCost)}</strong>
-          <small>{selectedRow.summary.curtains === 0 ? '$0' : `$${formatNumber(selectedRow.summary.totalOrderCost / selectedRow.summary.curtains)}`} por cortina</small>
+          <span>Retazos</span>
+          <strong>{selectedRow.summary.reusedWasteCurtains}</strong>
+          <small>
+            {selectedRow.summary.fabricSavingsCost > 0
+              ? `Ahorro $${formatNumber(selectedRow.summary.fabricSavingsCost)}`
+              : 'Sin uso de retazo'}
+          </small>
         </article>
       </div>
 
-      <details className="project-detail-block" open>
-        <summary>Resumen tecnico</summary>
-        <div className="orders-detail-grid">
-          <article className="summary-card">
-            <span>Metraje terminado</span>
-            <strong>{formatNumber(selectedRow.summary.curtainAreaM2)} m2</strong>
-          </article>
-          <article className="summary-card">
-            <span>Merma tela</span>
-            <strong>{formatNumber(selectedRow.summary.fabricWasteM2)} m2</strong>
-            <small>{formatNumber(selectedRow.wastePercentage)} %</small>
-          </article>
-          <article className="summary-card">
-            <span>Merma de corte</span>
-            <strong>{formatNumber(selectedRow.wastePercentage)} %</strong>
-            <small>Solo tela nueva del rollo</small>
-          </article>
-          <article className="summary-card">
-            <span>Retazos usados</span>
-            <strong>{selectedRow.summary.reusedWasteCurtains}</strong>
-            <small>{formatNumber(reusedWasteArea)} m2 reutilizados</small>
-          </article>
-        </div>
-      </details>
-
-      <details className="project-detail-block" open>
-        <summary>Costos y desperdicio</summary>
-        <div className="orders-detail-grid">
-          <article className="summary-card">
-            <span>Costo total</span>
-            <strong>${formatNumber(selectedRow.summary.totalOrderCost)}</strong>
-          </article>
-          <article className="summary-card">
-            <span>Costo tela</span>
-            <strong>${formatNumber(selectedRow.summary.fabricDownloadedCost)}</strong>
-          </article>
-          <article className="summary-card">
-            <span>Costo util</span>
-            <strong>
-              $
-              {formatNumber(
-                selectedRow.order.items.reduce(
-                  (sum, item) => sum + item.result.fabricUsefulCost,
-                  0,
-                ),
-              )}
-            </strong>
-          </article>
-          <article className="summary-card">
-            <span>Costo merma</span>
-            <strong>${formatNumber(selectedRow.summary.fabricWasteCost)}</strong>
-            <small>
-              {selectedRow.summary.fabricSavingsCost > 0
-                ? `Ahorro ${formatNumber(selectedRow.summary.fabricSavingsCost)}`
-                : 'Sin ahorro por retazo'}
-            </small>
-          </article>
-          <article className="summary-card">
-            <span>Costo componentes</span>
-            <strong>${formatNumber(selectedRow.summary.fixedComponentsCost)}</strong>
-          </article>
-        </div>
-
-        <div className="component-summary">
-          <h4>Componentes</h4>
-          <div className="component-summary__list component-summary__list--compact">
-            {selectedRow.summary.fixedComponents.map((component) => (
-              <article
-                key={`${component.name}-${component.unit}`}
-                className="component-summary__item"
-              >
-                <span>
-                  {component.name} - {formatNumber(component.quantity, 0)} {component.unit}
-                </span>
-                <strong>${formatNumber(component.totalCost)}</strong>
-              </article>
-            ))}
-          </div>
+      <details className="project-detail-block">
+        <summary>Componentes y tubos</summary>
+        <div className="component-summary__list component-summary__list--compact" style={{ marginTop: '12px' }}>
+          {selectedRow.summary.fixedComponents.map((component) => (
+            <article
+              key={`${component.name}-${component.unit}`}
+              className="component-summary__item"
+            >
+              <span>
+                {component.name} - {formatNumber(component.quantity, 0)} {component.unit}
+              </span>
+              <strong>${formatNumber(component.totalCost)}</strong>
+            </article>
+          ))}
         </div>
       </details>
 
@@ -386,30 +363,49 @@ export function SavedOrdersPanel() {
                     ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
                     : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
                 </p>
-                <span>
-                  Tela nueva {formatNumber(item.result.fabricDownloadedM2)} m2 - rollo{' '}
-                  {formatNumber(item.result.recommendedRollWidthMeters)} m
-                </span>
-                <span>
-                  Merma {formatNumber(item.result.wasteM2)} m2 -{' '}
-                  {formatNumber(item.result.wastePercentage)} %
-                </span>
-                <span>
-                  Costo total ${formatNumber(item.result.fabricDownloadedCost)} - util $
-                  {formatNumber(item.result.fabricUsefulCost)} - merma $
-                  {formatNumber(item.result.fabricWasteCost)}
-                </span>
-                {item.reusedWastePiece ? (
+                <div style={{ display: 'flex', gap: '8px', fontSize: '0.85rem', color: 'var(--muted)', flexWrap: 'wrap', marginTop: '4px' }}>
                   <span>
-                    Retazo usado {formatNumber(item.reusedWastePiece.widthMeters)} x{' '}
-                    {formatNumber(item.reusedWastePiece.heightMeters)} m
+                    <strong>Merma:</strong> {formatNumber(item.result.wastePercentage)}%
                   </span>
-                ) : null}
+                  <span>|</span>
+                  {item.reusedWastePiece ? (
+                    <span style={{ color: '#059669', fontWeight: 600 }}>
+                      ✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)
+                    </span>
+                  ) : (
+                    <span>
+                      <strong>Rollo:</strong> {formatNumber(item.result.recommendedRollWidthMeters)}m
+                    </span>
+                  )}
+                </div>
+
               </div>
             </article>
           ))}
         </div>
       </details>
+
+      <div className="order-status-actions">
+        {getOrderStatus(selectedRow.order) === 'sent_to_sage' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'pending')}
+          >
+            Volver a pendiente
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'sent_to_sage')}
+          >
+            Marcar pasada a Sage
+          </Button>
+        )}
+      </div>
     </motion.div>
   ) : (
     <p className="history-panel__empty">
@@ -419,24 +415,56 @@ export function SavedOrdersPanel() {
 
   return (
     <section className="orders-report-layout orders-report-layout--phone">
-      {/* ── Panel izquierdo: lista de órdenes ── */}
       <Card className="saved-orders-panel orders-report-panel orders-report-panel--phone">
         <div className="results-header results-header--phone">
           <div>
             <span className="section-heading__eyebrow">Ordenes</span>
-            <h2>Resumen de produccion</h2>
+            <h2>Reporte de Produccion</h2>
           </div>
           <div className="saved-orders-actions saved-orders-actions--phone">
-            <Button type="button" size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()}>
-              Importar
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => downloadCsvReport(filteredOrders)}
+              disabled={filteredOrders.length === 0}
+            >
+              Exportar CSV
             </Button>
             <Button
               type="button"
               size="sm"
+              variant="secondary"
+              onClick={() => {
+                try {
+                  const exportedOrderIds = exportableSageOrders.map((order) => order.id);
+                  downloadSageOrderEntry(filteredOrders);
+                  store.markOrdersSentToSage(exportedOrderIds);
+                } catch (error) {
+                  store.setErrors((prev) => ({
+                    ...prev,
+                    general:
+                      error instanceof Error
+                        ? error.message
+                        : 'No se pudo generar el archivo para Sage.',
+                  }));
+                }
+              }}
+              disabled={filteredOrders.length === 0 || sageLineCount === 0}
+            >
+              Sage ({exportableSageOrders.length})
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()}>
+              Importar JSON
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => downloadSavedOrders(store.savedOrders)}
               disabled={store.savedOrders.length === 0}
             >
-              Exportar
+              Backup
             </Button>
           </div>
         </div>
@@ -479,6 +507,18 @@ export function SavedOrdersPanel() {
                 />
               </label>
               <label className="field">
+                <span>Periodo</span>
+                <select
+                  value={dateRange}
+                  onChange={(event) => setDateRange(event.target.value as DateRange)}
+                >
+                  <option value="all">Historico (Todo)</option>
+                  <option value="today">Hoy</option>
+                  <option value="week">Esta semana</option>
+                  <option value="month">Este mes</option>
+                </select>
+              </label>
+              <label className="field">
                 <span>Ordenar</span>
                 <select
                   value={sortMode}
@@ -492,50 +532,42 @@ export function SavedOrdersPanel() {
               </label>
             </div>
 
-            {/* ── Cambio 1: Resumen colapsable ── */}
             <div className="orders-summary-top orders-summary-top--4col">
               <article className="summary-card summary-card--accent">
                 <MetricInfo
-                  label="Ordenes"
-                  message="Cantidad total de ordenes guardadas en este resumen."
+                  label="Cortinas"
+                  message="Total de piezas terminadas en el periodo seleccionado."
                 />
-                <strong>{store.savedOrders.length}</strong>
+                <strong>{globalSummary.curtains}</strong>
+                <small>En {filteredRows.length} ordenes</small>
               </article>
               <article className="summary-card">
                 <MetricInfo
-                  label="% Merma"
-                  message="Promedio del porcentaje de merma de corte por orden. Se calcula sobre tela nueva descargada del rollo: merma m2 / tela nueva m2."
+                  label="Costo"
+                  message="Inversion total en materiales de las ordenes visibles."
                 />
-                <strong>{formatNumber(globalAvgWaste)} %</strong>
-                <small
-                  className={['waste-indicator', `waste-indicator--${globalAvgWasteLevel}`].join(' ')}
-                >
-                  {getWasteLabel(globalAvgWasteLevel)}
-                </small>
+                <strong>${formatNumber(globalSummary.totalOrderCost)}</strong>
+                <small>Prom. ${globalSummary.curtains === 0 ? 0 : formatNumber(globalSummary.totalOrderCost / globalSummary.curtains)}/cortina</small>
               </article>
               <article className="summary-card">
                 <MetricInfo
                   label="% Uso"
-                  message="Porcentaje de la produccion total que fue cubierta con retazos. Se calcula como area reutilizada / area total producida."
+                  message="Porcentaje de la merma total generada que logró ser rescatada y reutilizada. Formula: Area Reutilizada / (Merma Final + Area Reutilizada)."
                 />
-                <strong>{formatNumber(reusePercentage)} %</strong>
+                <strong>{formatNumber(scrapRecoveryPercentage)} %</strong>
                 <small
-                  className={['waste-indicator', `waste-indicator--${reuseLevel}`].join(' ')}
+                  className={['waste-indicator', `waste-indicator--${scrapRecoveryLevel}`].join(' ')}
                 >
-                  {getReuseLabel(reuseLevel)}
+                  {getReuseLabel(scrapRecoveryLevel)}
                 </small>
               </article>
               <article className="summary-card">
                 <MetricInfo
-                  label="% Merma real"
-                  message="Desperdicio real sobre todos los recursos textiles usados. Se calcula como merma m2 / (tela nueva m2 + retazos reutilizados m2)."
+                  label="Área m²"
+                  message="Area total de cortinas terminadas (no incluye merma)."
                 />
-                <strong>{formatNumber(realWastePercentage)} %</strong>
-                <small
-                  className={['waste-indicator', `waste-indicator--${realWasteLevel}`].join(' ')}
-                >
-                  {getWasteLabel(realWasteLevel)}
-                </small>
+                <strong>{formatNumber(globalSummary.curtainAreaM2)} m2</strong>
+                <small>Superficie util</small>
               </article>
             </div>
 
@@ -544,7 +576,7 @@ export function SavedOrdersPanel() {
               className="orders-summary-toggle"
               onClick={() => setSummaryExpanded((prev) => !prev)}
             >
-              {summaryExpanded ? 'Ocultar detalles del resumen ▲' : 'Ver detalles del resumen ▼'}
+              {summaryExpanded ? 'Ocultar detalles tecnicos ▲' : 'Ver detalles tecnicos ▼'}
             </button>
 
             <AnimatePresence initial={false}>
@@ -559,16 +591,21 @@ export function SavedOrdersPanel() {
                 >
                   <div className="orders-summary-details">
                     <article className="summary-card">
-                      <span>Cortinas</span>
-                      <strong>{globalSummary.curtains}</strong>
-                    </article>
-                    <article className="summary-card">
-                      <span>Metraje cortina</span>
-                      <strong>{formatNumber(globalSummary.curtainAreaM2)} m2</strong>
-                    </article>
-                    <article className="summary-card">
                       <span>Tela nueva</span>
                       <strong>{formatNumber(globalSummary.fabricDownloadedM2)} m2</strong>
+                    </article>
+                    <article className="summary-card">
+                      <span>Merma tela</span>
+                      <strong>{formatNumber(globalSummary.fabricWasteM2)} m2</strong>
+                      <small>{formatNumber(globalSummary.fabricWastePercentage)} % corte</small>
+                    </article>
+                    <article className="summary-card">
+                      <span>Merma lineal</span>
+                      <strong>{formatNumber(totalLinealWaste)} pies</strong>
+                      <small>
+                        Tubo {formatNumber(globalSummary.tube.wasteFeet)} / Bottom{' '}
+                        {formatNumber(globalSummary.bottom.wasteFeet)}
+                      </small>
                     </article>
                     <article className="summary-card">
                       <span>Costo tela</span>
@@ -579,17 +616,8 @@ export function SavedOrdersPanel() {
                       <strong>${formatNumber(globalSummary.fixedComponentsCost)}</strong>
                     </article>
                     <article className="summary-card">
-                      <span>Merma tela</span>
-                      <strong>{formatNumber(globalSummary.fabricWasteM2)} m2</strong>
-                      <small>{formatNumber(globalSummary.fabricWastePercentage)} % general</small>
-                    </article>
-                    <article className="summary-card">
-                      <span>Merma lineal</span>
-                      <strong>{formatNumber(totalLinealWaste)} pies</strong>
-                      <small>
-                        Tubo {formatNumber(globalSummary.tube.wasteFeet)} / Bottom{' '}
-                        {formatNumber(globalSummary.bottom.wasteFeet)}
-                      </small>
+                      <span>Lineas Sage</span>
+                      <strong>{sageLineCount}</strong>
                     </article>
                   </div>
                 </motion.div>
@@ -620,8 +648,13 @@ export function SavedOrdersPanel() {
                           <strong>{row.order.orderNumber}</strong>
                           <span>{getRelativeDateLabel(row.order.createdAt)}</span>
                         </div>
-                        <span className={['waste-indicator', `waste-indicator--${wasteLevel}`].join(' ')}>
-                          {getWasteLabel(wasteLevel)}
+                        <span
+                          className={[
+                            'order-status-pill',
+                            `order-status-pill--${getOrderStatus(row.order)}`,
+                          ].join(' ')}
+                        >
+                          {getOrderStatus(row.order) === 'sent_to_sage' ? 'Completada' : 'Pendiente'}
                         </span>
                       </div>
 

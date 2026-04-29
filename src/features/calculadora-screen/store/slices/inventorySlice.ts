@@ -1,16 +1,14 @@
 import { StateCreator } from 'zustand';
 import { CalculatorStore, InventorySlice } from '../types';
 import { createDefaultInventory } from '../../../../lib/inventory';
-import { loadProductionInventory, loadInventoryMovements } from '../../../../lib/storage';
-
 export const createInventorySlice: StateCreator<
   CalculatorStore,
   [],
   [],
   InventorySlice
 > = (set) => ({
-  productionInventory: loadProductionInventory() ?? createDefaultInventory(),
-  inventoryMovements: loadInventoryMovements() || [],
+  productionInventory: createDefaultInventory(),
+  inventoryMovements: [],
 
   setProductionInventory: (inventory) => set({ productionInventory: inventory }),
   

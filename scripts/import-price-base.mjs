@@ -6,6 +6,7 @@ import xlsx from 'xlsx';
 const defaultInputPath = 'C:\\Users\\diego\\Downloads\\BASE PARA PRECIOS (1).xlsx';
 const inputPath = process.argv[2] ?? defaultInputPath;
 const outputPath = process.argv[3] ?? path.resolve('src/data/luxia-roller-catalog.json');
+const itemCatalogOutputPath = process.argv[4] ?? path.resolve('src/data/luxia-item-catalog.json');
 
 const workbook = xlsx.readFile(inputPath, { cellDates: false });
 const priceSheet = workbook.Sheets.LUXIA;
@@ -77,6 +78,10 @@ const rollerItems = items
   .filter(Boolean)
   .sort((left, right) => left.itemCode.localeCompare(right.itemCode, 'es'));
 
+const catalogItems = items
+  .map(toCatalogItem)
+  .sort((left, right) => left.itemCode.localeCompare(right.itemCode, 'es'));
+
 const payload = {
   generatedAt: new Date().toISOString(),
   sourceFile: inputPath,
@@ -84,11 +89,22 @@ const payload = {
   items: rollerItems,
 };
 
+const itemCatalogPayload = {
+  generatedAt: new Date().toISOString(),
+  sourceFile: inputPath,
+  totalItems: catalogItems.length,
+  items: catalogItems,
+};
+
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
+fs.mkdirSync(path.dirname(itemCatalogOutputPath), { recursive: true });
+fs.writeFileSync(itemCatalogOutputPath, `${JSON.stringify(itemCatalogPayload, null, 2)}\n`);
 
 console.log(`Catalogo generado en ${outputPath}`);
 console.log(`Items exportados: ${rollerItems.length}`);
+console.log(`Catalogo general generado en ${itemCatalogOutputPath}`);
+console.log(`Items generales exportados: ${catalogItems.length}`);
 
 function asTrimmedString(value) {
   if (value === null || value === undefined) {
@@ -136,6 +152,122 @@ function toRollerCatalogItem(item) {
     widthMeters: Number(widthMeters.toFixed(2)),
     costPerYd2: item.avgCost,
   };
+}
+
+function toCatalogItem(item) {
+  const suggestedCategory = inferCategory(item.description ?? '');
+  const suggestedColor = inferItemColor(item.description ?? '');
+
+  return {
+    itemCode: item.itemCode,
+    description: item.description ?? '',
+    unit: item.unit ?? 'EA',
+    avgCost: item.avgCost ?? 0,
+    salePrice: item.salePrice,
+    imageUrl: item.imageUrl,
+    suggestedCategory,
+    category: suggestedCategory,
+    suggestedColor,
+    color: suggestedColor,
+    sageItemCode: item.itemCode,
+  };
+}
+
+function inferCategory(description) {
+  const normalized = description.toLowerCase();
+
+  if (
+    normalized.includes('screen') ||
+    normalized.includes('premium') ||
+    normalized.includes('pinpoint') ||
+    normalized.includes('pinpointe') ||
+    normalized.includes('blackout')
+  ) {
+    return 'fabric';
+  }
+
+  if (normalized.includes('bottomrail') || normalized.includes('bottom rail') || normalized.includes('bottomail')) {
+    if (normalized.includes('end cap') || normalized.includes('endcap') || normalized.includes('cap')) {
+      return 'bottomCap';
+    }
+    return 'bottom';
+  }
+
+  if (normalized.includes('tube') && !normalized.includes('endplug') && !normalized.includes('end plug')) {
+    return 'tube';
+  }
+
+  if (
+    normalized.includes('chain stopper') ||
+    normalized.includes('chain stop') ||
+    normalized.includes('chain peanut connector') ||
+    normalized.includes('plastic chain connector') ||
+    normalized.includes('plast chain connector')
+  ) {
+    return 'chainStop';
+  }
+
+  if (normalized.includes('chain weight') || normalized.includes('cord/chain weight') || normalized.includes('plastic weights')) {
+    return 'chainWeight';
+  }
+
+  if (normalized.includes('chain')) {
+    return 'chain';
+  }
+
+  if (normalized.includes('clutch') || normalized.includes('control')) {
+    return 'control';
+  }
+
+  if (normalized.includes('bracket') || normalized.includes('brakert')) {
+    return 'bracket';
+  }
+
+  if (normalized.includes('endplug') || normalized.includes('end plug')) {
+    return 'endPlug';
+  }
+
+  if (normalized.includes('end cap') || normalized.includes('endcap')) {
+    return 'bottomCap';
+  }
+
+  return 'other';
+}
+
+function inferItemColor(description) {
+  const normalized = description.toLowerCase();
+  const colorPatterns = [
+    ['white satin', 'White Satin'],
+    ['off white', 'Off White'],
+    ['snow flakes', 'Snow Flakes'],
+    ['light grey', 'Light Grey'],
+    ['light gray', 'Light Gray'],
+    ['black satin', 'Black Satin'],
+    ['black/black', 'Black/Black'],
+    ['char brown', 'Char Brown'],
+    ['milk chocolate', 'Milk Chocolate'],
+    ['chocolate', 'Chocolate'],
+    ['alabaster', 'Alabaster'],
+    ['aluminum', 'Aluminum'],
+    ['bronze', 'Bronze'],
+    ['brown', 'Brown'],
+    ['beige', 'Beige'],
+    ['bisque', 'Bisque'],
+    ['ivory', 'Ivory'],
+    ['linen', 'Linen'],
+    ['grey', 'Grey'],
+    ['gray', 'Gray'],
+    ['black', 'Black'],
+    ['white', 'White'],
+    ['clear', 'Clear'],
+    ['zinc', 'Zinc'],
+    ['fawn', 'Fawn'],
+    ['camel', 'Camel'],
+    ['sand', 'Sand'],
+    ['taupe', 'Taupe'],
+  ];
+
+  return colorPatterns.find(([pattern]) => normalized.includes(pattern))?.[1] ?? null;
 }
 
 function inferFamily(description) {

@@ -22,6 +22,7 @@ import {
   getRollerFabricVariants
 } from '../../../lib/priceCatalog';
 import { CalculationInput } from '../../../domain/curtains/types';
+import { resolveScreenRecipeMaterials } from '../../../lib/recipeResolver';
 
 export function useCalculatorDerivedState() {
   const store = useCalculatorStore();
@@ -98,14 +99,14 @@ export function useCalculatorDerivedState() {
     }
 
     try {
-      store.setResult(calculateScreenMaterials(parsedFormValues as CalculationInput, store.multiConfig.rollux, rollOptions));
+      store.setResult(calculateScreenMaterials(parsedFormValues as CalculationInput, store.ruleConfig, rollOptions));
       store.setErrors((prev) => ({ ...prev, general: undefined }));
     } catch (error: any) {
       store.setResult(null);
       store.setErrors((prev) => ({ ...prev, general: error.message }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasValidDimensions, parsedFormValues, store.multiConfig.rollux, rollOptions]);
+  }, [hasValidDimensions, parsedFormValues, store.ruleConfig, rollOptions]);
 
   const savedWastePieces = useMemo(() => {
     const usedWastePieceIds = collectUsedWastePieceIds(store.orderDraft);
@@ -139,10 +140,10 @@ export function useCalculatorDerivedState() {
       parsedFormValues as CalculationInput,
       savedWastePieces,
       DEFAULT_WASTE_REUSE_MARGIN_METERS,
-      store.multiConfig.rollux,
+      store.ruleConfig,
       rollOptions
     );
-  }, [parsedFormValues, store.result, store.multiConfig.rollux, savedWastePieces, rollOptions]);
+  }, [parsedFormValues, store.result, store.ruleConfig, savedWastePieces, rollOptions]);
 
   useEffect(() => {
     if (!store.result) {
@@ -247,6 +248,31 @@ export function useCalculatorDerivedState() {
     [adjustedResult, selectedWasteMatch],
   );
 
+  const recipeResolution = useMemo(() => {
+    if (
+      !displayResult ||
+      !parsedFormValues.curtainType ||
+      parsedFormValues.widthMeters === undefined ||
+      parsedFormValues.heightMeters === undefined
+    ) {
+      return null;
+    }
+
+    return resolveScreenRecipeMaterials(
+      parsedFormValues as CalculationInput,
+      displayResult,
+      store.screenRecipe,
+      store.fabricToneRules,
+      store.catalogItems,
+    );
+  }, [
+    displayResult,
+    parsedFormValues,
+    store.catalogItems,
+    store.fabricToneRules,
+    store.screenRecipe,
+  ]);
+
   return {
     fabricFamilies,
     fabricOpennessOptions,
@@ -260,6 +286,9 @@ export function useCalculatorDerivedState() {
     colorWastePieces,
     colorWasteMatches,
     selectedWasteMatch,
-    displayResult
+    displayResult,
+    materialLines: recipeResolution?.materialLines ?? [],
+    materialWarnings: recipeResolution?.warnings ?? [],
+    toneGroup: recipeResolution?.toneGroup ?? null,
   };
 }

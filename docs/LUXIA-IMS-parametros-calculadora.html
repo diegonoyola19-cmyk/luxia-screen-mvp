@@ -1,0 +1,314 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LUXIA - IMS</title><style>
+body{font-family:Calibri,Arial,sans-serif;line-height:1.35;color:#1f1f1f;max-width:900px;margin:32px auto;padding:0 24px;}
+h1{color:#8d1628;font-size:26px;border-bottom:2px solid #8d1628;padding-bottom:8px;}
+h2{color:#8d1628;font-size:20px;margin-top:28px;}
+h3{font-size:16px;margin-top:20px;} table{border-collapse:collapse;width:100%;margin:12px 0 18px;} th,td{border:1px solid #d8d1cf;padding:7px 9px;vertical-align:top;} th{background:#f4ece9;color:#4c151f;text-align:left;} code{background:#f5f2f0;padding:1px 4px;border-radius:3px;} pre{background:#f7f4f2;border:1px solid #ded6d2;padding:10px;white-space:pre-wrap;} li{margin:3px 0;}
+</style></head><body><h1>LUXIA - Documento de Parámetros para Integración IMS</h1>
+<p>Fecha: 26 de abril de 2026</p>
+<p>Aplicación publicada: https://luxia-screen-mvp.vercel.app</p>
+<p>Nombre visible de la aplicación: LUXIA</p>
+<h2>1. Objetivo</h2>
+<p>Este documento resume la lógica funcional y los parámetros de cálculo de la aplicación LUXIA para evaluar cómo traducirla e integrarla dentro del sistema IMS.</p>
+<p>La aplicación actual fue construida como una herramienta interna de cálculo, producción, bodega y descargo para cortinas tipo Roller/Screen. El objetivo para IMS no es copiar Vercel ni la infraestructura React, sino trasladar la lógica de negocio: cálculo de materiales, reglas de corte, retazos, recetas, descargos y estados de órdenes.</p>
+<h2>2. Alcance Funcional Actual</h2>
+<p>La herramienta cubre estos módulos principales:</p>
+<ol>
+<li>Cálculo de cortina Roller/Screen.</li>
+<li>Agrupación de cortinas para corte conjunto.</li>
+<li>Selección de tela por familia, apertura y color.</li>
+<li>Cálculo de tela descargada, tela útil y merma.</li>
+<li>Registro y sugerencia de retazos reutilizables.</li>
+<li>Inventario básico de rollos, retazos, tubos, bottoms y componentes.</li>
+<li>Configuración de recetas por tono.</li>
+<li>Exportación de hoja de descargo compatible con formato Sage.</li>
+<li>Estados de orden: Pendiente y Completada.</li>
+</ol>
+<h2>3. Parámetros Globales</h2>
+<table><thead><tr><th>Parámetro</th><th>Valor actual</th><th>Uso</th></tr></thead><tbody><tr><td>Conversión metros a pies</td><td><code>3.28084</code></td><td>Tubo, bottom y cadena</td></tr><tr><td>Conversión m2 a sqyd</td><td><code>1.20</code></td><td>Tela para descargo</td></tr><tr><td>Extra de alto de corte</td><td><code>0.30 m</code></td><td>Se suma al alto terminado</td></tr><tr><td>Encuadre base de tela</td><td><code>0.10 m</code></td><td>Se suma al ancho y alto de corte</td></tr><tr><td>Separación entre piezas en corte conjunto</td><td><code>0.05 m</code></td><td>Separación entre cortinas al cortar juntas</td></tr><tr><td>Ancho pequeño de rollo</td><td><code>2.50 m</code></td><td>Rollo disponible</td></tr><tr><td>Ancho grande de rollo</td><td><code>3.00 m</code></td><td>Rollo disponible</td></tr><tr><td>Descuento tubo/bottom</td><td><code>0.03 m</code></td><td>Tubo y bottom se cortan un poco menor al ancho terminado</td></tr><tr><td>Barra estándar tubo/bottom</td><td><code>19 ft</code></td><td>Descargo completo por barra usada</td></tr><tr><td>Retazo útil de tela</td><td>ambos lados <code>&gt;= 1.00 m</code></td><td>Si no cumple, no se guarda en bodega</td></tr><tr><td>Sobrante útil tubo/bottom</td><td><code>&gt;= 1.00 m</code></td><td>Si cumple, se guarda como sobrante</td></tr></tbody></table>
+<h2>4. Datos de Entrada para Cálculo</h2>
+<p>Cada cortina necesita:</p>
+<table><thead><tr><th>Campo</th><th>Descripción</th></tr></thead><tbody><tr><td>Tipo de cortina</td><td>Actualmente solo Roller/Screen</td></tr><tr><td>Familia de tela</td><td>Ejemplo: Blackout, Screen, etc.</td></tr><tr><td>Apertura</td><td>Ejemplo: 1%, 3%, 5%, según catálogo</td></tr><tr><td>Color</td><td>Color de la tela</td></tr><tr><td>Ancho terminado</td><td>En metros</td></tr><tr><td>Alto terminado</td><td>En metros</td></tr></tbody></table>
+<p>La tela seleccionada debe resolverse contra catálogo por:</p>
+<ol>
+<li>Familia.</li>
+<li>Apertura.</li>
+<li>Color.</li>
+<li>Ancho de rollo disponible.</li>
+<li>Código de item/Sage.</li>
+</ol>
+<h2>5. Cálculo Individual de Tela</h2>
+<h3>5.1 Orientación Normal</h3>
+<p>La orientación normal es la regla principal.</p>
+<pre>ancho_corte = ancho_terminado + 0.10
+alto_corte = alto_terminado + extra_alto_corte + 0.10</pre>
+<p>Con los valores actuales:</p>
+<pre>alto_corte = alto_terminado + 0.30 + 0.10
+alto_corte = alto_terminado + 0.40</pre>
+<p>El sistema busca el rollo más pequeño donde quepa el <code>ancho_corte</code>.</p>
+<pre>rollo_recomendado = primer rollo disponible donde ancho_rollo &gt;= ancho_corte</pre>
+<h3>5.2 Orientación Volteada</h3>
+<p>La orientación volteada solo se contempla para casos raros donde por fabricación conviene rotar la cortina, normalmente cuando la cortina supera el ancho regular del rollo.</p>
+<pre>ancho_corte_volteado = alto_terminado + extra_alto_corte + 0.10
+alto_corte_volteado = ancho_terminado + 0.10</pre>
+<p>Regla de decisión:</p>
+<ol>
+<li>Si normal y volteada caben, se prefiere normal.</li>
+<li>Si volteada permite usar un rollo más pequeño, se permite volteada.</li>
+<li>Los retazos no se rotan manualmente.</li>
+</ol>
+<h2>6. Cálculo de Corte en Lote</h2>
+<p>Cuando varias cortinas del mismo material se agrupan, el sistema intenta cortarlas juntas.</p>
+<p>Para cada cortina:</p>
+<pre>ancho_corte_item = ancho_terminado + 0.10
+alto_corte_item = alto_terminado + 0.30 + 0.10</pre>
+<p>Para el grupo:</p>
+<pre>ancho_total_corte = suma(ancho_corte_item) + separación_entre_piezas
+alto_grupo = mayor(alto_corte_item)
+rollo_grupo = primer rollo disponible donde ancho_rollo &gt;= ancho_total_corte</pre>
+<p>La separación entre piezas es:</p>
+<pre>0.05 m por cada pieza adicional</pre>
+<p>Ejemplo con 2 cortinas:</p>
+<pre>ancho_total_corte =
+  ancho_corte_1 +
+  ancho_corte_2 +
+  0.05</pre>
+<h2>7. Descargo de Tela</h2>
+<p>La tela se descarga por el ancho completo del rollo usado, no por el ancho parcial ocupado.</p>
+<pre>tela_descargada_m2 = ancho_rollo * alto_grupo
+tela_descargada_sqyd = tela_descargada_m2 * 1.20</pre>
+<p>La tela útil es la parte ocupada por las cortinas dentro del corte:</p>
+<pre>tela_util_m2 = ancho_total_corte * alto_grupo
+merma_m2 = tela_descargada_m2 - tela_util_m2</pre>
+<p>La hoja de descargo usa la cantidad en <code>sqyd</code>.</p>
+<h3>Ejemplo</h3>
+<p>Cortinas:</p>
+<pre>1.25 x 1.35 m
+1.35 x 1.25 m</pre>
+<p>Cálculo:</p>
+<pre>ancho_corte_1 = 1.25 + 0.10 = 1.35 m
+ancho_corte_2 = 1.35 + 0.10 = 1.45 m
+separación = 0.05 m
+ancho_total = 2.85 m
+
+alto_corte_1 = 1.35 + 0.30 + 0.10 = 1.75 m
+alto_corte_2 = 1.25 + 0.30 + 0.10 = 1.65 m
+alto_grupo = 1.75 m
+
+rollo = 3.00 m
+tela_descargada_m2 = 3.00 * 1.75 = 5.25 m2
+tela_descargada_sqyd = 5.25 * 1.20 = 6.30 sqyd</pre>
+<h2>8. Retazos de Tela</h2>
+<h3>8.1 Regla de Retazo Útil</h3>
+<p>Un retazo de tela solo se guarda en bodega si ambos lados cumplen:</p>
+<pre>ancho_retazo &gt;= 1.00 m
+alto_retazo &gt;= 1.00 m</pre>
+<p>Ejemplos:</p>
+<table><thead><tr><th>Retazo</th><th>Resultado</th></tr></thead><tbody><tr><td><code>0.80 x 2.35 m</code></td><td>No se guarda</td></tr><tr><td><code>1.10 x 2.35 m</code></td><td>Sí se guarda</td></tr></tbody></table>
+<h3>8.2 Compatibilidad de Retazo</h3>
+<p>Un retazo se sugiere solo si:</p>
+<ol>
+<li>Es del mismo material:</li>
+</ol>
+<p>   - familia,</p>
+<p>   - apertura,</p>
+<p>   - color.</p>
+<ol>
+<li>Está disponible.</li>
+<li>La cortina cabe directamente en sus dimensiones.</li>
+</ol>
+<p>Regla:</p>
+<pre>retazo.ancho &gt;= ancho_corte
+retazo.alto &gt;= alto_corte</pre>
+<p>No se permite sugerir retazo si solo cabe rotándolo.</p>
+<h3>8.3 Uso de Retazo</h3>
+<p>Si una cortina usa retazo:</p>
+<ol>
+<li>No consume rollo nuevo.</li>
+<li>No genera retazo nuevo.</li>
+<li>La cantidad de tela en el descargo Sage es <code>0</code>.</li>
+<li>El retazo usado se marca como no disponible.</li>
+</ol>
+<h2>9. Tubo y Bottom</h2>
+<h3>9.1 Cálculo del Largo Real</h3>
+<p>Para tubo y bottom:</p>
+<pre>largo_lineal_m = ancho_terminado - 0.03
+largo_lineal_ft = largo_lineal_m * 3.28084</pre>
+<h3>9.2 Descargo Contable</h3>
+<p>La regla actual de descargo contable replica el criterio de tela: se descarga la barra completa si se tuvo que tocar una barra.</p>
+<pre>barra_estándar = 19 ft</pre>
+<p>Si varias cortinas caben en la misma barra, se descarga una barra completa para el conjunto, no una barra por cortina.</p>
+<p>Ejemplo:</p>
+<pre>uso_total_tubo = 16.90 ft
+barra_tocada = 19.00 ft
+descargo_sage = 19.00 ft
+sobrante = 2.10 ft</pre>
+<p>El sobrante puede quedar en bodega como reutilizable si cumple la regla de utilidad.</p>
+<h3>9.3 Sobrante de Tubo/Bottom</h3>
+<p>Si el sobrante de tubo o bottom es:</p>
+<pre>sobrante &gt;= 1.00 m</pre>
+<p>entonces se guarda como sobrante reutilizable.</p>
+<p>Si no cumple, queda consumido dentro del descargo completo.</p>
+<h2>10. Cadena</h2>
+<p>La cadena se calcula como:</p>
+<pre>cadena_m = alto_terminado * multiplicador_cadena
+cadena_ft = cadena_m * 3.28084</pre>
+<p>Valor actual:</p>
+<pre>multiplicador_cadena = 2</pre>
+<h2>11. Componentes Fijos</h2>
+<p>La receta estándar contempla:</p>
+<table><thead><tr><th>Componente</th><th>Cantidad</th></tr></thead><tbody><tr><td>Soporte Lado de Control</td><td>1</td></tr><tr><td>Soporte Lado de End Plug</td><td>1</td></tr><tr><td>Control</td><td>1</td></tr><tr><td>End Plug</td><td>1</td></tr><tr><td>Chapita</td><td>1</td></tr><tr><td>Pesa de Cadena</td><td>1</td></tr><tr><td>Tapaderas de Bottom</td><td>2</td></tr><tr><td>Topes de Cadena</td><td>2</td></tr></tbody></table>
+<p>Estos componentes pueden mapearse por tono/color mediante receta.</p>
+<h2>12. Recetas y Tonos</h2>
+<p>La aplicación usa grupos de tono para resolver los componentes correctos:</p>
+<ol>
+<li>White.</li>
+<li>Bronze / Café.</li>
+<li>Ivory / Beige.</li>
+<li>Grey / Gris.</li>
+</ol>
+<p>Cada componente de receta puede tener un item distinto por tono.</p>
+<p>Categorías manejadas:</p>
+<table><thead><tr><th>Categoría</th><th>Uso</th></tr></thead><tbody><tr><td>fabric</td><td>Tela</td></tr><tr><td>tube</td><td>Tubo</td></tr><tr><td>bottom</td><td>Bottom</td></tr><tr><td>chain</td><td>Cadena</td></tr><tr><td>control</td><td>Control</td></tr><tr><td>bracket</td><td>Soporte</td></tr><tr><td>endPlug</td><td>End Plug</td></tr><tr><td>bottomCap</td><td>Tapadera bottom</td></tr><tr><td>chainStop</td><td>Tope cadena</td></tr><tr><td>chainWeight</td><td>Pesa cadena</td></tr><tr><td>other</td><td>Otros</td></tr></tbody></table>
+<p>La receta genera líneas de materiales con:</p>
+<ol>
+<li>Código interno.</li>
+<li>Código Sage.</li>
+<li>Descripción.</li>
+<li>Categoría.</li>
+<li>Cantidad.</li>
+<li>Unidad.</li>
+<li>Costo unitario.</li>
+<li>Costo total.</li>
+</ol>
+<h2>13. Hoja de Descargo Sage</h2>
+<p>La exportación genera un archivo Excel <code>OrderEntrySAGE_LUXIA_YYYY-MM-DD.xlsx</code>.</p>
+<p>La hoja principal de detalle consolida materiales por código Sage.</p>
+<p>Campos principales:</p>
+<table><thead><tr><th>Campo Sage</th><th>Valor</th></tr></thead><tbody><tr><td>ORDUNIQ</td><td><code>PRODUC</code></td></tr><tr><td>ORDNUMBER</td><td><code>*** NEW ***</code></td></tr><tr><td>CUSTOMER</td><td><code>PRODUC</code></td></tr><tr><td>TYPE</td><td><code>1</code></td></tr><tr><td>LOCATION</td><td><code>1</code></td></tr><tr><td>LINETYPE</td><td><code>1</code></td></tr><tr><td>ITEM</td><td>Código Sage / Item</td></tr><tr><td>QTYORDERED</td><td>Cantidad consolidada</td></tr></tbody></table>
+<p>Reglas importantes:</p>
+<ol>
+<li>No exporta líneas con cantidad <code>0</code>.</li>
+<li>Consolida materiales iguales por código.</li>
+<li>Solo exporta órdenes en estado Pendiente.</li>
+<li>Al exportar, las órdenes pasan a estado Completada.</li>
+</ol>
+<h2>14. Estados de Orden</h2>
+<p>Las órdenes tienen dos estados:</p>
+<table><thead><tr><th>Estado visible</th><th>Estado lógico</th><th>Comportamiento</th></tr></thead><tbody><tr><td>Pendiente</td><td><code>pending</code></td><td>Se incluye en próximos descargos Sage</td></tr><tr><td>Completada</td><td><code>sent_to_sage</code></td><td>No se incluye en futuros descargos</td></tr></tbody></table>
+<p>Las órdenes antiguas sin estado se consideran Pendiente.</p>
+<h2>15. Bodega / Inventario</h2>
+<p>La bodega maneja:</p>
+<ol>
+<li>Rollos de tela.</li>
+<li>Retazos de tela.</li>
+<li>Barras de tubo.</li>
+<li>Sobrantes de tubo.</li>
+<li>Barras de bottom.</li>
+<li>Sobrantes de bottom.</li>
+<li>Componentes.</li>
+</ol>
+<p>Movimientos principales:</p>
+<table><thead><tr><th>Acción</th><th>Descripción</th></tr></thead><tbody><tr><td>create_order</td><td>Se crea una orden</td></tr><tr><td>consume</td><td>Se consume material</td></tr><tr><td>create_scrap</td><td>Se crea retazo/sobrante reutilizable</td></tr><tr><td>use_scrap</td><td>Se usa retazo existente</td></tr><tr><td>discard</td><td>Se descarta sobrante no útil</td></tr></tbody></table>
+<h2>16. Reglas de Integración al IMS</h2>
+<p>Para implementar esto dentro del IMS, se recomienda separar la lógica en estos servicios o módulos:</p>
+<h3>16.1 Servicio de Cálculo</h3>
+<p>Debe recibir:</p>
+<ol>
+<li>Medidas de cortina.</li>
+<li>Tela seleccionada.</li>
+<li>Configuración de reglas.</li>
+<li>Rollos disponibles.</li>
+<li>Retazos disponibles.</li>
+</ol>
+<p>Debe devolver:</p>
+<ol>
+<li>Rollo recomendado.</li>
+<li>Alto de corte.</li>
+<li>Ancho ocupado.</li>
+<li>Tela descargada.</li>
+<li>Merma.</li>
+<li>Retazo generado, si aplica.</li>
+<li>Tubo, bottom y cadena.</li>
+<li>Componentes de receta.</li>
+</ol>
+<h3>16.2 Servicio de Retazos</h3>
+<p>Debe:</p>
+<ol>
+<li>Guardar solo retazos útiles.</li>
+<li>Sugerir retazos compatibles sin rotación.</li>
+<li>Marcar retazo como usado al guardar orden.</li>
+<li>Evitar descarga de tela nueva si se usa retazo.</li>
+</ol>
+<h3>16.3 Servicio de Recetas</h3>
+<p>Debe:</p>
+<ol>
+<li>Mapear tela a tono.</li>
+<li>Resolver componente por tono.</li>
+<li>Calcular cantidades por regla:</li>
+</ol>
+<p>   - fija,</p>
+<p>   - pies de tubo,</p>
+<p>   - pies de bottom,</p>
+<p>   - pies de cadena.</p>
+<ol>
+<li>Generar líneas de descargo.</li>
+</ol>
+<h3>16.4 Servicio de Descargo</h3>
+<p>Debe:</p>
+<ol>
+<li>Tomar solo órdenes Pendientes.</li>
+<li>Consolidar por código Sage.</li>
+<li>Exportar o insertar en el formato requerido por IMS/Sage.</li>
+<li>Cambiar órdenes exportadas a Completada.</li>
+</ol>
+<h2>17. Prompt Base para Traducir al IMS</h2>
+<p>Este texto puede servir como prompt o especificación base para el equipo que traduzca la lógica al lenguaje del IMS:</p>
+<pre>Implementar en IMS una calculadora de materiales para cortinas Roller/Screen.
+
+Entradas:
+- familia de tela,
+- apertura,
+- color,
+- ancho terminado en metros,
+- alto terminado en metros,
+- número de orden.
+
+Reglas:
+- ancho_corte = ancho_terminado + 0.10
+- alto_corte = alto_terminado + 0.30 + 0.10
+- escoger el rollo más pequeño donde quepa el ancho de corte
+- si varias cortinas del mismo material se agrupan, sumar anchos de corte y agregar 0.05 m entre piezas
+- usar el mayor alto de corte del grupo
+- descargar tela por ancho completo del rollo: ancho_rollo * alto_grupo
+- convertir m2 a sqyd con multiplicador 1.20
+- guardar retazo de tela solo si ancho &gt;= 1.00 m y alto &gt;= 1.00 m
+- sugerir retazos solo si mismo material y cabe directo sin rotación
+- si se usa retazo, no descargar tela nueva y marcar retazo como usado
+- tubo/bottom = (ancho_terminado - 0.03) * 3.28084
+- tubo y bottom se descargan por barra completa de 19 ft por cada barra tocada
+- guardar sobrante lineal si es &gt;= 1.00 m
+- cadena = alto_terminado * 2 * 3.28084
+- resolver componentes por receta y tono
+- exportar solo órdenes pendientes
+- al exportar a Sage/IMS, marcar órdenes como completadas</pre>
+<h2>18. Pendientes a Definir con IMS</h2>
+<ol>
+<li>Si IMS manejará bodega propia de retazos o solo descargo contable.</li>
+<li>Si los sobrantes útiles de tubo/bottom deben quedar visibles para selección futura.</li>
+<li>Si el descargo Sage se seguirá exportando en Excel o se insertará directo en IMS.</li>
+<li>Si los códigos Sage actuales serán los mismos códigos maestros del IMS.</li>
+<li>Si las órdenes de venta del Excel de ventas alimentarán automáticamente esta calculadora.</li>
+<li>Quién tendrá permiso para cambiar recetas y códigos.</li>
+<li>Si se necesita auditoría de cambios por usuario.</li>
+</ol>
+<h2>19. Resumen Ejecutivo</h2>
+<p>La lógica clave para portar al IMS es:</p>
+<ol>
+<li>La tela se descarga por rollo completo usado en el corte, no por área parcial.</li>
+<li>Los retazos de tela solo se guardan si son útiles y se sugieren sin rotación.</li>
+<li>Tubo y bottom se descargan por barra completa de 19 ft, aunque quede sobrante.</li>
+<li>Las recetas convierten cada orden en líneas de materiales por código Sage.</li>
+<li>Las órdenes completadas no vuelven a entrar en descargos futuros.</li>
+</ol>
+<p>Con estos parámetros, IMS puede replicar la operación sin depender de Vercel, React o Node en producción.</p>
+</body></html>

@@ -4,9 +4,23 @@ import {
   DEFAULT_SCREEN_RULE_CONFIG, 
   DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
 } from '../../../../domain/curtains/constants';
-import { validateBaseRuleConfig } from '../../../../domain/curtains/screen';
+import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
-import { loadScreenRuleConfig } from '../../../../lib/storage';
+import { applyCatalogOverrides, getBaseCatalogItems } from '../../../../lib/itemCatalog';
+import {
+  createDefaultScreenRecipe,
+  normalizeRecipeToneGroups,
+} from '../../../../lib/recipeResolver';
+import {
+  loadFabricToneRules,
+  loadItemCatalogOverrides,
+  loadScreenRecipe,
+  loadScreenRuleConfig,
+  saveFabricToneRules,
+  saveItemCatalogOverrides,
+  saveScreenRecipe,
+  saveScreenRuleConfig,
+} from '../../../../lib/storage';
 
 function mapConfigToFormValues(config: ScreenRuleConfig): ScreenRuleConfigFormValues {
   return {
@@ -51,11 +65,24 @@ export const createRulesSlice: StateCreator<
   RulesSlice
 > = (set, get) => {
   const initialConfig = loadScreenRuleConfig();
+  const initialCatalogOverrides = loadItemCatalogOverrides();
+  const initialCatalogItems = applyCatalogOverrides(
+    getBaseCatalogItems(),
+    initialCatalogOverrides,
+  );
+  const initialRecipe =
+    normalizeRecipeToneGroups(
+      loadScreenRecipe() ?? createDefaultScreenRecipe(initialCatalogItems),
+    );
   
   return {
     ruleConfig: initialConfig,
     ruleFormValues: mapConfigToFormValues(initialConfig),
     ruleErrors: {},
+    catalogOverrides: initialCatalogOverrides,
+    catalogItems: initialCatalogItems,
+    fabricToneRules: loadFabricToneRules(),
+    screenRecipe: initialRecipe,
 
   setRuleConfig: (config) => set({ ruleConfig: config }),
   setRuleFormValues: (updater) => set((state) => ({ ruleFormValues: typeof updater === 'function' ? updater(state.ruleFormValues) : updater })),
@@ -139,10 +166,107 @@ export const createRulesSlice: StateCreator<
     }));
   },
 
+  updateCatalogItemCategory: (itemCode, category) => {
+    set((state) => {
+      const catalogOverrides = {
+        ...state.catalogOverrides,
+        [itemCode]: {
+          ...state.catalogOverrides[itemCode],
+          category,
+        },
+      };
+
+      return {
+        catalogOverrides,
+        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
+      };
+    });
+  },
+
+  updateCatalogItemColor: (itemCode, color) => {
+    set((state) => {
+      const nextColor = color.trim() === '' ? null : color.trim();
+      const catalogOverrides = {
+        ...state.catalogOverrides,
+        [itemCode]: {
+          ...state.catalogOverrides[itemCode],
+          color: nextColor,
+        },
+      };
+
+      return {
+        catalogOverrides,
+        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
+      };
+    });
+  },
+
+  updateCatalogItemSageCode: (itemCode, sageItemCode) => {
+    set((state) => {
+      const catalogOverrides = {
+        ...state.catalogOverrides,
+        [itemCode]: {
+          ...state.catalogOverrides[itemCode],
+          sageItemCode: sageItemCode.trim() || itemCode,
+        },
+      };
+
+      return {
+        catalogOverrides,
+        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
+      };
+    });
+  },
+
+  updateFabricToneRule: (family, openness, color, toneGroup) => {
+    set((state) => {
+      const existingIndex = state.fabricToneRules.findIndex(
+        (rule) =>
+          rule.family === family &&
+          rule.openness === openness &&
+          rule.color === color,
+      );
+      const nextRule = {
+        id: `${family}::${openness}::${color}`,
+        family,
+        openness,
+        color,
+        toneGroup,
+      };
+      const fabricToneRules =
+        existingIndex === -1
+          ? [...state.fabricToneRules, nextRule]
+          : state.fabricToneRules.map((rule, index) =>
+              index === existingIndex ? nextRule : rule,
+            );
+
+      return { fabricToneRules };
+    });
+  },
+
+  updateRecipeItem: (componentId, toneGroup, itemCode) => {
+    set((state) => ({
+      screenRecipe: {
+        ...state.screenRecipe,
+        components: state.screenRecipe.components.map((component) =>
+          component.id === componentId
+            ? {
+                ...component,
+                itemByTone: {
+                  ...component.itemByTone,
+                  [toneGroup]: itemCode,
+                },
+              }
+            : component,
+        ),
+      },
+    }));
+  },
+
   saveRules: () => {
     const { ruleFormValues } = get();
     const parsedConfig = parseConfigFormValues(ruleFormValues);
-    const validationErrors = validateBaseRuleConfig(parsedConfig);
+    const validationErrors = validateScreenRuleConfig(parsedConfig);
 
     if (Object.keys(validationErrors).length > 0) {
       set({ ruleErrors: validationErrors });
@@ -157,12 +281,38 @@ export const createRulesSlice: StateCreator<
     });
   },
 
+  saveRecipeSettings: () => {
+    const { catalogOverrides, fabricToneRules, screenRecipe, ruleFormValues } = get();
+    const parsedConfig = parseConfigFormValues(ruleFormValues);
+    const validationErrors = validateScreenRuleConfig(parsedConfig);
+
+    if (Object.keys(validationErrors).length > 0) {
+      set({ ruleErrors: validationErrors });
+      return;
+    }
+
+    const nextConfig = parsedConfig as ScreenRuleConfig;
+
+    set({
+      ruleConfig: nextConfig,
+      ruleFormValues: mapConfigToFormValues(nextConfig),
+      ruleErrors: {},
+    });
+  },
+
   resetRules: () => {
     set({
       ruleConfig: DEFAULT_SCREEN_RULE_CONFIG,
       ruleFormValues: DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES,
       ruleErrors: {},
     });
+  },
+
+  resetRecipe: () => {
+    set((state) => ({
+      screenRecipe: createDefaultScreenRecipe(state.catalogItems),
+      fabricToneRules: [],
+    }));
   },
 };
 };

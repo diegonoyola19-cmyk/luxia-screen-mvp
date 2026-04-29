@@ -1,15 +1,19 @@
-node_modules
-dist
+node_modules/
+dist/
 .DS_Store
+*.log
 *.local
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
 npm-debug.log*
+.npm-cache/
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 vite*.log
+.vite-local-server.mjs
+.vite-dev.*.log
 
-.vercel
+.vercel/
 src/features/calculadora-screen/components/*.exe

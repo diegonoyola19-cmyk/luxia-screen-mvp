@@ -3,22 +3,15 @@ import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
 import { ProductionModule } from './components/ProductionModule';
-import {
-  saveFormDraft,
-  saveInventoryMovements,
-  saveProductionInventory,
-  saveProjectDraft,
-  saveSavedOrders,
-  saveScreenRuleConfig,
-} from '../../lib/storage';
+
 
 const InventoryPanel = lazy(async () => {
   const module = await import('./components/InventoryPanel');
   return { default: module.InventoryPanel };
 });
 const RulesPanel = lazy(async () => {
-  const module = await import('./components/MultiProductConfigPanel');
-  return { default: module.MultiProductConfigPanel };
+  const module = await import('./components/RulesPanel');
+  return { default: module.RulesPanel };
 });
 const SavedOrdersPanel = lazy(async () => {
   const module = await import('./components/SavedOrdersPanel');
@@ -49,20 +42,7 @@ export function ScreenCalculatorPage() {
   const activeView = useCalculatorStore((state) => state.activeView);
   const setActiveView = useCalculatorStore((state) => state.setActiveView);
 
-  // Storage sync subscriptions
-  const formValues = useCalculatorStore((state) => state.formValues);
-  const orderDraft = useCalculatorStore((state) => state.orderDraft);
-  const savedOrders = useCalculatorStore((state) => state.savedOrders);
-  const productionInventory = useCalculatorStore((state) => state.productionInventory);
-  const inventoryMovements = useCalculatorStore((state) => state.inventoryMovements);
-  const ruleConfig = useCalculatorStore((state) => state.ruleConfig);
 
-  useEffect(() => { saveFormDraft(formValues); }, [formValues]);
-  useEffect(() => { saveProjectDraft(orderDraft); }, [orderDraft]);
-  useEffect(() => { saveSavedOrders(savedOrders); }, [savedOrders]);
-  useEffect(() => { saveProductionInventory(productionInventory); }, [productionInventory]);
-  useEffect(() => { saveInventoryMovements(inventoryMovements); }, [inventoryMovements]);
-  useEffect(() => { saveScreenRuleConfig(ruleConfig); }, [ruleConfig]);
 
   return (
     <main className="page-shell">

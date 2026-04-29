@@ -6,8 +6,9 @@ import {
 import type {
   CalculationInput,
   CalculationResult,
-  BaseRuleConfig,
-  BaseRuleConfigErrors,
+  ScreenFixedComponent,
+  ScreenRuleConfig,
+  ScreenRuleConfigErrors,
   ScreenValidationErrors,
   WastePiece,
   WasteReuseMatch,
@@ -21,7 +22,7 @@ const REINFORCED_TUBE_THRESHOLD = 3.0;
 
 export function validateScreenInput(
   input: Partial<CalculationInput>,
-  config: BaseRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
 ): ScreenValidationErrors {
   const errors: ScreenValidationErrors = {};
 
@@ -58,10 +59,10 @@ export function validateScreenInput(
   return errors;
 }
 
-export function validateBaseRuleConfig(
-  config: Partial<BaseRuleConfig>,
-): BaseRuleConfigErrors {
-  const errors: BaseRuleConfigErrors = {};
+export function validateScreenRuleConfig(
+  config: Partial<ScreenRuleConfig>,
+): ScreenRuleConfigErrors {
+  const errors: ScreenRuleConfigErrors = {};
 
   if (config.cutHeightExtraMeters === undefined || Number.isNaN(config.cutHeightExtraMeters)) {
     errors.cutHeightExtraMeters = 'Ingresa el extra de alto de corte.';
@@ -151,7 +152,7 @@ interface ScreenCalculationOption {
 
 function buildCalculationOption(
   input: CalculationInput,
-  config: BaseRuleConfig,
+  config: ScreenRuleConfig,
   availableWidths: number[],
   orientation: 'normal' | 'volteada'
 ): ScreenCalculationOption {
@@ -179,7 +180,7 @@ function buildCalculationOption(
 
 function pickBestOption(
   input: CalculationInput,
-  config: BaseRuleConfig,
+  config: ScreenRuleConfig,
   availableWidths: number[]
 ): ScreenCalculationOption {
   const options = getCalculationOptions(input, config, availableWidths);
@@ -209,7 +210,7 @@ function pickBestOption(
 
 function getCalculationOptions(
   input: CalculationInput,
-  config: BaseRuleConfig,
+  config: ScreenRuleConfig,
   availableWidths: number[]
 ): ScreenCalculationOption[] {
   const options: ScreenCalculationOption[] = [];
@@ -248,7 +249,7 @@ export function selectRollo(
 
 export function calculateBatchMaterials(
   items: ProductionBatchItem[],
-  config: BaseRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
   availableWidths: number[] = [2.5, 3.0]
 ): BatchCalculationResult {
   if (items.length === 0) {
@@ -304,7 +305,7 @@ export function calculateBatchMaterials(
 
 export function calculateScreenMaterials(
   input: CalculationInput,
-  config: BaseRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
   availableWidths: number[] = [2.5, 3.0]
 ): CalculationResult {
   const validationErrors = validateScreenInput(input, config);
@@ -368,8 +369,7 @@ export function calculateScreenMaterials(
     fabricUsefulCost: 0,
     fabricWasteCost: 0,
     fabricSavingsCost: 0,
-    fixedComponents: config.fixedComponents as unknown as ScreenFixedComponent[],
-    ruleComponents: config.ruleComponents,
+    fixedComponents: config.fixedComponents.map(formatFixedComponent),
     requiresReinforcedTube,
     tubeRecommendation,
   };
@@ -379,34 +379,31 @@ export function findReusableWasteMatches(
   input: CalculationInput,
   wastePieces: WastePiece[],
   marginMeters: number,
-  config: BaseRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
+  config: ScreenRuleConfig = DEFAULT_SCREEN_RULE_CONFIG,
   availableWidths: number[] = [2.5, 3.0]
 ): WasteReuseMatch[] {
-  const options = getCalculationOptions(input, config, availableWidths);
+  let selectedOption: ScreenCalculationOption;
+
+  try {
+    selectedOption = pickBestOption(input, config, availableWidths);
+  } catch {
+    return [];
+  }
 
   return wastePieces
     .map((wastePiece) => {
-      const match = options.find(
-        (option) =>
-          (wastePiece.widthMeters >= option.occupiedRollWidthMeters &&
-            wastePiece.heightMeters >= option.cutLengthMeters) ||
-          (wastePiece.heightMeters >= option.occupiedRollWidthMeters &&
-            wastePiece.widthMeters >= option.cutLengthMeters) ||
-          (wastePiece.widthMeters >= option.occupiedRollWidthMeters &&
-            wastePiece.heightMeters >= option.cutLengthMeters + marginMeters) ||
-          (wastePiece.heightMeters >= option.occupiedRollWidthMeters &&
-            wastePiece.widthMeters >= option.cutLengthMeters + marginMeters),
-      );
-
-      if (!match) {
+      if (
+        wastePiece.widthMeters < selectedOption.occupiedRollWidthMeters ||
+        wastePiece.heightMeters < selectedOption.cutLengthMeters
+      ) {
         return null;
       }
 
       return {
         wastePiece,
-        orientationUsed: match.orientationUsed,
-        requiredWidthMeters: match.occupiedRollWidthMeters,
-        requiredHeightMeters: match.cutLengthMeters,
+        orientationUsed: selectedOption.orientationUsed,
+        requiredWidthMeters: selectedOption.occupiedRollWidthMeters,
+        requiredHeightMeters: selectedOption.cutLengthMeters,
         marginMeters,
       };
     })

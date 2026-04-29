@@ -1,16 +1,14 @@
 import type {
   CalculationFormValues,
+  ComponentCategory,
   CurtainType,
+  ToneGroup,
   ScreenRuleConfig,
   ScreenRuleConfigFormValues,
-  MultiProductConfig,
-  MultiProductConfigFormValues,
-  BaseRuleConfig,
-  BaseRuleConfigFormValues,
 } from './types';
 
 export const FEET_PER_METER = 3.28084;
-export const YARD2_PER_M2 = 1.19599;
+export const YARD2_PER_M2 = 1.2;
 
 export function generateId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -20,11 +18,7 @@ export function generateId() {
 }
 
 export const CURTAIN_OPTIONS: Array<{ value: CurtainType; label: string }> = [
-  { value: 'screen', label: 'Screen (Legacy)' },
-  { value: 'rollux', label: 'Rollux' },
-  { value: 'neolux', label: 'Neolux' },
-  { value: 'vertical', label: 'Vertical' },
-  { value: 'madera', label: 'Madera' },
+  { value: 'screen', label: 'Roller' },
 ];
 
 export const DEFAULT_FORM_VALUES: CalculationFormValues = {
@@ -34,16 +28,39 @@ export const DEFAULT_FORM_VALUES: CalculationFormValues = {
   fabricColor: '',
   widthMeters: '',
   heightMeters: '',
+  driveType: 'manual',
 };
 
 export const SCREEN_FIXED_COMPONENTS = [
-  { quantity: 2, name: 'soportes', unit: 'u', cost: 0 },
-  { quantity: 1, name: 'control', unit: 'u', cost: 0 },
-  { quantity: 1, name: 'end plug', unit: 'u', cost: 0 },
-  { quantity: 1, name: 'chapita', unit: 'u', cost: 0 },
-  { quantity: 1, name: 'pesa de cadena', unit: 'u', cost: 0 },
-  { quantity: 2, name: 'tapaderas de bottom', unit: 'u', cost: 0 },
-  { quantity: 2, name: 'topes de cadena', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'Soporte Lado de Control', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'Soporte Lado de End Plug', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'Control', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'End Plug', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'Chapita', unit: 'u', cost: 0 },
+  { quantity: 1, name: 'Pesa de Cadena', unit: 'u', cost: 0 },
+  { quantity: 2, name: 'Tapaderas de Bottom', unit: 'u', cost: 0 },
+  { quantity: 2, name: 'Topes de Cadena', unit: 'u', cost: 0 },
+];
+
+export const TONE_GROUP_OPTIONS: Array<{ value: ToneGroup; label: string }> = [
+  { value: 'white', label: 'White' },
+  { value: 'bronze', label: 'Bronze / Café' },
+  { value: 'ivory', label: 'Ivory / Beige' },
+  { value: 'grey', label: 'Grey / Gris' },
+];
+
+export const COMPONENT_CATEGORY_OPTIONS: Array<{ value: ComponentCategory; label: string }> = [
+  { value: 'fabric', label: 'Tela' },
+  { value: 'tube', label: 'Tubo' },
+  { value: 'bottom', label: 'Bottom' },
+  { value: 'chain', label: 'Cadena' },
+  { value: 'control', label: 'Control' },
+  { value: 'bracket', label: 'Soporte' },
+  { value: 'endPlug', label: 'End plug' },
+  { value: 'bottomCap', label: 'Tapadera bottom' },
+  { value: 'chainStop', label: 'Tope cadena' },
+  { value: 'chainWeight', label: 'Pesa cadena' },
+  { value: 'other', label: 'Otro' },
 ];
 
 export const DEFAULT_SCREEN_RULE_CONFIG: ScreenRuleConfig = {
@@ -75,53 +92,11 @@ export const STORAGE_KEYS = {
   history: 'luxia-screen-history',
   formDraft: 'luxia-screen-form-draft',
   screenRuleConfig: 'luxia-screen-rule-config',
-  multiProductConfig: 'luxia-multi-product-config',
   projectDraft: 'luxia-screen-project-draft',
   savedOrders: 'luxia-screen-saved-orders',
   productionInventory: 'luxia-screen-production-inventory',
   inventoryMovements: 'luxia-screen-inventory-movements',
+  itemCatalogOverrides: 'luxia-screen-item-catalog-overrides',
+  fabricToneRules: 'luxia-screen-fabric-tone-rules',
+  screenRecipe: 'luxia-screen-recipe',
 } as const;
-
-const DEFAULT_BASE_RULE_CONFIG: BaseRuleConfig = {
-  cutHeightExtraMeters: 0.3,
-  maxWidthMeters: 3,
-  chainMultiplier: 2,
-  smallRollMeters: 2.5,
-  largeRollMeters: 3,
-  ruleComponents: {
-    tube: null,
-    bottom: null,
-    chain: null,
-  },
-  fixedComponents: [],
-};
-
-const DEFAULT_BASE_RULE_CONFIG_FORM_VALUES: BaseRuleConfigFormValues = {
-  cutHeightExtraMeters: '0.30',
-  maxWidthMeters: '3.00',
-  chainMultiplier: '2',
-  smallRollMeters: '2.50',
-  largeRollMeters: '3.00',
-  ruleComponents: {
-    tube: null,
-    bottom: null,
-    chain: null,
-  },
-  fixedComponents: [],
-};
-
-export const DEFAULT_MULTI_PRODUCT_CONFIG: MultiProductConfig = {
-  screen: DEFAULT_BASE_RULE_CONFIG, // Legacy
-  rollux: DEFAULT_BASE_RULE_CONFIG,
-  neolux: DEFAULT_BASE_RULE_CONFIG,
-  vertical: DEFAULT_BASE_RULE_CONFIG,
-  madera: DEFAULT_BASE_RULE_CONFIG,
-};
-
-export const DEFAULT_MULTI_PRODUCT_CONFIG_FORM_VALUES: MultiProductConfigFormValues = {
-  screen: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
-  rollux: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
-  neolux: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
-  vertical: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
-  madera: DEFAULT_BASE_RULE_CONFIG_FORM_VALUES,
-};

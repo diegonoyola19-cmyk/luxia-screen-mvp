@@ -5,13 +5,14 @@ import { Card } from '../../../components/ui/Card';
 import { formatNumber } from '../../../lib/format';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { useCalculatorDerivedState } from '../hooks/useCalculatorDerivedState';
+import { getToneLabel } from '../../../lib/itemCatalog';
 import { calcularDescargoRetazo } from '../../../domain/curtains/screen';
 import { generateId } from '../../../domain/curtains/constants';
 import type { WasteReuseMatch, CalculationInput, ProductionBatchItem } from '../../../domain/curtains/types';
 import type { SessionWastePiece } from '../store/types';
 
 function getWasteFitLabel(match: WasteReuseMatch) {
-  return match.orientationUsed === 'volteada' ? 'Se puede rotar' : 'Sirve directo';
+  return match.orientationUsed === 'volteada' ? 'Cabe en corte volteado' : 'Sirve directo';
 }
 
 const FABRIC_COLOR_MAP: Record<string, string> = {
@@ -92,7 +93,10 @@ export function ProductionModule() {
     selectedFabricPreview,
     colorWastePieces,
     colorWasteMatches,
-    displayResult
+    selectedWasteMatch,
+    displayResult,
+    materialWarnings,
+    toneGroup
   } = useCalculatorDerivedState();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -128,6 +132,7 @@ export function ProductionModule() {
     const newItem: ProductionBatchItem = {
       id: generateId(),
       input: parsedFormValues as CalculationInput,
+      reusedWastePiece: selectedWasteMatch?.wastePiece ?? null,
     };
     
     store.addProductionItem(newItem);
@@ -154,11 +159,16 @@ export function ProductionModule() {
 
   const canAddToOrder = Boolean(displayResult);
   const canAddToHistory = Boolean(displayResult);
-  const canSaveOrder = store.orderDraft.orderNumber.trim() !== '' && 
-                       store.cuttingGroups.length > 0 && 
+  const canSaveOrder = store.orderDraft.orderNumber.trim() !== '' &&
+                       store.itemsAProducir.length > 0 &&
                        !store.cuttingGroups.some(g => g.error);
   const pendingSummary = useMemo(() => {
     const validGroups = store.cuttingGroups.filter((group) => !group.error);
+    const reusedItems = store.itemsAProducir.filter((item) => item.reusedWastePiece);
+    const reusedArea = reusedItems.reduce(
+      (sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0),
+      0,
+    );
     const totalWasteMeters = validGroups.reduce((sum, group) => sum + Math.max(group.waste, 0), 0);
     const usedWidth = validGroups.reduce((sum, group) => sum + group.totalCutWidth, 0);
     const availableWidth = validGroups.reduce((sum, group) => sum + group.rollWidth, 0);
@@ -172,11 +182,17 @@ export function ProductionModule() {
       totalWasteMeters,
       totalYd2: validGroups.reduce((sum, group) => sum + group.yd2Consumed, 0),
       efficiency,
+      reusedCurtains: reusedItems.length,
+      reusedArea,
     };
   }, [store.cuttingGroups, store.itemsAProducir.length]);
+  const reusedPendingItems = useMemo(
+    () => store.itemsAProducir.filter((item) => item.reusedWastePiece),
+    [store.itemsAProducir],
+  );
   const saveDisabledReason = store.orderDraft.orderNumber.trim() === ''
     ? 'Ingresa un numero de orden para poder guardar.'
-    : store.cuttingGroups.length === 0
+    : store.itemsAProducir.length === 0
       ? 'Agrega al menos una cortina al lote.'
       : store.cuttingGroups.some((group) => group.error)
         ? 'Corrige los cortes con ancho excedido antes de guardar.'
@@ -252,6 +268,17 @@ export function ProductionModule() {
             {displayErrors.fabricOpenness ? (
               <small className="field__error">{displayErrors.fabricOpenness}</small>
             ) : null}
+          </label>
+
+          <label className="field">
+            <span>Accionamiento</span>
+            <select
+              value={store.formValues.driveType ?? 'manual'}
+              onChange={(event) => store.setFormValue('driveType', event.target.value)}
+            >
+              <option value="manual">Manual (Cadena)</option>
+              <option value="motorized">Motorizado</option>
+            </select>
           </label>
 
           <label className="field">
@@ -401,6 +428,17 @@ export function ProductionModule() {
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {displayResult && (
+            <div className="recipe-status">
+              <strong>Receta: {toneGroup ? getToneLabel(toneGroup) : 'Sin tono'}</strong>
+              {materialWarnings.length === 0 ? (
+                <span>Materiales configurados para esta cortina.</span>
+              ) : (
+                <span>{materialWarnings.join(' ')}</span>
               )}
             </div>
           )}
@@ -623,7 +661,7 @@ export function ProductionModule() {
           </div>
 
           <p>
-            {pendingSummary.curtains} cortinas · {store.cuttingGroups.length} cortes · {pendingSummary.efficiency.toFixed(2)}% efic · {pendingSummary.totalWasteMeters.toFixed(2)}m merma
+            {pendingSummary.curtains} cortinas · {store.cuttingGroups.length} cortes · {pendingSummary.reusedCurtains} retazo(s) · {pendingSummary.efficiency.toFixed(2)}% efic · {pendingSummary.totalWasteMeters.toFixed(2)}m merma
           </p>
         </div>
 
@@ -660,11 +698,25 @@ export function ProductionModule() {
                   </div>
                 </div>
               ))}
+
+              {reusedPendingItems.map((item, index) => (
+                <div className="production-scrap-order-row" key={`scrap-${item.id}`}>
+                  <div className="production-scrap-order-row__badge">Retazo #{index + 1}</div>
+                  <strong>{item.input.widthMeters.toFixed(2)} × {item.input.heightMeters.toFixed(2)}m</strong>
+                  <span>
+                    usa {item.reusedWastePiece?.widthMeters.toFixed(2)} × {item.reusedWastePiece?.heightMeters.toFixed(2)}m
+                  </span>
+                  <span>{item.reusedWastePiece?.sourceItemTitle ?? item.input.fabricColor}</span>
+                  <div className="production-scrap-order-row__status">Sin rollo nuevo</div>
+                  <button type="button" onClick={() => handleRemoveFromBatch(item.id)}>Quitar</button>
+                  </div>
+              ))}
             </div>
 
             <div className="production-order-footer-compact">
               <span><b>{pendingSummary.curtains}</b> cortinas</span>
               <span><b>{pendingSummary.totalYd2.toFixed(2)}</b> yd²</span>
+              <span><b>{pendingSummary.reusedArea.toFixed(2)}</b> m² retazo</span>
               <span><b>{pendingSummary.totalWasteMeters.toFixed(2)}</b> m merma</span>
 
               <Button variant="secondary" onClick={() => store.clearOrder()} disabled={isSaving}>Vaciar</Button>

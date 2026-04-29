@@ -1,6 +1,11 @@
 import type {
   CalculationFormValues,
   CalculationResult,
+  CatalogItem,
+  CatalogItemOverride,
+  ComponentCategory,
+  CurtainRecipe,
+  FabricToneRule,
   InventoryMovement,
   OrderDraft,
   ProductionInventory,
@@ -10,11 +15,9 @@ import type {
   ScreenRuleConfigFormValues,
   ScreenValidationErrors,
   SessionCalculationRecord,
+  ToneGroup,
   WastePiece,
   ProductionBatchItem,
-  MultiProductConfig,
-  CurtainType,
-  BaseRuleConfig,
 } from '../../../domain/curtains/types';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
@@ -78,6 +81,8 @@ export interface OrderSlice {
   clearOrder: () => void;
   saveOrder: () => void;
   deleteSavedOrder: (id: string) => void;
+  updateSavedOrderStatus: (id: string, status: SavedOrder['status']) => void;
+  markOrdersSentToSage: (ids: string[]) => void;
   setSelectedOrderId: (id: string | null) => void;
   setSavedOrders: (updater: (current: SavedOrder[]) => SavedOrder[] | SavedOrder[]) => void;
   importOrders: (importedOrders: SavedOrder[]) => void;
@@ -98,6 +103,10 @@ export interface RulesSlice {
   ruleConfig: ScreenRuleConfig;
   ruleFormValues: ScreenRuleConfigFormValues;
   ruleErrors: ScreenRuleConfigErrors;
+  catalogItems: CatalogItem[];
+  catalogOverrides: Record<string, CatalogItemOverride>;
+  fabricToneRules: FabricToneRule[];
+  screenRecipe: CurtainRecipe;
 
   setRuleConfig: (config: ScreenRuleConfig) => void;
   setRuleFormValues: (updater: (current: ScreenRuleConfigFormValues) => ScreenRuleConfigFormValues) => void;
@@ -110,21 +119,15 @@ export interface RulesSlice {
   handleFixedComponentCostChange: (index: number, value: string) => void;
   handleAddFixedComponent: () => void;
   handleRemoveFixedComponent: (index: number) => void;
+  updateCatalogItemCategory: (itemCode: string, category: ComponentCategory) => void;
+  updateCatalogItemColor: (itemCode: string, color: string) => void;
+  updateCatalogItemSageCode: (itemCode: string, sageItemCode: string) => void;
+  updateFabricToneRule: (family: string, openness: string, color: string, toneGroup: ToneGroup) => void;
+  updateRecipeItem: (componentId: string, toneGroup: ToneGroup, itemCode: string) => void;
   saveRules: () => void;
+  saveRecipeSettings: () => void;
   resetRules: () => void;
-}
-
-export interface MultiConfigSlice {
-  multiConfig: MultiProductConfig;
-  activeConfigTab: CurtainType;
-
-  setActiveConfigTab: (tab: CurtainType) => void;
-  updateBaseRule: (model: CurtainType, field: keyof Omit<BaseRuleConfig, 'ruleComponents' | 'fixedComponents'>, value: number) => void;
-  updateRuleComponent: (model: CurtainType, role: 'tube' | 'bottom' | 'chain', itemCode: string, name: string, unit: string, cost: number) => void;
-  addFixedComponent: (model: CurtainType) => void;
-  removeFixedComponent: (model: CurtainType, index: number) => void;
-  updateFixedComponent: (model: CurtainType, index: number, field: string, value: any) => void;
-  saveMultiConfig: () => void;
+  resetRecipe: () => void;
 }
 
 export type CalculatorStore = UiSlice &
@@ -132,5 +135,4 @@ export type CalculatorStore = UiSlice &
   InventorySlice &
   OrderSlice &
   WasteSlice &
-  RulesSlice &
-  MultiConfigSlice;
+  RulesSlice;

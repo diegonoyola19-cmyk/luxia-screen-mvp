@@ -1,6 +1,91 @@
-export type CurtainType = 'screen' | 'rollux' | 'neolux' | 'vertical' | 'madera';
+export type CurtainType = 'screen';
+
+export type ComponentCategory =
+  | 'fabric'
+  | 'tube'
+  | 'bottom'
+  | 'chain'
+  | 'control'
+  | 'bracket'
+  | 'endPlug'
+  | 'bottomCap'
+  | 'chainStop'
+  | 'chainWeight'
+  | 'other';
+
+export type ToneGroup = 'white' | 'bronze' | 'ivory' | 'grey';
+
+export interface CatalogItem {
+  itemCode: string;
+  description: string;
+  unit: string;
+  avgCost: number;
+  salePrice: number | null;
+  imageUrl: string | null;
+  suggestedCategory: ComponentCategory;
+  category: ComponentCategory;
+  suggestedColor: string | null;
+  color: string | null;
+  sageItemCode: string;
+}
+
+export interface CatalogItemOverride {
+  category?: ComponentCategory;
+  color?: string | null;
+  sageItemCode?: string;
+}
+
+export interface FabricToneRule {
+  id: string;
+  family: string;
+  openness: string;
+  color: string;
+  toneGroup: ToneGroup;
+}
+
+export type RecipeCondition = 'always' | 'manual_only' | 'motorized_only' | 'large_tube_only';
+
+export type RecipeQuantityMode =
+  | 'fixed'
+  | 'tubeFeet'
+  | 'bottomFeet'
+  | 'chainFeet';
+
+export interface RecipeComponentRule {
+  id: string;
+  label: string;
+  category: ComponentCategory;
+  quantityMode: RecipeQuantityMode;
+  fixedQuantity: number;
+  condition?: RecipeCondition;
+  itemByTone: Partial<Record<ToneGroup, string>>;
+}
+
+export interface CurtainRecipe {
+  id: string;
+  curtainType: CurtainType;
+  name: string;
+  components: RecipeComponentRule[];
+}
+
+export interface ResolvedMaterialLine {
+  id: string;
+  itemCode: string;
+  sageItemCode: string;
+  description: string;
+  category: ComponentCategory;
+  toneGroup?: ToneGroup;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  totalCost: number;
+  source: string;
+}
+
+export type DriveType = 'manual' | 'motorized';
 
 export interface CalculationInput {
+  driveType?: DriveType;
   curtainType: CurtainType;
   fabricFamily: string;
   fabricOpenness: string;
@@ -10,6 +95,7 @@ export interface CalculationInput {
 }
 
 export interface CalculationFormValues {
+  driveType?: DriveType;
   curtainType: CurtainType;
   fabricFamily: string;
   fabricOpenness: string;
@@ -32,6 +118,7 @@ export interface SelectedFabric {
 export interface ProductionBatchItem {
   id: string;
   input: CalculationInput;
+  reusedWastePiece?: WastePiece | null;
 }
 
 export interface BatchCalculationResult {
@@ -62,6 +149,8 @@ export interface CalculationResult {
   chainMeters: number;
   tubeFeet: number;
   bottomRailFeet: number;
+  tubeDownloadedFeet?: number;
+  bottomRailDownloadedFeet?: number;
   chainFeet: number;
   fabricDownloadedM2: number;
   fabricUsefulM2: number;
@@ -76,7 +165,8 @@ export interface CalculationResult {
   fabricWasteCost: number;
   fabricSavingsCost: number;
   fixedComponents: ScreenFixedComponent[];
-  ruleComponents?: RuleBasedComponents; // Guardamos tubo, bottom y cadena con sus códigos SAGE
+  materialLines?: ResolvedMaterialLine[];
+  materialWarnings?: string[];
   requiresReinforcedTube: boolean;
   tubeRecommendation?: string;
 }
@@ -112,37 +202,6 @@ export interface ScreenFixedComponent {
   cost: number;
 }
 
-export interface CatalogComponent {
-  itemCode: string;
-  name: string;
-  unit: string;
-  cost: number;
-  imageUrl?: string | null;
-}
-
-export interface FixedCatalogComponent extends CatalogComponent {
-  quantity: number;
-}
-
-export interface RuleBasedComponents {
-  tube: CatalogComponent | null;
-  bottom: CatalogComponent | null;
-  chain: CatalogComponent | null;
-}
-
-export interface BaseRuleConfig {
-  cutHeightExtraMeters: number;
-  maxWidthMeters: number;
-  chainMultiplier: number;
-  smallRollMeters: number;
-  largeRollMeters: number;
-  ruleComponents: RuleBasedComponents;
-  fixedComponents: FixedCatalogComponent[];
-}
-
-// Configuración general para todos los modelos
-export type MultiProductConfig = Record<CurtainType, BaseRuleConfig>;
-
 export interface SavedCalculation {
   id: string;
   createdAt: string;
@@ -169,6 +228,8 @@ export interface ProjectCurtainItem {
   title: string;
   input: CalculationInput;
   result: CalculationResult;
+  materialLines?: ResolvedMaterialLine[];
+  materialWarnings?: string[];
   reusedWastePiece?: WastePiece | null;
 }
 
@@ -182,9 +243,13 @@ export interface OrderDraft {
   items: ProjectCurtainItem[];
 }
 
+export type OrderProductionStatus = 'pending' | 'sent_to_sage';
+
 export interface SavedOrder extends OrderDraft {
   id: string;
   createdAt: string;
+  status?: OrderProductionStatus;
+  sageExportedAt?: string | null;
 }
 
 export interface ScreenValidationErrors {
@@ -213,35 +278,6 @@ export interface ScreenFixedComponentFormValue {
   cost: string;
 }
 
-export interface CatalogComponentFormValue {
-  itemCode: string;
-  name: string;
-  unit: string;
-  cost: string;
-}
-
-export interface FixedCatalogComponentFormValue extends CatalogComponentFormValue {
-  quantity: string;
-}
-
-export interface RuleBasedComponentsFormValues {
-  tube: CatalogComponentFormValue | null;
-  bottom: CatalogComponentFormValue | null;
-  chain: CatalogComponentFormValue | null;
-}
-
-export interface BaseRuleConfigFormValues {
-  cutHeightExtraMeters: string;
-  maxWidthMeters: string;
-  chainMultiplier: string;
-  smallRollMeters: string;
-  largeRollMeters: string;
-  ruleComponents: RuleBasedComponentsFormValues;
-  fixedComponents: FixedCatalogComponentFormValue[];
-}
-
-export type MultiProductConfigFormValues = Record<CurtainType, BaseRuleConfigFormValues>;
-
 export interface ScreenRuleConfigFormValues {
   cutHeightExtraMeters: string;
   maxWidthMeters: string;
@@ -260,56 +296,6 @@ export interface ScreenRuleConfigErrors {
   fixedComponents?: string;
   general?: string;
 }
-
-export interface BaseRuleConfigErrors {
-  cutHeightExtraMeters?: string;
-  maxWidthMeters?: string;
-  chainMultiplier?: string;
-  smallRollMeters?: string;
-  largeRollMeters?: string;
-  fixedComponents?: string;
-  general?: string;
-}
-
-export interface BaseRuleConfigFormValues {
-  cutHeightExtraMeters: string;
-  maxWidthMeters: string;
-  chainMultiplier: string;
-  smallRollMeters: string;
-  largeRollMeters: string;
-  ruleComponents: {
-    tube: CatalogComponent | null;
-    bottom: CatalogComponent | null;
-    chain: CatalogComponent | null;
-  };
-  fixedComponents: Array<{
-    quantity: string;
-    name: string;
-    unit: string;
-    cost: string;
-  }>;
-}
-
-export interface MultiProductConfigFormValues {
-  screen: BaseRuleConfigFormValues;
-  rollux: BaseRuleConfigFormValues;
-  neolux: BaseRuleConfigFormValues;
-  vertical: BaseRuleConfigFormValues;
-  madera: BaseRuleConfigFormValues;
-}
-
-export interface BaseRuleConfigErrors {
-  cutHeightExtraMeters?: string;
-  maxWidthMeters?: string;
-  chainMultiplier?: string;
-  smallRollMeters?: string;
-  largeRollMeters?: string;
-  ruleComponents?: string;
-  fixedComponents?: string;
-  general?: string;
-}
-
-export type MultiProductConfigErrors = Record<CurtainType, BaseRuleConfigErrors>;
 
 export type InventoryStatus =
   | 'available'

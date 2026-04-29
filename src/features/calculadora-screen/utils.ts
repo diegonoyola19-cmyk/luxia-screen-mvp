@@ -151,7 +151,7 @@ export function applyWasteReuseToResult(
   };
 }
 
-export const YARD2_PER_M2 = 1.19599;
+export const YARD2_PER_M2 = 1.2;
 
 export function getFabricCostPerYd2(
   inventory: ProductionInventory,
