@@ -16,36 +16,36 @@ import './ProductionModuleV2.css';
 // ── Swatch color map (fallback cuando no hay imageUrl) ───────────────────────
 const FABRIC_COLOR_MAP: Record<string, string> = {
   // e Blackout FR
-  'black/black':       '#1a1a1a',
+  'black/black': '#1a1a1a',
   'light grey/grey-grey': '#9aa8b0',
-  'beige/bisque':      '#d4b896',
-  'fawn/off white':    '#d6c9ad',
-  'stone/dark grey':   '#5c6166',
-  smoke:               '#838b91',
+  'beige/bisque': '#d4b896',
+  'fawn/off white': '#d6c9ad',
+  'stone/dark grey': '#5c6166',
+  smoke: '#838b91',
   'white/snow flakes': '#eeece8',
   // Screen / Premium / Pinpointe (title case keys)
-  beige:               '#d9c4a4',
-  bisque:              '#c9a87c',
-  black:               '#1a1a1a',
-  'brown/chocolate':   '#4a3228',
-  ebony:               '#2e2822',
-  'ebony pearl':       '#2a2a30',  // oscuro perlado
-  'ebony sand':        '#6b5a42',
-  'light grey':        '#a8b4bc',
-  linen:               '#d4c8b0',
-  'off white':         '#f0ece4',
-  'snow flakes':       '#e8e5df',
-  'stone grey':        '#72787e',
-  taupe:               '#9a8870',
-  white:               '#f5f3ee',
-  'white linen':       '#e4dece',
-  'white pearl':       '#eae7e0',
+  beige: '#d9c4a4',
+  bisque: '#c9a87c',
+  black: '#1a1a1a',
+  'brown/chocolate': '#4a3228',
+  ebony: '#2e2822',
+  'ebony pearl': '#2a2a30',  // oscuro perlado
+  'ebony sand': '#6b5a42',
+  'light grey': '#a8b4bc',
+  linen: '#d4c8b0',
+  'off white': '#f0ece4',
+  'snow flakes': '#e8e5df',
+  'stone grey': '#72787e',
+  taupe: '#9a8870',
+  white: '#f5f3ee',
+  'white linen': '#e4dece',
+  'white pearl': '#eae7e0',
   // Calico 550
-  'sand custard':      '#cdb07a',
-  'sand linen':        '#c4b090',
-  'gold custard':      '#c8a050',
-  'sand ebony':        '#7a6648',
-  'bronze custard':    '#a07840',
+  'sand custard': '#cdb07a',
+  'sand linen': '#c4b090',
+  'gold custard': '#c8a050',
+  'sand ebony': '#7a6648',
+  'bronze custard': '#a07840',
   'calico 550 ebony sand': '#6b5a42',
 };
 
@@ -93,10 +93,11 @@ export function ProductionModuleV2() {
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
 
   // ── Config adicional (estado local, notas de producción) ──────────────────
-  const [bracketType, setBracketType] = useState<'single' | 'double' | 'ceiling'>('single');
-  const [endplugType, setEndplugType] = useState<'standard' | 'push' | 'fascia'>('standard');
+  const [bracketType, setBracketType] = useState<'single' | 'double'>('single');
+  const [endplugType, setEndplugType] = useState<'standard' | 'push'>('standard');
   const [motorModel, setMotorModel] = useState('');
-  const [tubeOverride, setTubeOverride] = useState<'auto' | 'standard' | 'reinforced' | 'heavy'>('auto');
+  const [motorControl, setMotorControl] = useState('');
+  const [tubeOverride, setTubeOverride] = useState<'normal' | 'neo' | 'reinforced_45' | 'heavy_63'>('normal');
 
   const {
     fabricFamilies,
@@ -180,11 +181,11 @@ export function ProductionModuleV2() {
   // ── Metrics ────────────────────────────────────────────────────────────────
   // Campo correcto del CalculationResult: cutLengthMeters (altura) y fabricDownloadedYd2 (consumo)
   const metrics = [
-    { label: 'Eficiencia',      value: summary ? Math.round(summary.efficiency) : 0,                            unit: '%',   accent: 'red'    },
-    { label: 'Altura de Corte', value: displayResult ? formatNumber(displayResult.cutLengthMeters, 2) : '—',  unit: 'm',   accent: ''       },
-    { label: 'Ancho de Corte',  value: displayResult ? formatNumber(displayResult.cutWidthMeters, 2) : '—',    unit: 'm',   accent: ''       },
-    { label: 'Consumo Y²',      value: displayedYd2  != null ? formatNumber(displayedYd2, 2) : '—',           unit: 'yd²', accent: useManualRetazo && retazoResult?.alcanza ? 'green' : '' },
-    { label: 'Desperdicio',     value: displayedWaste != null ? formatNumber(displayedWaste, 2) : '—',          unit: 'yd²', accent: 'yellow' },
+    { label: 'Eficiencia', value: summary ? Math.round(summary.efficiency) : 0, unit: '%', accent: 'red' },
+    { label: 'Altura de Corte', value: displayResult ? formatNumber(displayResult.cutLengthMeters, 2) : '—', unit: 'm', accent: '' },
+    { label: 'Ancho de Corte', value: displayResult ? formatNumber(displayResult.cutWidthMeters, 2) : '—', unit: 'm', accent: '' },
+    { label: 'Consumo Y²', value: displayedYd2 != null ? formatNumber(displayedYd2, 2) : '—', unit: 'yd²', accent: useManualRetazo && retazoResult?.alcanza ? 'green' : '' },
+    { label: 'Desperdicio', value: displayedWaste != null ? formatNumber(displayedWaste, 2) : '—', unit: 'yd²', accent: 'yellow' },
   ];
 
   return (
@@ -402,9 +403,8 @@ export function ProductionModuleV2() {
                         </div>
 
                         {manualRetazoVal > 0 && retazoResult && (
-                          <div className={`pv2-retazo-result ${
-                            retazoResult.alcanza ? 'pv2-retazo-result--ok' : 'pv2-retazo-result--err'
-                          }`}>
+                          <div className={`pv2-retazo-result ${retazoResult.alcanza ? 'pv2-retazo-result--ok' : 'pv2-retazo-result--err'
+                            }`}>
                             {retazoResult.alcanza ? (
                               <>
                                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
@@ -434,7 +434,7 @@ export function ProductionModuleV2() {
             )}
 
 
-          {/* Actions */}
+            {/* Actions */}
             <div className="pv2-actions-row">
               <button
                 className="pv2-btn-primary pv2-btn-grow"
@@ -630,7 +630,7 @@ export function ProductionModuleV2() {
 
         {/* ══ EXTRA PANEL: Configuración de Sistema ═══════════════════════ */}
         <section className="pv2-extra">
-          <div className="pv2-glass pv2-sys-panel">
+          <div className="pv2-glass pv2-sys-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
             <div className="pv2-config-header">
@@ -645,9 +645,8 @@ export function ProductionModuleV2() {
                 {(['manual', 'motorized'] as const).map((dt) => (
                   <button
                     key={dt}
-                    className={`pv2-sys-toggle ${
-                      (store.formValues.driveType ?? 'manual') === dt ? 'pv2-sys-toggle--active' : ''
-                    }`}
+                    className={`pv2-sys-toggle ${(store.formValues.driveType ?? 'manual') === dt ? 'pv2-sys-toggle--active' : ''
+                      }`}
                     onClick={() => store.setFormValue('driveType', dt)}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
@@ -659,24 +658,53 @@ export function ProductionModuleV2() {
               </div>
             </div>
 
-            {/* Motor (solo si motorizado) */}
+            {/* Motor y Control (solo si motorizado) */}
             {(store.formValues.driveType === 'motorized') && (
-              <div className="pv2-field">
-                <label className="pv2-label">Modelo de Motor</label>
-                <input
-                  className="pv2-input"
-                  type="text"
-                  placeholder="Somfy RS100, Rademacher..."
-                  value={motorModel}
-                  onChange={(e) => setMotorModel(e.target.value)}
-                />
+              <div className="pv2-grid-2">
+                <div className="pv2-field">
+                  <label className="pv2-label">Modelo de Motor</label>
+                  <select
+                    className="pv2-select"
+                    value={motorModel}
+                    onChange={(e) => setMotorModel(e.target.value)}
+                  >
+                    <option value="">-- Seleccionar Motor --</option>
+                    {store.catalogItems
+                      .filter(item => {
+                        const code = item.itemCode.replace(/-/g, '').toLowerCase();
+                        return code.startsWith('6800mm') || code.startsWith('6800mb');
+                      })
+                      .map(item => (
+                        <option key={item.itemCode} value={item.itemCode}>
+                          {item.itemCode} - {item.description}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="pv2-field">
+                  <label className="pv2-label">Control Remoto</label>
+                  <select
+                    className="pv2-select"
+                    value={motorControl}
+                    onChange={(e) => setMotorControl(e.target.value)}
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {store.catalogItems
+                      .filter(item => item.itemCode.replace(/-/g, '').toLowerCase().startsWith('6800at'))
+                      .map(item => (
+                        <option key={item.itemCode} value={item.itemCode}>
+                          {item.itemCode} - {item.description}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             )}
 
             {/* ── Sistema de Tubo */}
             <div className="pv2-sys-section">
               <span className="pv2-label">Tubo / Tambor</span>
-              {displayResult?.requiresReinforcedTube && tubeOverride === 'auto' && (
+              {displayResult?.requiresReinforcedTube && tubeOverride === 'normal' && (
                 <div className="pv2-sys-alert">
                   <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
                   {displayResult.tubeRecommendation}
@@ -684,16 +712,15 @@ export function ProductionModuleV2() {
               )}
               <div className="pv2-sys-option-group">
                 {([
-                  { val: 'auto',       icon: 'auto_fix_high',    label: 'Auto' },
-                  { val: 'standard',   icon: 'hardware',          label: 'Estándar' },
-                  { val: 'reinforced', icon: 'construction',      label: 'Reforzado' },
-                  { val: 'heavy',      icon: 'forklift',          label: 'Heavy Duty' },
+                  { val: 'normal', icon: 'hardware', label: 'Tubo Normal' },
+                  { val: 'neo', icon: 'auto_awesome', label: 'Tubo NEO' },
+                  { val: 'reinforced_45', icon: 'construction', label: 'Reforzado 45mm' },
+                  { val: 'heavy_63', icon: 'forklift', label: 'Heavy Duty 63mm' },
                 ] as const).map(({ val, icon, label }) => (
                   <button
                     key={val}
-                    className={`pv2-sys-option ${
-                      tubeOverride === val ? 'pv2-sys-option--active' : ''
-                    } ${val !== 'auto' && displayResult?.requiresReinforcedTube && val === 'standard' ? 'pv2-sys-option--warn' : ''}`}
+                    className={`pv2-sys-option ${tubeOverride === val ? 'pv2-sys-option--active' : ''
+                      } ${displayResult?.requiresReinforcedTube && val === 'normal' ? 'pv2-sys-option--warn' : ''}`}
                     onClick={() => setTubeOverride(val)}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
@@ -708,9 +735,8 @@ export function ProductionModuleV2() {
               <span className="pv2-label">Sistema de Bracket</span>
               <div className="pv2-sys-option-group">
                 {([
-                  { val: 'single',  icon: 'align_vertical_center', label: 'Bracket Simple' },
-                  { val: 'double',  icon: 'align_horizontal_center', label: 'Bracket Doble' },
-                  { val: 'ceiling', icon: 'vertical_align_top',    label: 'Techo / Facefix' },
+                  { val: 'single', icon: 'align_vertical_center', label: 'Bracket Simple' },
+                  { val: 'double', icon: 'align_horizontal_center', label: 'Bracket Doble' },
                 ] as const).map(({ val, icon, label }) => (
                   <button
                     key={val}
@@ -730,8 +756,7 @@ export function ProductionModuleV2() {
               <div className="pv2-sys-option-group">
                 {([
                   { val: 'standard', icon: 'radio_button_checked', label: 'Estándar' },
-                  { val: 'push',     icon: 'touch_app',             label: 'Push' },
-                  { val: 'fascia',   icon: 'view_agenda',           label: 'Fascia' },
+                  { val: 'push', icon: 'touch_app', label: 'Push' },
                 ] as const).map(({ val, icon, label }) => (
                   <button
                     key={val}
@@ -756,27 +781,33 @@ export function ProductionModuleV2() {
               <div className="pv2-sys-summary-row">
                 <span className="pv2-sys-summary-key">Tubo</span>
                 <span className="pv2-sys-summary-val">
-                  {tubeOverride === 'auto'
-                    ? (displayResult?.requiresReinforcedTube ? '⚠️ Reforzado (auto)' : 'Estándar (auto)')
-                    : tubeOverride.charAt(0).toUpperCase() + tubeOverride.slice(1)}
+                  {tubeOverride === 'normal' ? 'Tubo Normal' : 
+                   tubeOverride === 'neo' ? 'Tubo NEO' :
+                   tubeOverride === 'reinforced_45' ? 'Reforzado 45mm' : 'Heavy Duty 63mm'}
                 </span>
               </div>
               <div className="pv2-sys-summary-row">
                 <span className="pv2-sys-summary-key">Bracket</span>
                 <span className="pv2-sys-summary-val">
-                  {bracketType === 'single' ? 'Simple' : bracketType === 'double' ? 'Doble' : 'Techo'}
+                  {bracketType === 'single' ? 'Simple' : 'Doble'}
                 </span>
               </div>
               <div className="pv2-sys-summary-row">
                 <span className="pv2-sys-summary-key">Endplug</span>
                 <span className="pv2-sys-summary-val">
-                  {endplugType === 'standard' ? 'Estándar' : endplugType === 'push' ? 'Push' : 'Fascia'}
+                  {endplugType === 'standard' ? 'Estándar' : 'Push'}
                 </span>
               </div>
-              {motorModel && (
+              {store.formValues.driveType === 'motorized' && motorModel && (
                 <div className="pv2-sys-summary-row">
                   <span className="pv2-sys-summary-key">Motor</span>
                   <span className="pv2-sys-summary-val">{motorModel}</span>
+                </div>
+              )}
+              {store.formValues.driveType === 'motorized' && motorControl && (
+                <div className="pv2-sys-summary-row">
+                  <span className="pv2-sys-summary-key">Control</span>
+                  <span className="pv2-sys-summary-val">{motorControl}</span>
                 </div>
               )}
             </div>

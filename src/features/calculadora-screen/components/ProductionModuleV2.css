@@ -20,7 +20,7 @@
   padding: 16px;
   width: 100%;
   box-sizing: border-box;
-  align-items: start;
+  align-items: stretch;
 }
 
 /* Paneles laterales: sticky bajo el view-switcher (64px) */
@@ -72,6 +72,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex-grow: 1;
 }
 
 .pv2-config-header {
@@ -1051,3 +1052,186 @@
   .pv2-metrics-row { grid-template-columns: 1fr; }
   .pv2-topbar-title { font-size: 11px; }
 }
+
+/* ── LIGHT MODE OVERRIDES ────────────────────────────────────────────────── */
+[data-theme='light'] .pv2-glass {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='light'] .pv2-headline { color: #111827; }
+[data-theme='light'] .pv2-label { color: #6b7280; }
+
+[data-theme='light'] .pv2-select,
+[data-theme='light'] .pv2-input {
+  background: #f9fafb;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #111827;
+}
+
+[data-theme='light'] .pv2-select option { background: #ffffff; }
+
+[data-theme='light'] .pv2-btn-ghost {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #4b5563;
+}
+
+[data-theme='light'] .pv2-btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #111827;
+}
+
+[data-theme='light'] .pv2-new-curtain-btn {
+  border: 1px dashed rgba(0, 0, 0, 0.2) !important;
+  color: #6b7280;
+}
+
+[data-theme='light'] .pv2-new-curtain-btn:hover:not(.pv2-disabled) {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+  color: #111827;
+}
+
+[data-theme='light'] .pv2-metric-number { color: #111827; }
+
+[data-theme='light'] .pv2-table-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme='light'] .pv2-table-title { color: #111827; }
+[data-theme='light'] .pv2-thead-row { background: rgba(0, 0, 0, 0.04); }
+[data-theme='light'] .pv2-tbody-row { border-top: 1px solid rgba(0, 0, 0, 0.05); }
+[data-theme='light'] .pv2-tbody-row:hover { background: rgba(0, 0, 0, 0.02); }
+[data-theme='light'] .pv2-td { color: #111827; }
+
+[data-theme='light'] .pv2-fabric-name { color: #111827; }
+[data-theme='light'] .pv2-fabric-tag { background: rgba(0, 0, 0, 0.04); color: #4b5563; }
+
+[data-theme='light'] .pv2-sys-option {
+  background: #f9fafb;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #4b5563;
+}
+
+[data-theme='light'] .pv2-sys-option:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme='light'] .pv2-sys-option--active {
+  background: rgba(192, 37, 58, 0.08);
+  border-color: rgba(192, 37, 58, 0.3);
+  color: #c0253a;
+}
+
+[data-theme='light'] .pv2-sys-toggle {
+  background: transparent;
+  color: #6b7280;
+}
+
+[data-theme='light'] .pv2-sys-toggle--active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .pv2-sys-toggle-group {
+  background: #f3f4f6;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='light'] .pv2-footer {
+  background: rgba(255, 255, 255, 0.94);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='light'] .pv2-footer-stat-value { color: #111827; }
+[data-theme='light'] .pv2-footer-stat--sep { border-left: 1px solid rgba(0, 0, 0, 0.08); }
+
+[data-theme='light'] .pv2-sys-summary-val { color: #111827; }
+
+[data-theme='light'] .pv2-row-action { color: #6b7280; }
+[data-theme='light'] .pv2-row-action:hover { color: #111827; background: rgba(0, 0, 0, 0.05); }
+
+[data-theme='light'] .pv2-waste-option {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: #4b5563;
+}
+[data-theme='light'] .pv2-waste-option:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #111827;
+}
+[data-theme='light'] .pv2-waste-option--active {
+  background: rgba(192, 37, 58, 0.08);
+  border-color: rgba(192, 37, 58, 0.2);
+  color: #111827;
+}
+[data-theme='light'] .pv2-retazo-title { color: #111827; }
+[data-theme='light'] .pv2-retazo-divider { background: rgba(0, 0, 0, 0.06); }
+[data-theme='light'] .pv2-retazo-panel {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+[data-theme='light'] .pv2-retazo-body {
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* =========================================================================
+   NEW RESPONSIVE MEDIA QUERIES (1366px, 1024px, 767px)
+   ========================================================================= */
+
+@media (max-width: 1366px) {
+  .pm2-grid {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Tablet layout: 2 columns (Form + Catalog on top, Batch full width below) */
+  .pm2-grid {
+    grid-template-columns: 340px 1fr;
+  }
+  
+  .pm2-col-lote {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Mobile layout: 1 column (Stack everything) */
+  .pm2-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .pm2-col-form,
+  .pm2-col-catalog,
+  .pm2-col-lote {
+    grid-column: 1 / -1;
+  }
+
+  /* Full width action buttons */
+  .pv2-btn-calcular,
+  .pv2-btn-guardar,
+  .pv2-btn-limpiar {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* Stack footer actions */
+  .pv2-footer-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .pv2-footer-actions .pv2-btn-guardar,
+  .pv2-footer-actions .pv2-btn-limpiar {
+    width: 100%;
+  }
+}
+
+

@@ -37,4 +37,53 @@ export const createInventorySlice: StateCreator<
       }
     }));
   },
+
+  discardInventoryItem: (id, category) => {
+    set((state) => {
+      const { productionInventory, inventoryMovements } = state;
+      const nextInventory = { ...productionInventory };
+      const newMovements = [...inventoryMovements];
+
+      let itemToDiscard: any = null;
+
+      if (category === 'fabric') {
+        const index = nextInventory.fabrics.findIndex((f) => f.id === id);
+        if (index !== -1) {
+          itemToDiscard = nextInventory.fabrics[index];
+          nextInventory.fabrics[index] = { ...itemToDiscard, status: 'discarded' };
+        }
+      } else if (category === 'tube') {
+        const index = nextInventory.tubes.findIndex((t) => t.id === id);
+        if (index !== -1) {
+          itemToDiscard = nextInventory.tubes[index];
+          nextInventory.tubes[index] = { ...itemToDiscard, status: 'discarded' };
+        }
+      } else if (category === 'bottom') {
+        const index = nextInventory.bottoms.findIndex((b) => b.id === id);
+        if (index !== -1) {
+          itemToDiscard = nextInventory.bottoms[index];
+          nextInventory.bottoms[index] = { ...itemToDiscard, status: 'discarded' };
+        }
+      }
+
+      if (itemToDiscard) {
+        newMovements.unshift({
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          category,
+          action: 'discard',
+          itemCode: itemToDiscard.code,
+          itemLabel: itemToDiscard.kind === 'scrap' ? `Retazo dado de baja` : `Sobrante dado de baja`,
+          quantity: category === 'fabric' ? itemToDiscard.widthMeters * itemToDiscard.lengthMeters : itemToDiscard.lengthMeters,
+          unit: category === 'fabric' ? 'm2' : 'm',
+          notes: 'Removido manualmente por usuario (Limpieza de piso).',
+        });
+      }
+
+      return {
+        productionInventory: nextInventory,
+        inventoryMovements: newMovements,
+      };
+    });
+  },
 });

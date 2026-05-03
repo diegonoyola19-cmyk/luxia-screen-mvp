@@ -7,9 +7,11 @@ export const createUiSlice: StateCreator<
   [],
   UiSlice
 > = (set) => ({
-  activeView: 'production',
+  theme: 'dark',
+  activeView: 'production-v2',
   copyFeedbackVisible: false,
 
+  setTheme: (theme) => set({ theme }),
   setActiveView: (view) => set({ activeView: view }),
   setCopyFeedbackVisible: (visible) => set({ copyFeedbackVisible: visible }),
 });

@@ -27,8 +27,10 @@ export interface SessionWastePiece extends WastePiece {
 }
 
 export interface UiSlice {
+  theme: 'light' | 'dark';
   activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2';
   copyFeedbackVisible: boolean;
+  setTheme: (theme: 'light' | 'dark') => void;
   setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2') => void;
   setCopyFeedbackVisible: (visible: boolean) => void;
 }
@@ -66,6 +68,7 @@ export interface InventorySlice {
   setProductionInventory: (inventory: ProductionInventory) => void;
   setInventoryMovements: (movements: InventoryMovement[] | ((current: InventoryMovement[]) => InventoryMovement[])) => void;
   saveRollCosts: (costsByWidth: Record<string, number>) => void;
+  discardInventoryItem: (id: string, category: 'fabric' | 'tube' | 'bottom') => void;
 }
 
 export interface OrderSlice {

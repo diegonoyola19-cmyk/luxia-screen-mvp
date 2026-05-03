@@ -8,8 +8,8 @@
   font-family: 'Inter', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #e3e2e7;
-  background: #121317;
+  color: var(--text);
+  background: var(--surface);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -75,6 +75,44 @@
   --space-6:            24px;
 }
 
+[data-theme='light'] {
+  --surface:            #ffffff;
+  --surface-dim:        #f3f4f6;
+  --surface-bright:     #ffffff;
+  --surface-container-lowest:  #ffffff;
+  --surface-container-low:     #f9fafb;
+  --surface-container:         #f3f4f6;
+  --surface-container-high:    #e5e7eb;
+  --surface-container-highest: #d1d5db;
+
+  --surface-strong:     #f3f4f6;
+  --surface-soft:       #f9fafb;
+  --surface-hover:      #e5e7eb;
+
+  --text:               #111827;
+  --muted:              #6b7280;
+  --muted-strong:       #4b5563;
+
+  --line:               rgba(0, 0, 0, 0.1);
+  --line-strong:        rgba(0, 0, 0, 0.15);
+
+  --primary:            #C0253A;
+  --primary-dark:       #920022;
+  --primary-on:         #ffffff;
+  --primary-glow:       rgba(192, 37, 58, 0.1);
+
+  --success:            #16a34a;
+  --danger:             #dc2626;
+  --danger-container:   #fef2f2;
+  --warning:            #d97706;
+
+  --outline:            #9ca3af;
+  --outline-variant:    #d1d5db;
+
+  --shadow:             0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg:          0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -90,7 +128,7 @@ body {
   margin: 0;
   min-width: 320px;
   color: var(--text);
-  background: #121317;
+  background: var(--surface);
   overflow-x: hidden;
 }
 
@@ -154,11 +192,11 @@ summary {
   gap: 0;
   padding: 0 24px;
   border-radius: 0;
-  background: rgba(13, 14, 18, 0.88);
+  background: var(--surface-dim);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.5);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 var(--line), var(--shadow);
 }
 
 /* Logo LUXIA */
@@ -167,7 +205,7 @@ summary {
   font-size: 1.15rem;
   font-weight: 900;
   letter-spacing: -0.04em;
-  color: #fff;
+  color: var(--text);
   text-transform: uppercase;
   margin-right: 40px;
   flex-shrink: 0;
@@ -180,7 +218,7 @@ summary {
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted);
   padding: 0 16px;
   height: 64px;
   display: flex;
@@ -198,7 +236,7 @@ summary {
 }
 
 .view-switcher__tab:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text);
 }
 
 .view-switcher__tab--active {
@@ -246,8 +284,8 @@ summary {
 
 .card {
   background: var(--surface-container);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
+  border-top: 1px solid var(--line-strong);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow);
 }
@@ -1240,5 +1278,54 @@ summary {
   .metric-info:hover .metric-info__tooltip,
   .metric-info:focus-within .metric-info__tooltip {
     transform: translateX(0) translateY(0);
+  }
+}
+
+/* =========================================================================
+   NEW RESPONSIVE MEDIA QUERIES (1366px, 1024px, 767px)
+   ========================================================================= */
+
+@media (max-width: 1366px) {
+  html {
+    font-size: 15px; /* Reduce base font size */
+  }
+}
+
+@media (max-width: 767px) {
+  /* Prevent text selection on action buttons */
+  button, .button {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Make top navigation scrollable horizontally */
+  .view-switcher {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    justify-content: flex-start !important;
+    padding-bottom: 2px;
+  }
+  
+  .view-switcher::-webkit-scrollbar {
+    display: none;
+  }
+
+  .view-switcher__tab {
+    flex: 0 0 auto !important;
+    min-width: max-content;
+  }
+
+  /* Prevent zoom on focus for iOS Safari */
+  input[type="text"], 
+  input[type="number"], 
+  input[type="date"], 
+  input[type="email"],
+  input[type="tel"],
+  select, 
+  textarea {
+    font-size: 16px !important;
   }
 }

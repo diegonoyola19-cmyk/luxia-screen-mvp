@@ -6,9 +6,9 @@ import { ProductionModule } from './components/ProductionModule';
 import { ProductionModuleV2 } from './components/ProductionModuleV2';
 
 
-const InventoryPanel = lazy(async () => {
-  const module = await import('./components/InventoryPanel');
-  return { default: module.InventoryPanel };
+const InventoryPanelV2 = lazy(async () => {
+  const module = await import('./components/InventoryPanelV2');
+  return { default: module.InventoryPanelV2 };
 });
 const RulesPanel = lazy(async () => {
   const module = await import('./components/RulesPanel');
@@ -42,24 +42,17 @@ function DeferredPanel({ children }: { children: ReactNode }) {
 export function ScreenCalculatorPage() {
   const activeView = useCalculatorStore((state) => state.activeView);
   const setActiveView = useCalculatorStore((state) => state.setActiveView);
+  const theme = useCalculatorStore((state) => state.theme);
+  const setTheme = useCalculatorStore((state) => state.setTheme);
 
-
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   return (
     <main className="page-shell">
       <section className="page-frame">
         <div className="view-switcher">
-          <button
-            type="button"
-            className={[
-              'view-switcher__tab',
-              activeView === 'production' ? 'view-switcher__tab--active' : '',
-            ].join(' ')}
-            aria-pressed={activeView === 'production'}
-            onClick={() => setActiveView('production')}
-          >
-            Produccion
-          </button>
           <button
             type="button"
             className={[
@@ -104,6 +97,15 @@ export function ScreenCalculatorPage() {
           >
             Configuracion
           </button>
+          <button
+            type="button"
+            className="view-switcher__tab"
+            style={{ marginLeft: 'auto', flex: 'none' }}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
 
         <div className={`page-content${activeView === 'production-v2' ? ' page-content--fullwidth' : ''}`}>
@@ -121,7 +123,7 @@ export function ScreenCalculatorPage() {
                 <ProductionModuleV2 />
               ) : activeView === 'inventory' ? (
                 <DeferredPanel>
-                  <InventoryPanel />
+                  <InventoryPanelV2 />
                 </DeferredPanel>
               ) : activeView === 'orders' ? (
                 <DeferredPanel>

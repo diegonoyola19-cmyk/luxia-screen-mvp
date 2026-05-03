@@ -22,6 +22,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
     {
       name: 'luxia-calculator-storage',
       partialize: (state) => ({
+        theme: state.theme,
         formValues: state.formValues,
         orderDraft: state.orderDraft,
         savedOrders: state.savedOrders,
