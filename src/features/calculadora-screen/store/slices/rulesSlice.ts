@@ -5,13 +5,6 @@ import {
   DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
 } from '../../../../domain/curtains/constants';
 import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
-import { StateCreator } from 'zustand';
-import { CalculatorStore, RulesSlice } from '../types';
-import { 
-  DEFAULT_SCREEN_RULE_CONFIG, 
-  DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
-} from '../../../../domain/curtains/constants';
-import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
 import { applyCatalogOverrides, getBaseCatalogItems } from '../../../../lib/itemCatalog';
 import {
