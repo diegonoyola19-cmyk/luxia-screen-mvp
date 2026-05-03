@@ -17,6 +17,9 @@ import type {
   ToneGroup,
 } from '../domain/curtains/types';
 
+const DEFAULT_RECIPE_UUID = '00000000-0000-0000-0000-000000000000';
+const DEFAULT_RECIPE_LOCAL_ID = 'screen-default';
+
 // ─── Tipos locales que mapean las tablas de Supabase ───────────────────────
 
 interface DbCatalogItem {
@@ -212,7 +215,7 @@ export async function fetchRecipes(): Promise<CurtainRecipe[]> {
   const components = componentsData as DbRecipeComponent[];
 
   return recipes.map((recipe) => ({
-    id:          recipe.id,
+    id:          recipe.id === DEFAULT_RECIPE_UUID ? DEFAULT_RECIPE_LOCAL_ID : recipe.id,
     name:        recipe.name,
     curtainType: recipe.curtain_type as CurtainRecipe['curtainType'],
     components:  components
@@ -225,9 +228,11 @@ export async function fetchRecipes(): Promise<CurtainRecipe[]> {
  * Guarda o actualiza una receta completa (receta + todos sus componentes).
  */
 export async function upsertRecipe(recipe: CurtainRecipe): Promise<void> {
+  const dbRecipeId = recipe.id === DEFAULT_RECIPE_LOCAL_ID ? DEFAULT_RECIPE_UUID : recipe.id;
+
   // 1. Guardar cabecera de la receta
   const { error: recipeError } = await supabase.from('curtain_recipes').upsert({
-    id:           recipe.id,
+    id:           dbRecipeId,
     name:         recipe.name,
     curtain_type: recipe.curtainType,
     is_active:    true,
@@ -240,7 +245,7 @@ export async function upsertRecipe(recipe: CurtainRecipe): Promise<void> {
   const { error: deleteError } = await supabase
     .from('recipe_components')
     .delete()
-    .eq('recipe_id', recipe.id);
+    .eq('recipe_id', dbRecipeId);
 
   if (deleteError) throw new Error(`Error limpiando componentes: ${deleteError.message}`);
 
@@ -248,7 +253,7 @@ export async function upsertRecipe(recipe: CurtainRecipe): Promise<void> {
 
   const componentRows = recipe.components.map((c, index) => ({
     id:               c.id,
-    recipe_id:        recipe.id,
+    recipe_id:        dbRecipeId,
     label:            c.label,
     category:         c.category,
     quantity_mode:    c.quantityMode,
