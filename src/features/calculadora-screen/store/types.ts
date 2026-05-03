@@ -110,6 +110,7 @@ export interface RulesSlice {
   catalogOverrides: Record<string, CatalogItemOverride>;
   fabricToneRules: FabricToneRule[];
   screenRecipe: CurtainRecipe;
+  isSyncing: boolean;
 
   setRuleConfig: (config: ScreenRuleConfig) => void;
   setRuleFormValues: (updater: (current: ScreenRuleConfigFormValues) => ScreenRuleConfigFormValues) => void;
@@ -131,6 +132,8 @@ export interface RulesSlice {
   saveRecipeSettings: () => void;
   resetRules: () => void;
   resetRecipe: () => void;
+  syncRecipeToCloud: () => Promise<void>;
+  loadRecipeFromCloud: () => Promise<void>;
 }
 
 export type CalculatorStore = UiSlice &

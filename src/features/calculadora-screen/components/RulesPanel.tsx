@@ -425,11 +425,31 @@ function RecipeSection() {
       <div className="recipe-save-bar">
         <span>Guarda los cambios para conservar receta, tonos y catalogo al recargar.</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button type="button" variant="secondary" onClick={store.resetRecipe}>
+          <Button type="button" variant="secondary" onClick={store.resetRecipe} disabled={store.isSyncing}>
             Restaurar
           </Button>
-          <Button type="button" onClick={store.saveRecipeSettings}>
-            Guardar reglas
+          <Button 
+            type="button" 
+            variant="secondary" 
+            onClick={() => {
+              if (window.confirm('Esto reemplazará tus reglas locales por las de la nube. ¿Continuar?')) {
+                store.loadRecipeFromCloud();
+              }
+            }}
+            disabled={store.isSyncing}
+            style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
+          >
+            Descargar de la nube
+          </Button>
+          <Button 
+            type="button" 
+            onClick={() => {
+              store.saveRecipeSettings();
+              store.syncRecipeToCloud();
+            }}
+            disabled={store.isSyncing}
+          >
+            {store.isSyncing ? 'Sincronizando...' : 'Subir a la nube'}
           </Button>
         </div>
       </div>

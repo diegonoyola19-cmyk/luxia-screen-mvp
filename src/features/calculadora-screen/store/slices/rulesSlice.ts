@@ -5,6 +5,13 @@ import {
   DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
 } from '../../../../domain/curtains/constants';
 import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
+import { StateCreator } from 'zustand';
+import { CalculatorStore, RulesSlice } from '../types';
+import { 
+  DEFAULT_SCREEN_RULE_CONFIG, 
+  DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
+} from '../../../../domain/curtains/constants';
+import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
 import { applyCatalogOverrides, getBaseCatalogItems } from '../../../../lib/itemCatalog';
 import {
@@ -21,6 +28,12 @@ import {
   saveScreenRecipe,
   saveScreenRuleConfig,
 } from '../../../../lib/storage';
+import {
+  fetchRecipes,
+  fetchFabricToneRules as fetchFabricToneRulesFromCloud,
+  upsertRecipe,
+  upsertFabricToneRules,
+} from '../../../../lib/supabaseRepository';
 
 function mapConfigToFormValues(config: ScreenRuleConfig): ScreenRuleConfigFormValues {
   return {
@@ -83,6 +96,7 @@ export const createRulesSlice: StateCreator<
     catalogItems: initialCatalogItems,
     fabricToneRules: loadFabricToneRules(),
     screenRecipe: initialRecipe,
+    isSyncing: false,
 
   setRuleConfig: (config) => set({ ruleConfig: config }),
   setRuleFormValues: (updater) => set((state) => ({ ruleFormValues: typeof updater === 'function' ? updater(state.ruleFormValues) : updater })),
@@ -313,6 +327,49 @@ export const createRulesSlice: StateCreator<
       screenRecipe: createDefaultScreenRecipe(state.catalogItems),
       fabricToneRules: [],
     }));
+  },
+
+  syncRecipeToCloud: async () => {
+    const { screenRecipe, fabricToneRules } = get();
+    set({ isSyncing: true });
+    try {
+      await Promise.all([
+        upsertRecipe(screenRecipe),
+        upsertFabricToneRules(fabricToneRules),
+      ]);
+      // Let Zustand persist handle local storage as usual
+    } catch (error) {
+      console.error('Error syncing recipe to cloud:', error);
+      alert('Error al guardar en la nube: ' + (error as Error).message);
+    } finally {
+      set({ isSyncing: false });
+    }
+  },
+
+  loadRecipeFromCloud: async () => {
+    set({ isSyncing: true });
+    try {
+      const [recipes, toneRules] = await Promise.all([
+        fetchRecipes(),
+        fetchFabricToneRulesFromCloud(),
+      ]);
+      
+      const defaultRecipe = recipes.find(r => r.id === 'screen-default') || recipes[0];
+      
+      if (defaultRecipe) {
+        set({ 
+          screenRecipe: normalizeRecipeToneGroups(defaultRecipe),
+          fabricToneRules: toneRules 
+        });
+      } else {
+        alert('No se encontro ninguna receta guardada en la nube.');
+      }
+    } catch (error) {
+      console.error('Error loading recipe from cloud:', error);
+      alert('Error al cargar de la nube: ' + (error as Error).message);
+    } finally {
+      set({ isSyncing: false });
+    }
   },
 };
 };
