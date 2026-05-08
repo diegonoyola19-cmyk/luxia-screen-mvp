@@ -7,10 +7,7 @@ const ProductionModuleV2 = lazy(async () => {
   const module = await import('./components/ProductionModuleV2');
   return { default: module.ProductionModuleV2 };
 });
-const ProduccionV3 = lazy(async () => {
-  const module = await import('./components/ProduccionV3');
-  return { default: module.ProduccionV3 };
-});
+
 const InventoryPanelV2 = lazy(async () => {
   const module = await import('./components/InventoryPanelV2');
   return { default: module.InventoryPanelV2 };
@@ -143,20 +140,7 @@ export function ScreenCalculatorPage() {
               </motion.div>
             )}
 
-            {activeView === 'v3-lab' && (
-              <motion.div
-                key="v3-lab"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-                className="view-content"
-              >
-                <DeferredPanel>
-                  <ProduccionV3 />
-                </DeferredPanel>
-              </motion.div>
-            )}
+
 
             {activeView === 'inventory' && (
               <motion.div
@@ -210,3 +194,4 @@ export function ScreenCalculatorPage() {
     </main>
   );
 }
+

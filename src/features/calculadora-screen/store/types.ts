@@ -110,10 +110,6 @@ export interface RulesSlice {
   ruleConfig: ScreenRuleConfig;
   ruleFormValues: ScreenRuleConfigFormValues;
   ruleErrors: ScreenRuleConfigErrors;
-  catalogItems: CatalogItem[];
-  catalogOverrides: Record<string, CatalogItemOverride>;
-  fabricToneRules: FabricToneRule[];
-  recipes: Record<CurtainType, CurtainRecipe>;
   isSyncing: boolean;
 
   setRuleConfig: (config: ScreenRuleConfig) => void;
@@ -125,22 +121,10 @@ export interface RulesSlice {
   handleFixedComponentQuantityChange: (index: number, value: string) => void;
   handleFixedComponentUnitChange: (index: number, value: string) => void;
   handleFixedComponentCostChange: (index: number, value: string) => void;
-  handleAddFixedComponent: () => void;
-  handleRemoveFixedComponent: (index: number) => void;
-  updateCatalogItemCategory: (itemCode: string, category: ComponentCategory) => void;
-  updateCatalogItemColor: (itemCode: string, color: string) => void;
-  updateCatalogItemSageCode: (itemCode: string, sageItemCode: string) => void;
-  updateFabricToneRule: (family: string, openness: string, color: string, toneGroup: ToneGroup) => void;
-  updateRecipeItem: (curtainType: CurtainType, componentId: string, toneGroup: ToneGroup, itemCode: string) => void;
-  addRecipeComponent: (curtainType: CurtainType, component: Omit<RecipeComponentRule, 'id'>) => void;
-  updateRecipeComponentConfig: (curtainType: CurtainType, componentId: string, updates: Partial<RecipeComponentRule>) => void;
-  removeRecipeComponent: (curtainType: CurtainType, componentId: string) => void;
+  addFixedComponent: () => void;
+  removeFixedComponent: (index: number) => void;
   saveRules: () => void;
-  saveRecipeSettings: () => void;
   resetRules: () => void;
-  resetRecipe: () => void;
-  syncRecipeToCloud: () => Promise<void>;
-  loadRecipeFromCloud: () => Promise<void>;
 }
 
 export type CalculatorStore = UiSlice &
@@ -149,3 +133,5 @@ export type CalculatorStore = UiSlice &
   OrderSlice &
   WasteSlice &
   RulesSlice;
+
+

@@ -6,11 +6,7 @@ import { applyOrderToInventory } from '../../../../lib/inventory';
 // storage removed
 import { getAvailableWidths, resolveFabricSelection } from '../../../../lib/priceCatalog';
 import { calculateScreenMaterials } from '../../../../domain/curtains/screen';
-import {
-  materialLinesToFixedComponents,
-  resolveScreenRecipeMaterials,
-} from '../../../../lib/recipeResolver';
-
+import { generateRollerBOM, TONE_COLOR_MAP } from '../../../../logic/generateRollerBOM';
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
 
@@ -162,9 +158,6 @@ export const createOrderSlice: StateCreator<
       cuttingGroups,
       productionInventory,
       ruleConfig,
-      recipes,
-      fabricToneRules,
-      catalogItems,
     } = get();
     const trimmedOrderNumber = orderDraft.orderNumber.trim();
 
@@ -305,28 +298,49 @@ export const createOrderSlice: StateCreator<
           linearDownloadedFeetByItem.get(batchItem.id) ?? baseResult.bottomRailFeet,
       };
 
-      const recipeResolution = resolveScreenRecipeMaterials(
-        batchItem.input,
-        calculatedResult,
-        recipes.screen,
-        fabricToneRules,
-        catalogItems,
-      );
+      const colorLower = batchItem.input.fabricColor.toLowerCase();
+      let toneGroup = 'white';
+      if (colorLower.includes('grey') || colorLower.includes('gray') || colorLower.includes('slate') || colorLower.includes('graphite')) toneGroup = 'grey';
+      else if (colorLower.includes('black') || colorLower.includes('charcoal') || colorLower.includes('dark') || colorLower.includes('onyx') || colorLower.includes('chocolate')) toneGroup = 'bronze';
+      else if (colorLower.includes('ivory') || colorLower.includes('beige') || colorLower.includes('sand') || colorLower.includes('pearl') || colorLower.includes('linen')) toneGroup = 'ivory';
 
-      if (recipeResolution.warnings.length > 0) {
+      let materialLines: any[] = [];
+      let warnings: string[] = [];
+      try {
+        const bom = generateRollerBOM(batchItem.input.widthMeters, batchItem.input.heightMeters, TONE_COLOR_MAP[toneGroup]);
+        materialLines = bom.items.map(item => ({
+          id: `auto-${item.skuFinal}`,
+          itemCode: item.skuFinal,
+          sageItemCode: item.skuFinal,
+          description: item.componente,
+          category: 'hardware',
+          toneGroup: toneGroup,
+          quantity: item.cantidadCalculada,
+          unit: item.unidad,
+          unitCost: 0,
+          totalCost: 0,
+          source: 'V3'
+        }));
+      } catch (err: any) {
+        warnings.push(err.message || 'Error en BOM');
+      }
+
+      if (warnings.length > 0) {
         materialIssues.push(
-          `Cortina ${idx + 1}: ${recipeResolution.warnings.join(' ')}`,
+          `Cortina ${idx + 1}: ${warnings.join(' ')}`,
         );
       }
 
       const resultWithMaterials = {
         ...calculatedResult,
-        fixedComponents: materialLinesToFixedComponents(
-          recipeResolution.materialLines,
-          calculatedResult.fixedComponents,
-        ),
-        materialLines: recipeResolution.materialLines,
-        materialWarnings: recipeResolution.warnings,
+        fixedComponents: materialLines.map(l => ({
+            quantity: l.quantity,
+            name: l.description,
+            unit: l.unit,
+            cost: 0
+        })),
+        materialLines: materialLines,
+        materialWarnings: warnings,
       };
 
       return {
@@ -335,8 +349,8 @@ export const createOrderSlice: StateCreator<
         title: `Cortina ${idx + 1}`,
         input: batchItem.input,
         result: resultWithMaterials,
-        materialLines: recipeResolution.materialLines,
-        materialWarnings: recipeResolution.warnings,
+        materialLines: materialLines,
+        materialWarnings: warnings,
         reusedWastePiece: batchItem.reusedWastePiece ?? null,
       };
     });
@@ -443,6 +457,7 @@ export const createOrderSlice: StateCreator<
     };
   })
 });
+
 
 
 

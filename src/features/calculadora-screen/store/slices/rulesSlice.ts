@@ -4,34 +4,10 @@ import { CalculatorStore, RulesSlice } from '../types';
 import { 
   DEFAULT_SCREEN_RULE_CONFIG,
   DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES,
-  generateId,
 } from '../../../../domain/curtains/constants';
 import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
-import { applyCatalogOverrides, getBaseCatalogItems } from '../../../../lib/itemCatalog';
-import {
-  createDefaultScreenRecipe,
-  createDefaultNeolluxRecipe,
-  createDefaultVerticalRecipe,
-  createDefaultWoodRecipe,
-  normalizeRecipeToneGroups,
-} from '../../../../lib/recipeResolver';
-import {
-  loadFabricToneRules,
-  loadItemCatalogOverrides,
-  loadScreenRecipe,
-  loadScreenRuleConfig,
-  saveFabricToneRules,
-  saveItemCatalogOverrides,
-  saveScreenRecipe,
-  saveScreenRuleConfig,
-} from '../../../../lib/storage';
-import {
-  fetchRecipes,
-  fetchFabricToneRules as fetchFabricToneRulesFromCloud,
-  upsertRecipe,
-  upsertFabricToneRules,
-} from '../../../../lib/supabaseRepository';
+import { loadScreenRuleConfig, saveScreenRuleConfig } from '../../../../lib/storage';
 
 function mapConfigToFormValues(config: ScreenRuleConfig): ScreenRuleConfigFormValues {
   return {
@@ -76,26 +52,11 @@ export const createRulesSlice: StateCreator<
   RulesSlice
 > = (set, get) => {
   const initialConfig = loadScreenRuleConfig();
-  const initialCatalogOverrides = loadItemCatalogOverrides();
-  const initialCatalogItems = applyCatalogOverrides(
-    getBaseCatalogItems(),
-    initialCatalogOverrides,
-  );
-  const initialRecipes = {
-    screen: normalizeRecipeToneGroups(loadScreenRecipe() ?? createDefaultScreenRecipe(initialCatalogItems)),
-    neollux: createDefaultNeolluxRecipe(initialCatalogItems),
-    vertical: createDefaultVerticalRecipe(initialCatalogItems),
-    wood: createDefaultWoodRecipe(initialCatalogItems),
-  };
   
   return {
     ruleConfig: initialConfig,
     ruleFormValues: mapConfigToFormValues(initialConfig),
     ruleErrors: {},
-    catalogOverrides: initialCatalogOverrides,
-    catalogItems: initialCatalogItems,
-    fabricToneRules: loadFabricToneRules(),
-    recipes: initialRecipes,
     isSyncing: false,
 
   setRuleConfig: (config) => set({ ruleConfig: config }),
@@ -157,280 +118,55 @@ export const createRulesSlice: StateCreator<
     }));
   },
 
-  handleAddFixedComponent: () => {
+  addFixedComponent: () => {
     set((state) => ({
       ruleFormValues: {
         ...state.ruleFormValues,
         fixedComponents: [
           ...state.ruleFormValues.fixedComponents,
-          { quantity: '1', name: '', unit: 'u', cost: '0.00' },
+          { quantity: '1', name: '', unit: 'u', cost: '0' },
         ],
       },
-      ruleErrors: { ...state.ruleErrors, fixedComponents: undefined, general: undefined }
     }));
   },
 
-  handleRemoveFixedComponent: (index) => {
+  removeFixedComponent: (index) => {
     set((state) => ({
       ruleFormValues: {
         ...state.ruleFormValues,
         fixedComponents: state.ruleFormValues.fixedComponents.filter((_, itemIndex) => itemIndex !== index),
       },
-      ruleErrors: { ...state.ruleErrors, fixedComponents: undefined, general: undefined }
-    }));
-  },
-
-  updateCatalogItemCategory: (itemCode, category) => {
-    set((state) => {
-      const catalogOverrides = {
-        ...state.catalogOverrides,
-        [itemCode]: {
-          ...state.catalogOverrides[itemCode],
-          category,
-        },
-      };
-
-      return {
-        catalogOverrides,
-        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
-      };
-    });
-  },
-
-  updateCatalogItemColor: (itemCode, color) => {
-    set((state) => {
-      const nextColor = color.trim() === '' ? null : color.trim();
-      const catalogOverrides = {
-        ...state.catalogOverrides,
-        [itemCode]: {
-          ...state.catalogOverrides[itemCode],
-          color: nextColor,
-        },
-      };
-
-      return {
-        catalogOverrides,
-        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
-      };
-    });
-  },
-
-  updateCatalogItemSageCode: (itemCode, sageItemCode) => {
-    set((state) => {
-      const catalogOverrides = {
-        ...state.catalogOverrides,
-        [itemCode]: {
-          ...state.catalogOverrides[itemCode],
-          sageItemCode: sageItemCode.trim() || itemCode,
-        },
-      };
-
-      return {
-        catalogOverrides,
-        catalogItems: applyCatalogOverrides(getBaseCatalogItems(), catalogOverrides),
-      };
-    });
-  },
-
-  updateFabricToneRule: (family, openness, color, toneGroup) => {
-    set((state) => {
-      const existingIndex = state.fabricToneRules.findIndex(
-        (rule) =>
-          rule.family === family &&
-          rule.openness === openness &&
-          rule.color === color,
-      );
-      const nextRule = {
-        id: `${family}::${openness}::${color}`,
-        family,
-        openness,
-        color,
-        toneGroup,
-      };
-      const fabricToneRules =
-        existingIndex === -1
-          ? [...state.fabricToneRules, nextRule]
-          : state.fabricToneRules.map((rule, index) =>
-              index === existingIndex ? nextRule : rule,
-            );
-
-      return { fabricToneRules };
-    });
-  },
-
-  updateRecipeItem: (curtainType, componentId, toneGroup, itemCode) => {
-    set((state) => ({
-      recipes: {
-        ...state.recipes,
-        [curtainType]: {
-          ...state.recipes[curtainType],
-          components: state.recipes[curtainType].components.map((component) =>
-            component.id === componentId
-              ? {
-                  ...component,
-                  itemByTone: {
-                    ...component.itemByTone,
-                    [toneGroup]: itemCode,
-                  },
-                }
-              : component,
-          ),
-        },
-      },
-    }));
-  },
-
-  addRecipeComponent: (curtainType, component) => {
-    set((state) => ({
-      recipes: {
-        ...state.recipes,
-        [curtainType]: {
-          ...state.recipes[curtainType],
-          components: [
-            ...state.recipes[curtainType].components,
-            {
-              ...component,
-              id: generateId(),
-            },
-          ],
-        },
-      },
-    }));
-  },
-
-  updateRecipeComponentConfig: (curtainType, componentId, updates) => {
-    set((state) => ({
-      recipes: {
-        ...state.recipes,
-        [curtainType]: {
-          ...state.recipes[curtainType],
-          components: state.recipes[curtainType].components.map((component) =>
-            component.id === componentId
-              ? { ...component, ...updates }
-              : component,
-          ),
-        },
-      },
-    }));
-  },
-
-  removeRecipeComponent: (curtainType, componentId) => {
-    set((state) => ({
-      recipes: {
-        ...state.recipes,
-        [curtainType]: {
-          ...state.recipes[curtainType],
-          components: state.recipes[curtainType].components.filter(
-            (component) => component.id !== componentId,
-          ),
-        },
-      },
     }));
   },
 
   saveRules: () => {
-    const { ruleFormValues } = get();
-    const parsedConfig = parseConfigFormValues(ruleFormValues);
-    const validationErrors = validateScreenRuleConfig(parsedConfig);
+    const state = get();
+    const parsedConfig = parseConfigFormValues(state.ruleFormValues);
+    const configErrors = validateScreenRuleConfig(parsedConfig);
 
-    if (Object.keys(validationErrors).length > 0) {
-      set({ ruleErrors: validationErrors });
+    if (Object.keys(configErrors).length > 0) {
+      set({ ruleErrors: { ...configErrors, general: 'Por favor, corrige los errores antes de guardar.' } });
+      toast.error('Corrige los errores antes de guardar');
       return;
     }
 
-    const nextConfig = parsedConfig as ScreenRuleConfig;
+    const newConfig = parsedConfig as ScreenRuleConfig;
+    saveScreenRuleConfig(newConfig);
     set({
-      ruleConfig: nextConfig,
-      ruleFormValues: mapConfigToFormValues(nextConfig),
+      ruleConfig: newConfig,
+      ruleFormValues: mapConfigToFormValues(newConfig),
       ruleErrors: {},
     });
-  },
 
-  saveRecipeSettings: () => {
-    const { catalogOverrides, fabricToneRules, ruleFormValues } = get();
-    const parsedConfig = parseConfigFormValues(ruleFormValues);
-    const validationErrors = validateScreenRuleConfig(parsedConfig);
-
-    if (Object.keys(validationErrors).length > 0) {
-      set({ ruleErrors: validationErrors });
-      return;
-    }
-
-    const nextConfig = parsedConfig as ScreenRuleConfig;
-
-    set({
-      ruleConfig: nextConfig,
-      ruleFormValues: mapConfigToFormValues(nextConfig),
-      ruleErrors: {},
-    });
+    toast.success('Configuración guardada correctamente');
   },
 
   resetRules: () => {
     set({
-      ruleConfig: DEFAULT_SCREEN_RULE_CONFIG,
       ruleFormValues: DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES,
       ruleErrors: {},
     });
   },
 
-  resetRecipe: () => {
-    set((state) => ({
-      recipes: {
-        screen: createDefaultScreenRecipe(state.catalogItems),
-        neollux: createDefaultNeolluxRecipe(state.catalogItems),
-        vertical: createDefaultVerticalRecipe(state.catalogItems),
-        wood: createDefaultWoodRecipe(state.catalogItems),
-      },
-      fabricToneRules: [],
-    }));
-  },
-
-  syncRecipeToCloud: async () => {
-    const { recipes, fabricToneRules } = get();
-    set({ isSyncing: true });
-    try {
-      await Promise.all([
-        ...Object.values(recipes).map(r => upsertRecipe(r)),
-        upsertFabricToneRules(fabricToneRules),
-      ]);
-      // Let Zustand persist handle local storage as usual
-      toast.success('Cambios guardados exitosamente');
-    } catch (error) {
-      console.error('Error syncing recipe to cloud:', error);
-      toast.error('Error al guardar en la nube: ' + (error as Error).message);
-    } finally {
-      set({ isSyncing: false });
-    }
-  },
-
-  loadRecipeFromCloud: async () => {
-    set({ isSyncing: true });
-    try {
-      const [fetchedRecipes, toneRules] = await Promise.all([
-        fetchRecipes(),
-        fetchFabricToneRulesFromCloud(),
-      ]);
-      
-      if (fetchedRecipes.length > 0) {
-        const nextRecipes = { ...get().recipes };
-        fetchedRecipes.forEach(r => {
-          if (r.curtainType) {
-            nextRecipes[r.curtainType] = normalizeRecipeToneGroups(r);
-          }
-        });
-        set({ 
-          recipes: nextRecipes,
-          fabricToneRules: toneRules 
-        });
-      } else {
-        toast.error('No se encontro ninguna receta guardada en la nube.');
-      }
-    } catch (error) {
-      console.error('Error loading recipe from cloud:', error);
-      toast.error('Error al cargar de la nube: ' + (error as Error).message);
-    } finally {
-      set({ isSyncing: false });
-    }
-  },
-};
+  };
 };

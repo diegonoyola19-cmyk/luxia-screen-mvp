@@ -97,10 +97,11 @@ export interface CalculationInput {
   fabricColor: string;
   widthMeters: number;
   heightMeters: number;
-  engineeringSuggestion?: import('../../logic/rollerResolver').RollerSuggestion;
 }
 
 export interface CalculationFormValues {
+  curtainType?: CurtainType;
+  driveType?: DriveType;
   fabricFamily: string;
   fabricOpenness: string;
   fabricColor: string;
@@ -296,6 +297,10 @@ export interface ScreenRuleConfigErrors {
   maxWidthMeters?: string;
   chainMultiplier?: string;
   smallRollMeters?: string;
+  largeRollMeters?: string;
+  fixedComponents?: string;
+  general?: string;
+}
 
 export interface ScreenValidationErrors {
   curtainType?: string;
@@ -422,3 +427,4 @@ export interface DescargoRetazoResult {
   merma: number;
   descargar: number;
 }
+
