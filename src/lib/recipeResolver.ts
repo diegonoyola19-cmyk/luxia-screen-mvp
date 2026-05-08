@@ -37,6 +37,53 @@ const DEFAULT_RECIPE_COMPONENTS: Array<{
   { label: 'Adaptador Tubo Grande', category: 'other', quantityMode: 'fixed', fixedQuantity: 1, condition: 'large_tube_only' },
 ];
 
+const DEFAULT_NEOLLUX_COMPONENTS: Array<{
+  label: string;
+  category: ComponentCategory;
+  quantityMode: RecipeComponentRule['quantityMode'];
+  fixedQuantity: number;
+  condition: RecipeComponentRule['condition'];
+}> = [
+  { label: 'Tubo', category: 'tube', quantityMode: 'tubeFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Perfil Fascia', category: 'fascia', quantityMode: 'tubeFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Bottom', category: 'bottom', quantityMode: 'bottomFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Cadena', category: 'chain', quantityMode: 'chainFeet', fixedQuantity: 1, condition: 'manual_only' },
+  { label: 'Soporte', category: 'bracket', quantityMode: 'fixed', fixedQuantity: 2, condition: 'always' },
+  { label: 'Control', category: 'control', quantityMode: 'fixed', fixedQuantity: 1, condition: 'manual_only' },
+  { label: 'End Plug', category: 'endPlug', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Tapaderas de Fascia', category: 'other', quantityMode: 'fixed', fixedQuantity: 2, condition: 'always' },
+  { label: 'Pesa de Cadena', category: 'chainWeight', quantityMode: 'fixed', fixedQuantity: 1, condition: 'manual_only' },
+];
+
+const DEFAULT_VERTICAL_COMPONENTS: Array<{
+  label: string;
+  category: ComponentCategory;
+  quantityMode: RecipeComponentRule['quantityMode'];
+  fixedQuantity: number;
+  condition: RecipeComponentRule['condition'];
+}> = [
+  { label: 'Riel Vertical', category: 'headrail', quantityMode: 'tubeFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Lamas', category: 'slats', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Carros', category: 'other', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Cadena Separadora', category: 'chain', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Pesa de Lama', category: 'bottomCap', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Cordón de Giro', category: 'cord', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+];
+
+const DEFAULT_WOOD_COMPONENTS: Array<{
+  label: string;
+  category: ComponentCategory;
+  quantityMode: RecipeComponentRule['quantityMode'];
+  fixedQuantity: number;
+  condition: RecipeComponentRule['condition'];
+}> = [
+  { label: 'Cabezal', category: 'headrail', quantityMode: 'tubeFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Cenefa', category: 'valance', quantityMode: 'tubeFeet', fixedQuantity: 1, condition: 'always' },
+  { label: 'Escalerilla', category: 'cord', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Cordón de Elevación', category: 'cord', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+  { label: 'Tablillas', category: 'slats', quantityMode: 'fixed', fixedQuantity: 1, condition: 'always' },
+];
+
 export interface RecipeResolution {
   toneGroup: ToneGroup;
   materialLines: ResolvedMaterialLine[];
@@ -52,6 +99,45 @@ export function createDefaultScreenRecipe(items: CatalogItem[]): CurtainRecipe {
       id: generateId(),
       ...component,
       itemByTone: buildDefaultItemsByTone(items, component.category),
+    })),
+  };
+}
+
+export function createDefaultNeolluxRecipe(items: CatalogItem[]): CurtainRecipe {
+  return {
+    id: 'neollux-default',
+    curtainType: 'neollux',
+    name: 'Neollux estandar',
+    components: DEFAULT_NEOLLUX_COMPONENTS.map((c) => ({
+      id: generateId(),
+      ...c,
+      itemByTone: buildDefaultItemsByTone(items, c.category),
+    })),
+  };
+}
+
+export function createDefaultVerticalRecipe(items: CatalogItem[]): CurtainRecipe {
+  return {
+    id: 'vertical-default',
+    curtainType: 'vertical',
+    name: 'Verticales estandar',
+    components: DEFAULT_VERTICAL_COMPONENTS.map((c) => ({
+      id: generateId(),
+      ...c,
+      itemByTone: buildDefaultItemsByTone(items, c.category),
+    })),
+  };
+}
+
+export function createDefaultWoodRecipe(items: CatalogItem[]): CurtainRecipe {
+  return {
+    id: 'wood-default',
+    curtainType: 'wood',
+    name: 'Madera estandar',
+    components: DEFAULT_WOOD_COMPONENTS.map((c) => ({
+      id: generateId(),
+      ...c,
+      itemByTone: buildDefaultItemsByTone(items, c.category),
     })),
   };
 }

@@ -1,0 +1,325 @@
+[
+  {
+    "sku": "0-002-70-94696",
+    "desc": "Rollux Premium Plus Blackout FR Stone Grey 96.06\"",
+    "family": "Roller (Historical)",
+    "cost": 4.2185,
+    "costHistorical": 3.77,
+    "qtyOH": 104.18,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-151-AL-CLA19",
+    "desc": "Rollux-Al. Bottomrail Classic Satin Anodized 19'",
+    "family": "Roller (Historical)",
+    "cost": 0.8081,
+    "costHistorical": 0.7969,
+    "qtyOH": 323,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS"
+    ],
+    "usageCount": 7
+  },
+  {
+    "sku": "0-154-TU-38111",
+    "desc": "1½\" (38mm) Alu. NEO Tube T6, W/Tape, 19' MF",
+    "family": "Roller (Historical)",
+    "cost": 0.5418,
+    "costHistorical": 0.554,
+    "qtyOH": 7315,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS",
+      "LA CASA BATRES",
+      "PRISMA CA"
+    ],
+    "usageCount": 9
+  },
+  {
+    "sku": "0-154-PB-E03WH",
+    "desc": "EURO Medium Bracket | HM | 2\" (50mm) Proj. | White",
+    "family": "Roller (Historical)",
+    "cost": 0.6898,
+    "costHistorical": 0.672,
+    "qtyOH": 1229,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS",
+      "LA CASA BATRES",
+      "PRISMA CA"
+    ],
+    "usageCount": 9
+  },
+  {
+    "sku": "0-154-pb-e04wh",
+    "desc": "EURO Medium Bracket | Large TM | 2\" (50mm) Proj. | White",
+    "family": "Roller (Historical)",
+    "cost": 0.722,
+    "costHistorical": 0.722,
+    "qtyOH": 0,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS",
+      "LA CASA BATRES",
+      "PRISMA CA"
+    ],
+    "usageCount": 9
+  },
+  {
+    "sku": "0-154-PE-00501",
+    "desc": "End Plug for Euro Brackets 1½\" (38mm) | White",
+    "family": "Roller (Historical)",
+    "cost": 0.4296,
+    "costHistorical": 0.4591,
+    "qtyOH": 1054,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS",
+      "LA CASA BATRES",
+      "PRISMA CA"
+    ],
+    "usageCount": 11
+  },
+  {
+    "sku": "0-154-CL-V20GR",
+    "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - Grey",
+    "family": "Roller (Historical)",
+    "cost": 2.6405,
+    "costHistorical": 2.63,
+    "qtyOH": 50,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. WILFREDO",
+      "ALBA ROQUE",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS",
+      "LA CASA BATRES"
+    ],
+    "usageCount": 8
+  },
+  {
+    "sku": "0-151-CA-00IGY",
+    "desc": "Small Cord/Chain Weight Pulley - Grey (Export Only)",
+    "family": "Roller (Historical)",
+    "cost": 0.59,
+    "costHistorical": 0.59,
+    "qtyOH": 0,
+    "uom": "",
+    "projects": [
+      "CASTELLA SAGARRA",
+      "SR. RAFAEL",
+      "SHERWIN WILLIAMS",
+      "HOLCIM",
+      "GRUPO CALLEJAS"
+    ],
+    "usageCount": 5
+  },
+  {
+    "sku": "0-154-CL-V20IV",
+    "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - Ivory",
+    "family": "Roller (Historical)",
+    "cost": 2.6406,
+    "costHistorical": 2.61,
+    "qtyOH": 50,
+    "uom": "",
+    "projects": [
+      "YENNY DE SAFIE",
+      "PRISMA CA"
+    ],
+    "usageCount": 2
+  },
+  {
+    "sku": "0-002-67-90098",
+    "desc": "Rollux NEW Pinpointe Blackout FR White/Snow Flakes 98.43\"",
+    "family": "Roller (Historical)",
+    "cost": 3.104,
+    "costHistorical": 3.11,
+    "qtyOH": 502.27,
+    "uom": "",
+    "projects": [
+      "SR. WILFREDO"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-151-CA-001WH",
+    "desc": "Small Cord/Chain Weight Pulley - White (Export Only)",
+    "family": "Roller (Historical)",
+    "cost": 0.5703,
+    "costHistorical": 0.57,
+    "qtyOH": 1334,
+    "uom": "",
+    "projects": [
+      "SR. WILFREDO"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-004-86-22018",
+    "desc": "VX Screen 3000-1 White Linen 118.11\"",
+    "family": "Roller (Historical)",
+    "cost": 3.6684,
+    "costHistorical": 0,
+    "qtyOH": 719.2,
+    "uom": "",
+    "projects": [
+      "ALBA ROQUE"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-002-70-93318",
+    "desc": "Rollux Premium Plus Blackout FR Bisque 118.11\"",
+    "family": "Roller (Historical)",
+    "cost": 3.3748,
+    "costHistorical": 0,
+    "qtyOH": 35.73,
+    "uom": "",
+    "projects": [
+      "ALBA ROQUE"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-002-70-93118",
+    "desc": "Rollux Premium Plus Blackout FR Black 118.11\"",
+    "family": "Roller (Historical)",
+    "cost": 3.3748,
+    "costHistorical": 3.85,
+    "qtyOH": 294.88,
+    "uom": "",
+    "projects": [
+      "SR. RAFAEL"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-004-87-07098",
+    "desc": "Solar Screen 3000-3 Taupe 98\"",
+    "family": "Roller (Historical)",
+    "cost": 3.1262,
+    "costHistorical": 3.46,
+    "qtyOH": 0,
+    "uom": "",
+    "projects": [
+      "SHERWIN WILLIAMS"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-002-37-63096",
+    "desc": "Rollux Select Blackout FR Light Grey 98.43\"",
+    "family": "Roller (Historical)",
+    "cost": 3.5468,
+    "costHistorical": 3.54,
+    "qtyOH": 308.55,
+    "uom": "",
+    "projects": [
+      "HOLCIM"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-004-86-22098",
+    "desc": "VX Screen 3000-1 White Linen 98.43\"",
+    "family": "Roller (Historical)",
+    "cost": 3.6683,
+    "costHistorical": 3.67,
+    "qtyOH": 846.81,
+    "uom": "",
+    "projects": [
+      "GRUPO CALLEJAS"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-002-70-92118",
+    "desc": "Rollux Premium Plus Blackout FR Beige 118.11\"",
+    "family": "Roller (Historical)",
+    "cost": 3.3748,
+    "costHistorical": 3.37,
+    "qtyOH": 22.97,
+    "uom": "",
+    "projects": [
+      "LA CASA BATRES"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-004-86-00398",
+    "desc": "VX Screen 3000-1 Linen 98.43\"",
+    "family": "Roller (Historical)",
+    "cost": 3.656,
+    "costHistorical": 3.86,
+    "qtyOH": 639.02,
+    "uom": "",
+    "projects": [
+      "PRISMA CA"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-004-86-00318",
+    "desc": "VX Screen 3000-1 Linen 118.11\"",
+    "family": "Roller (Historical)",
+    "cost": 4.2523,
+    "costHistorical": 3.9,
+    "qtyOH": 507.35,
+    "uom": "",
+    "projects": [
+      "PRISMA CA"
+    ],
+    "usageCount": 1
+  },
+  {
+    "sku": "0-151-CA-001IY",
+    "desc": "Small Cord/Chain Weight Pulley - Grey (Export Only)",
+    "family": "Roller (Historical)",
+    "cost": 0.59,
+    "costHistorical": 0.59,
+    "qtyOH": 0,
+    "uom": "",
+    "projects": [
+      "PRISMA CA"
+    ],
+    "usageCount": 1
+  }
+]

@@ -22,9 +22,11 @@ import {
   getRollerFabricVariants
 } from '../../../lib/priceCatalog';
 import { CalculationInput } from '../../../domain/curtains/types';
-import { resolveScreenRecipeMaterials } from '../../../lib/recipeResolver';
+import { resolveScreenRecipeMaterials, getFabricToneGroup } from '../../../lib/recipeResolver';
+import { resolveRollerComponents, type Tone } from '../../../logic/rollerResolver';
+import type { ResolvedMaterialLine } from '../../../domain/curtains/types';
 
-export function useCalculatorDerivedState() {
+export function useCalculatorDerivedState(isAutoMode: boolean = false) {
   const store = useCalculatorStore();
 
   const fabricFamilies = useMemo(() => getRollerFabricFamilies(), []);
@@ -253,15 +255,58 @@ export function useCalculatorDerivedState() {
       !displayResult ||
       !parsedFormValues.curtainType ||
       parsedFormValues.widthMeters === undefined ||
-      parsedFormValues.heightMeters === undefined
+      parsedFormValues.heightMeters === undefined ||
+      (!isAutoMode && !store.screenRecipe)
     ) {
       return null;
     }
 
+    if (isAutoMode) {
+      console.log('Source: Learned Logic');
+      const isMotorized = parsedFormValues.driveType === 'motorized';
+      const toneGroup = getFabricToneGroup(parsedFormValues as CalculationInput, store.fabricToneRules);
+      let tone: Tone = 'white';
+      if (toneGroup === 'grey') tone = 'grey';
+      if (toneGroup === 'ivory') tone = 'ivory';
+      if (toneGroup === 'bronze') tone = 'bronze';
+
+      const autoComponents = resolveRollerComponents(parsedFormValues.widthMeters, isMotorized, tone);
+      
+      const materialLines: ResolvedMaterialLine[] = [];
+      const addMat = (item: any, quantity: number, unit: string) => {
+        if (!item) return;
+        materialLines.push({
+          id: `auto-${item.sku}`,
+          itemCode: item.sku,
+          sageItemCode: item.sku,
+          description: item.desc,
+          category: 'hardware',
+          toneGroup: toneGroup,
+          quantity,
+          unit,
+          unitCost: item.cost,
+          totalCost: item.cost * quantity,
+          source: 'Asistente Auto V3'
+        });
+      };
+
+      addMat(autoComponents.tube, displayResult.cutWidthMeters, 'FT'); // o M? El resolver daba unitCost lineal. Asumimos M.
+      addMat(autoComponents.mechanism, 1, 'EA');
+      autoComponents.brackets.forEach(b => addMat(b, 1, 'EA'));
+      autoComponents.adapters?.forEach(a => addMat(a, 1, 'EA'));
+
+      return {
+        materialLines,
+        warnings: [],
+        toneGroup
+      };
+    }
+
+    console.log('Source: Manual Config');
     return resolveScreenRecipeMaterials(
       parsedFormValues as CalculationInput,
       displayResult,
-      store.screenRecipe,
+      store.screenRecipe!,
       store.fabricToneRules,
       store.catalogItems,
     );
@@ -271,6 +316,7 @@ export function useCalculatorDerivedState() {
     store.catalogItems,
     store.fabricToneRules,
     store.screenRecipe,
+    isAutoMode
   ]);
 
   return {

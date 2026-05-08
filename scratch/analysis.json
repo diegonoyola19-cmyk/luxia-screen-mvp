@@ -1,0 +1,701 @@
+{
+  "tubes": [
+    {
+      "item": "0-140-07-79010",
+      "desc": "6mm Hard Plastic Insert for 60/70/78mm Galv. Tube",
+      "cost": 0.14,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-38011",
+      "desc": "1½\" (38mm) Alu. Tube w/Tape, 19' MF",
+      "cost": 1.1066,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-83021",
+      "desc": "3 ¼\" (83mm) Struct. Alu.Tube No Tape w/Rec.& Flat Chan.19'MF",
+      "cost": 5.3705,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-G7821",
+      "desc": "Rollux- Atos 78mm Galvanized Steel Grooved Tube 20'",
+      "cost": 2.4234,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-159-RE-0003A",
+      "desc": "Neolux - Bottomrail Tube I Cover Grey",
+      "cost": 0.0509,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-38000",
+      "desc": "1½\" (38mm) Alu. Tube w/Tape, 16' MF",
+      "cost": 1.031,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-45211",
+      "desc": "1¾\" (45mm) Alu. Tube w/2 flat channels&Tape, 19' MF",
+      "cost": 1.475,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AC-45063",
+      "desc": "Crown for 45 mm (1 ¾\") Motors and 63 mm (2 ½\") Tube",
+      "cost": 1.1743,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-AS-45078",
+      "desc": "Crown & Drive for 45mm (1 3/4\") Motors & 78mm (3 1/16\") Tube",
+      "cost": 1.8664,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-AS-25038",
+      "desc": "Crown & Drive for 25mm(1\") Motors & 38mm (1 1/2'') Tube",
+      "cost": 2.5572,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-140-04-03200",
+      "desc": "SO Arion - Endplug 12mm Round Tip for 63mm Tube",
+      "cost": 7.33,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AD-DL258",
+      "desc": "Drivefor35mm(1 3/8\")Motors&45mm(1 3/4”)TubeUSE6-700-AS-35045",
+      "cost": 1.5718,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AC-DH234",
+      "desc": "Crownfor35mm(1 3/8\")Motors&45mm(1 3/4”)TubeUSE6-700-AS-35045",
+      "cost": 0.92,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-AS-25045",
+      "desc": "Crown & Drive for 25mm(1\") Motors & 45mm (1 3/4'') Tube",
+      "cost": 2.5746,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-45119",
+      "desc": "¾\" (45mm)Al.Tube IDEAL w/2 Channels 1 Recessed &Tape 19' MF",
+      "cost": 0.7389,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-63021",
+      "desc": "SO 2½\" (63mm)Struct.Alu.Tube w/Rec.&Flat Chan.,NOTape,19' MF",
+      "cost": 3.0417,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-140-04-03300",
+      "desc": "SO Arion - Endplug Square Tip for 63mm Tube",
+      "cost": 7.33,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-140-04-CPC40",
+      "desc": "AXIO - Clear Plastic Clip for 1 3/5\" (40mm) Bottomrail Tube",
+      "cost": 0.889,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-140-04-EC04B",
+      "desc": "AXIO/ATOS - BR End Cap Black for (40 mm) Aluminum Tube",
+      "cost": 0.5483,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-38111",
+      "desc": "1½\" (38mm) Alu. NEO Tube T6, W/Tape, 19' MF",
+      "cost": 0.5418,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-50011",
+      "desc": "2\" (50mm) Smooth Alu. Motor Tube w/Tape, 19' MF",
+      "cost": 1.1814,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-159-AL-03A19",
+      "desc": "Neolux - Aluminum Inside Tube I Satin Anodized 19'",
+      "cost": 0.4384,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-159-AL-03W19",
+      "desc": "Neolux - Aluminum Inside Tube I White 19'",
+      "cost": 1.2553,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-78022",
+      "desc": "3 1/16\" (78mm) Alu. Grooved Tube 19.5' MF",
+      "cost": 4.484,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-159-AL-03A16",
+      "desc": "Neolux - Aluminum Inside Tube I Satin Anodized 16'",
+      "cost": 0.4137,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-159-AL-03W16",
+      "desc": "Neolux - Aluminum Inside Tube I White 16'",
+      "cost": 0.3662,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-153-01-00500",
+      "desc": "Rollux- Atos 40mm Galvanized Bottomrail Tube",
+      "cost": 2.2174,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PA-00501",
+      "desc": "Rollux  45mm Tube Adapter for VTX TM White",
+      "cost": 0.6424,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-50001",
+      "desc": "@ 2\" (50mm) Smooth Motor Al.Tube Custom Tape, 19' MF",
+      "cost": 1.0844,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-63001",
+      "desc": "2½\" Struct.Alu.Tube w/Rec.&Flat Chan.Custom Tape,19' MF",
+      "cost": 2.7613,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-G4022",
+      "desc": "1 9/16\" (40mm) Galvanized Bottomrail Tube 19.68'",
+      "cost": 2.183,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AS-35045",
+      "desc": "Crown & Drive for 35mm Motor & 45mm(1 3/4'') Tube",
+      "cost": 2.4821,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-151-R1-001R0",
+      "desc": "Rollux- 2.5mm Flexible Nylon Tube Insert",
+      "cost": 0.0852,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-151-R1-00220",
+      "desc": "83mm Tube Channel Flat Insert",
+      "cost": 0.85,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-AD-RA250",
+      "desc": "Rollux-End Plug Adapter for 2\"(50mm) Tube, White",
+      "cost": 1.8519,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AS-35040",
+      "desc": "Crown & Drive for 35mm Motor & 38mm(1 1/2'') Smooth Tube",
+      "cost": 1.2394,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AZ-63083",
+      "desc": "Adapter to change from 63mm (2 ½\") to 83mm (3 ¼\") Tube",
+      "cost": 2.2238,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-TU-38001",
+      "desc": "@ 1½\" (38mm) Alu.Tube Custom Tape, 19' MF",
+      "cost": 0.7671,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-AD-45063",
+      "desc": "Drive for 35mm & 45mm \"A\" Shaft Motors and 63mm & 83mm Tubes",
+      "cost": 1.19,
+      "width": 0,
+      "length": 0
+    }
+  ],
+  "mechs": [
+    {
+      "item": "0-154-CL-V17WH",
+      "desc": "Elegant Clutch VTX 15 - Tab Mount - 1 1/2\" (38mm) - White",
+      "cost": 2.38,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V20IV",
+      "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - Ivory",
+      "cost": 2.6406,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V20GR",
+      "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - Grey",
+      "cost": 2.6405,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V20WH",
+      "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - White",
+      "cost": 2.6222,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V30WH",
+      "desc": "Elegant Clutch VTX 30 - Tab Mount - 1 1/2\" (38mm) - White",
+      "cost": 5.8999,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-KT-M382W",
+      "desc": "Kit Clutch TM16 (38mm) White (white brackets 2\"proj)NOcovers",
+      "cost": 1.8,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-155-CL-V20WH",
+      "desc": "Elegant Clutch VTX20 - Hook Mount - 1 1/2\" (38mm) - White",
+      "cost": 2.5746,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-CM-35R06",
+      "desc": "VTi Celtic 35mm RF Motor Mech.Limits 6Nm /120V / 33 rpm",
+      "cost": 38.3352,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-MM-35U06",
+      "desc": "Vti RE-LIONCelticUnidi.ACMech.Lim.Mot.35mm/6Nm/33rpm/110AC",
+      "cost": 33.3306,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-MM-45U20",
+      "desc": "Vti RE-LIONCelticUnidi.ACMech.Lim.Mot.45mm/20Nm/33rpm/110AC",
+      "cost": 58.627,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V20BR",
+      "desc": "Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" (38mm) - Brown",
+      "cost": 2.6408,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-900-MM-35B06",
+      "desc": "Vti RE-LIONCelticBidi.ACMech.Lim.Mot.35mm/6Nm/28rpm/220AC",
+      "cost": 0,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-900-MM-45U20",
+      "desc": "Vti RE-LIONCelticUnidi.ACMech.Lim.Mot.45mm/20Nm/26rpm/220AC",
+      "cost": 0,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-CL-V40WH",
+      "desc": "Elegant Clutch VTX 40 - Tab Mount - 1 1/2\" (38mm) - White",
+      "cost": 8.8524,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-KT-M383W",
+      "desc": "Kit Clutch TM16 (38mm) White (Wh. brakert 1.5\" proj.)NOcover",
+      "cost": 2.36,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-155-CL-V30WH",
+      "desc": "Elegant Clutch VTX30 - Hook Mount - 1 1/2\" (38mm) - White",
+      "cost": 4.6208,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-DC-V20WH",
+      "desc": "@ Elegant Clutch VTX 20 - Tab Mount - 1 1/2\" NOTCHED White",
+      "cost": 2.2944,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-CM-45R20",
+      "desc": "VTi Celtic 45mm RF Motor Mech.Limits 20Nm / 120V / 32 rpm",
+      "cost": 86.463,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-800-MM-35B06",
+      "desc": "Vti RE-LIONCelticBidi.ACMech.Lim.Mot.35mm/6Nm/33rpm/110AC",
+      "cost": 0,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-900-MM-35U06",
+      "desc": "Vti RE-LIONCelticUnidi.ACMech.Lim.Mot.35mm/6Nm/28rpm/220AC",
+      "cost": 0,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "5-ADV-PI-MECHA",
+      "desc": "Program. Instructions - VTi Celtic Motors, Mechanical Limits",
+      "cost": 0.6,
+      "width": 0,
+      "length": 0
+    }
+  ],
+  "brackets": [
+    {
+      "item": "0-140-04-01600",
+      "desc": "Arion - Stainless Steel Angle Bracket for Cable/Rod Fastener",
+      "cost": 7.0147,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-10-BR16M",
+      "desc": "Cassette 100/120 Intermediate Bracket|LargeTM|1½\"(38mm)Proj.",
+      "cost": 0.35,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-153-01-05002",
+      "desc": "DI Rollux- Atos Wall/Ceiling Mounting bracket w inserts&pin",
+      "cost": 36.655,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-030-CA-05600",
+      "desc": "2 7/8\" Universal \"L\" Bracket, Zinc",
+      "cost": 0.2568,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-098-ES-06200",
+      "desc": "2\" Inst.Brackets Char Brown (Pair)",
+      "cost": 0.9734,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PB-E04WH",
+      "desc": "EURO Medium Bracket | Large TM | 2\" (50mm) Proj. | White",
+      "cost": 0.7185,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PB-E05WH",
+      "desc": "EURO Large Bracket HM 2 3/8\" (60mm) Proj. White",
+      "cost": 1.0662,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-030-CA-06800",
+      "desc": "4\" \"L\" Bracket+Valance Holder+Snap for \"V\" & \"T\" Tops, Zinc",
+      "cost": 0.4691,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-098-CA-02200",
+      "desc": "Tekline-\"L\" Metal Bracket for Valance Return",
+      "cost": 0.5517,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-098-ES-11200",
+      "desc": "2\" Inst.Brackets Alabaster (Pair)",
+      "cost": 1.0226,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PC-00104",
+      "desc": "Rollux CUB Medium Bracket Cover Brown",
+      "cost": 0.0994,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-KT-M382W",
+      "desc": "Kit Clutch TM16 (38mm) White (white brackets 2\"proj)NOcovers",
+      "cost": 1.8,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PC-00101",
+      "desc": "Rollux CUB Medium Bracket Cover White",
+      "cost": 0.1,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-155-BW-SLI20",
+      "desc": "Intermediate Bracket | HM | 2\" (50mm) Projection | White",
+      "cost": 0.7193,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PE-00501",
+      "desc": "End Plug for Euro Brackets 1½\" (38mm) | White",
+      "cost": 0.4296,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "5-154-BR-EASYT",
+      "desc": "Sample Kit - Easy-Tab Brackets",
+      "cost": 1.22,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-098-ES-08600",
+      "desc": "2\" Inst.Brackets Camel (Pair)",
+      "cost": 0.9853,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-140-03-00700",
+      "desc": "Atos Universal Mounting Brackets for Cable and Rod",
+      "cost": 23.399,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-10-BR08I",
+      "desc": "Cassette 100/120 Bracket | Small TM | 1.5\" (38mm) Projection",
+      "cost": 0.3,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-BR-STAR1",
+      "desc": "Motor Adapter Star Bracket",
+      "cost": 0.6024,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-090-CA-20300",
+      "desc": "Universal Hold Down Bracket Plast. W/Pin",
+      "cost": 9.3333,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-10-BRSQM",
+      "desc": "Cassette 100/120 Bracket w/Motor Block 1.5\" (38mm) Proj.ZP",
+      "cost": 1.7358,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-12-BR08I",
+      "desc": "Cassette 120 Bracket | Small TM | 2\" (50mm) Projection",
+      "cost": 0.577,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-12-BR16N",
+      "desc": "CassCassette 120 Intermediate Bracket|LargeTM|2\"(50mm)Projec",
+      "cost": 0.706,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PB-E060W",
+      "desc": "O Large Bracket with Motor Block 2 3/8\"(60mm) Proj.White",
+      "cost": 1.6305,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PD-L12WH",
+      "desc": "Euro Dual Bracket Large Wall Mount White for AC Motors",
+      "cost": 28.58,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PB-E03WH",
+      "desc": "EURO Medium Bracket | HM | 2\" (50mm) Proj. | White",
+      "cost": 0.6898,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PD-L22WH",
+      "desc": "EEuro Dual Bracket Large Ceiling Mount for AC Motors White",
+      "cost": 27.12,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PS-ES0L3",
+      "desc": "EURO Idler End Support Left Set for Med/Large Bracket Whit",
+      "cost": 0.7208,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PS-ES0R3",
+      "desc": "EURO Idler End Support Right Set for Med/Large Bracket Whi",
+      "cost": 0.7212,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-12-BRSQM",
+      "desc": "Cassette 120 Bracket w/Motor Block 2\" (50mm) Proj.Z.Plated  ",
+      "cost": 2.08,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-10-BR16I",
+      "desc": "Cassette 100/120 Bracket | Large TM | 1.5\" (38mm) Projection",
+      "cost": 0.3763,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-10-BRMZC",
+      "desc": "Cassette 100/120/EDGE Installation Bracket | Zinc Plated",
+      "cost": 0.439,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-149-12-BR16I",
+      "desc": "Cassette 120 Bracket | Large TM | 2\" (50mm) Projection",
+      "cost": 0.6218,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PC-00105",
+      "desc": "Rollux CUB Medium Bracket Cover Grey",
+      "cost": 0.0996,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-181-CA-01500",
+      "desc": "Sliding Panel \"T\" Bracket - White",
+      "cost": 0.1377,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "0-154-PC-00103",
+      "desc": "Rollux CUB Medium Bracket Cover Ivory",
+      "cost": 0.0995,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-BR-TM008",
+      "desc": "Celtic II 35 mm TAB Mount Bracket",
+      "cost": 2.5086,
+      "width": 0,
+      "length": 0
+    },
+    {
+      "item": "6-700-BR-DZ131",
+      "desc": "Center Support Bracket VM35 Motors - Mill Finish",
+      "cost": 8.842,
+      "width": 0,
+      "length": 0
+    }
+  ]
+}

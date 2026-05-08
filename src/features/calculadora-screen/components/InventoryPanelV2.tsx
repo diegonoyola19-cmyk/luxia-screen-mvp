@@ -225,47 +225,91 @@ export function InventoryPanelV2() {
                 <div className="iv2-empty">No hay sobrantes lineales disponibles.</div>
               ) : (
                 <>
-                  {tubeOffcuts.map(tube => (
-                    <div key={tube.id} className="iv2-table-row">
-                      <div className="iv2-cell-main" data-label="Código / Tipo">
-                        <div>
-                          <strong>{tube.code}</strong><br/>
-                          <span className="iv2-badge iv2-badge--tube" style={{width: 'fit-content'}}>Tubo</span>
+                  {/* ── Tubos (sin clasificación por color) ── */}
+                  {tubeOffcuts.length > 0 && (
+                    <>
+                      <div style={{ padding: '0.4rem 0.6rem', background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)', fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                        Tubo — {tubeOffcuts.length} piezas · {formatNumber(tubeOffcuts.reduce((s, t) => s + t.lengthMeters, 0))} m
+                      </div>
+                      {tubeOffcuts.map(tube => (
+                        <div key={tube.id} className="iv2-table-row">
+                          <div className="iv2-cell-main" data-label="Código / Tipo">
+                            <div>
+                              <strong>{tube.code}</strong><br/>
+                              <span className="iv2-badge iv2-badge--tube" style={{width: 'fit-content'}}>Tubo</span>
+                            </div>
+                          </div>
+                          <div className="iv2-cell" data-label="Largo"><strong>{formatNumber(tube.lengthMeters)} m</strong></div>
+                          <div className="iv2-cell" data-label="Origen">Corte de Producción</div>
+                          <div className="iv2-cell" data-label="Estado" style={{color: '#10b981'}}>Disponible</div>
+                          <div className="iv2-cell" data-label="Acciones">
+                            <button className="iv2-btn-discard" onClick={() => handleDiscard(tube.id, 'tube')}>
+                              Dar de baja
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="iv2-cell" data-label="Largo"><strong>{formatNumber(tube.lengthMeters)} m</strong></div>
-                      <div className="iv2-cell" data-label="Origen">Corte de Producción</div>
-                      <div className="iv2-cell" data-label="Estado" style={{color: '#10b981'}}>Disponible</div>
-                      <div className="iv2-cell" data-label="Acciones">
-                        <button className="iv2-btn-discard" onClick={() => handleDiscard(tube.id, 'tube')}>
-                          Dar de baja
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {bottomOffcuts.map(bottom => (
-                    <div key={bottom.id} className="iv2-table-row">
-                      <div className="iv2-cell-main" data-label="Código / Tipo">
-                        <div>
-                          <strong>{bottom.code}</strong><br/>
-                          <span className="iv2-badge iv2-badge--bottom" style={{width: 'fit-content'}}>Bottom Rail</span>
+                      ))}
+                    </>
+                  )}
+
+                  {/* ── Bottomrail agrupado por color ── */}
+                  {bottomOffcuts.length > 0 && (() => {
+                    const COLOR_ORDER = ['white', 'ivory', 'grey', 'bronze'] as const;
+                    const COLOR_LABEL: Record<string, string> = { white: 'White', ivory: 'Ivory', grey: 'Grey / Anodizado', bronze: 'Bronze' };
+                    const COLOR_HEX:   Record<string, string> = { white: '#e5e7eb', ivory: '#d6c99a', grey: '#94a3b8', bronze: '#a16207' };
+
+                    // Group: items with no color go to 'unclassified'
+                    const groups: Record<string, typeof bottomOffcuts> = {};
+                    bottomOffcuts.forEach(b => {
+                      const key = b.color ?? 'unclassified';
+                      if (!groups[key]) groups[key] = [];
+                      groups[key].push(b);
+                    });
+
+                    const orderedKeys = [
+                      ...COLOR_ORDER.filter(c => groups[c]),
+                      ...(groups['unclassified'] ? ['unclassified'] : []),
+                    ];
+
+                    return orderedKeys.map(colorKey => {
+                      const items = groups[colorKey];
+                      const totalM = items.reduce((s, b) => s + b.lengthMeters, 0);
+                      const label = colorKey === 'unclassified' ? 'Sin clasificar' : (COLOR_LABEL[colorKey] ?? colorKey);
+                      const hex   = COLOR_HEX[colorKey] ?? '#818cf8';
+                      return (
+                        <div key={colorKey}>
+                          <div style={{ padding: '0.4rem 0.6rem', background: 'rgba(99,102,241,0.06)', borderBottom: '1px solid rgba(99,102,241,0.15)', fontSize: '0.65rem', fontWeight: 700, color: hex, letterSpacing: '0.05em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: hex }} />
+                            Bottom Rail {label} — {items.length} piezas · {formatNumber(totalM)} m
+                          </div>
+                          {items.map(bottom => (
+                            <div key={bottom.id} className="iv2-table-row">
+                              <div className="iv2-cell-main" data-label="Código / Tipo">
+                                <div>
+                                  <strong>{bottom.code}</strong><br/>
+                                  <span className="iv2-badge iv2-badge--bottom" style={{width: 'fit-content', borderColor: hex, color: hex}}>Bottom {label}</span>
+                                </div>
+                              </div>
+                              <div className="iv2-cell" data-label="Largo"><strong>{formatNumber(bottom.lengthMeters)} m</strong></div>
+                              <div className="iv2-cell" data-label="Origen">Corte de Producción</div>
+                              <div className="iv2-cell" data-label="Estado" style={{color: '#10b981'}}>Disponible</div>
+                              <div className="iv2-cell" data-label="Acciones">
+                                <button className="iv2-btn-discard" onClick={() => handleDiscard(bottom.id, 'bottom')}>
+                                  Dar de baja
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                      <div className="iv2-cell" data-label="Largo"><strong>{formatNumber(bottom.lengthMeters)} m</strong></div>
-                      <div className="iv2-cell" data-label="Origen">Corte de Producción</div>
-                      <div className="iv2-cell" data-label="Estado" style={{color: '#10b981'}}>Disponible</div>
-                      <div className="iv2-cell" data-label="Acciones">
-                        <button className="iv2-btn-discard" onClick={() => handleDiscard(bottom.id, 'bottom')}>
-                          Dar de baja
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      );
+                    });
+                  })()}
                 </>
               )}
             </div>
           </>
         )}
+
 
         {activeTab === 'historial' && (
           <div className="iv2-history-timeline">

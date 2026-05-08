@@ -1,4 +1,4 @@
-export type CurtainType = 'screen';
+export type CurtainType = 'screen' | 'neollux' | 'vertical' | 'wood';
 
 export type ComponentCategory =
   | 'fabric'
@@ -11,6 +11,11 @@ export type ComponentCategory =
   | 'bottomCap'
   | 'chainStop'
   | 'chainWeight'
+  | 'headrail'
+  | 'slats'
+  | 'valance'
+  | 'cord'
+  | 'fascia'
   | 'other';
 
 export type ToneGroup = 'white' | 'bronze' | 'ivory' | 'grey';
@@ -92,11 +97,10 @@ export interface CalculationInput {
   fabricColor: string;
   widthMeters: number;
   heightMeters: number;
+  engineeringSuggestion?: import('../../logic/rollerResolver').RollerSuggestion;
 }
 
 export interface CalculationFormValues {
-  driveType?: DriveType;
-  curtainType: CurtainType;
   fabricFamily: string;
   fabricOpenness: string;
   fabricColor: string;
@@ -292,6 +296,47 @@ export interface ScreenRuleConfigErrors {
   maxWidthMeters?: string;
   chainMultiplier?: string;
   smallRollMeters?: string;
+
+export interface ScreenValidationErrors {
+  curtainType?: string;
+  fabricFamily?: string;
+  fabricOpenness?: string;
+  fabricColor?: string;
+  widthMeters?: string;
+  heightMeters?: string;
+  general?: string;
+}
+
+export interface ScreenRuleConfig {
+  cutHeightExtraMeters: number;
+  maxWidthMeters: number;
+  chainMultiplier: number;
+  smallRollMeters: number;
+  largeRollMeters: number;
+  fixedComponents: ScreenFixedComponent[];
+}
+
+export interface ScreenFixedComponentFormValue {
+  quantity: string;
+  name: string;
+  unit: string;
+  cost: string;
+}
+
+export interface ScreenRuleConfigFormValues {
+  cutHeightExtraMeters: string;
+  maxWidthMeters: string;
+  chainMultiplier: string;
+  smallRollMeters: string;
+  largeRollMeters: string;
+  fixedComponents: ScreenFixedComponentFormValue[];
+}
+
+export interface ScreenRuleConfigErrors {
+  cutHeightExtraMeters?: string;
+  maxWidthMeters?: string;
+  chainMultiplier?: string;
+  smallRollMeters?: string;
   largeRollMeters?: string;
   fixedComponents?: string;
   general?: string;
@@ -326,6 +371,8 @@ export interface LinearInventoryItem {
   kind: 'bar' | 'offcut';
   createdAt: string;
   status: InventoryStatus;
+  /** Color de herraje — relevante para bottomrail: 'white' | 'ivory' | 'grey' | 'bronze' */
+  color?: string;
 }
 
 export interface ComponentInventoryItem {

@@ -1,14 +1,19 @@
 import { StateCreator } from 'zustand';
+import { toast } from 'sonner';
 import { CalculatorStore, RulesSlice } from '../types';
 import { 
-  DEFAULT_SCREEN_RULE_CONFIG, 
-  DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES 
+  DEFAULT_SCREEN_RULE_CONFIG,
+  DEFAULT_SCREEN_RULE_CONFIG_FORM_VALUES,
+  generateId,
 } from '../../../../domain/curtains/constants';
 import { validateScreenRuleConfig } from '../../../../domain/curtains/screen';
 import type { ScreenRuleConfig, ScreenRuleConfigFormValues } from '../../../../domain/curtains/types';
 import { applyCatalogOverrides, getBaseCatalogItems } from '../../../../lib/itemCatalog';
 import {
   createDefaultScreenRecipe,
+  createDefaultNeolluxRecipe,
+  createDefaultVerticalRecipe,
+  createDefaultWoodRecipe,
   normalizeRecipeToneGroups,
 } from '../../../../lib/recipeResolver';
 import {
@@ -76,10 +81,12 @@ export const createRulesSlice: StateCreator<
     getBaseCatalogItems(),
     initialCatalogOverrides,
   );
-  const initialRecipe =
-    normalizeRecipeToneGroups(
-      loadScreenRecipe() ?? createDefaultScreenRecipe(initialCatalogItems),
-    );
+  const initialRecipes = {
+    screen: normalizeRecipeToneGroups(loadScreenRecipe() ?? createDefaultScreenRecipe(initialCatalogItems)),
+    neollux: createDefaultNeolluxRecipe(initialCatalogItems),
+    vertical: createDefaultVerticalRecipe(initialCatalogItems),
+    wood: createDefaultWoodRecipe(initialCatalogItems),
+  };
   
   return {
     ruleConfig: initialConfig,
@@ -88,7 +95,7 @@ export const createRulesSlice: StateCreator<
     catalogOverrides: initialCatalogOverrides,
     catalogItems: initialCatalogItems,
     fabricToneRules: loadFabricToneRules(),
-    screenRecipe: initialRecipe,
+    recipes: initialRecipes,
     isSyncing: false,
 
   setRuleConfig: (config) => set({ ruleConfig: config }),
@@ -251,21 +258,72 @@ export const createRulesSlice: StateCreator<
     });
   },
 
-  updateRecipeItem: (componentId, toneGroup, itemCode) => {
+  updateRecipeItem: (curtainType, componentId, toneGroup, itemCode) => {
     set((state) => ({
-      screenRecipe: {
-        ...state.screenRecipe,
-        components: state.screenRecipe.components.map((component) =>
-          component.id === componentId
-            ? {
-                ...component,
-                itemByTone: {
-                  ...component.itemByTone,
-                  [toneGroup]: itemCode,
-                },
-              }
-            : component,
-        ),
+      recipes: {
+        ...state.recipes,
+        [curtainType]: {
+          ...state.recipes[curtainType],
+          components: state.recipes[curtainType].components.map((component) =>
+            component.id === componentId
+              ? {
+                  ...component,
+                  itemByTone: {
+                    ...component.itemByTone,
+                    [toneGroup]: itemCode,
+                  },
+                }
+              : component,
+          ),
+        },
+      },
+    }));
+  },
+
+  addRecipeComponent: (curtainType, component) => {
+    set((state) => ({
+      recipes: {
+        ...state.recipes,
+        [curtainType]: {
+          ...state.recipes[curtainType],
+          components: [
+            ...state.recipes[curtainType].components,
+            {
+              ...component,
+              id: generateId(),
+            },
+          ],
+        },
+      },
+    }));
+  },
+
+  updateRecipeComponentConfig: (curtainType, componentId, updates) => {
+    set((state) => ({
+      recipes: {
+        ...state.recipes,
+        [curtainType]: {
+          ...state.recipes[curtainType],
+          components: state.recipes[curtainType].components.map((component) =>
+            component.id === componentId
+              ? { ...component, ...updates }
+              : component,
+          ),
+        },
+      },
+    }));
+  },
+
+  removeRecipeComponent: (curtainType, componentId) => {
+    set((state) => ({
+      recipes: {
+        ...state.recipes,
+        [curtainType]: {
+          ...state.recipes[curtainType],
+          components: state.recipes[curtainType].components.filter(
+            (component) => component.id !== componentId,
+          ),
+        },
       },
     }));
   },
@@ -289,7 +347,7 @@ export const createRulesSlice: StateCreator<
   },
 
   saveRecipeSettings: () => {
-    const { catalogOverrides, fabricToneRules, screenRecipe, ruleFormValues } = get();
+    const { catalogOverrides, fabricToneRules, ruleFormValues } = get();
     const parsedConfig = parseConfigFormValues(ruleFormValues);
     const validationErrors = validateScreenRuleConfig(parsedConfig);
 
@@ -317,23 +375,29 @@ export const createRulesSlice: StateCreator<
 
   resetRecipe: () => {
     set((state) => ({
-      screenRecipe: createDefaultScreenRecipe(state.catalogItems),
+      recipes: {
+        screen: createDefaultScreenRecipe(state.catalogItems),
+        neollux: createDefaultNeolluxRecipe(state.catalogItems),
+        vertical: createDefaultVerticalRecipe(state.catalogItems),
+        wood: createDefaultWoodRecipe(state.catalogItems),
+      },
       fabricToneRules: [],
     }));
   },
 
   syncRecipeToCloud: async () => {
-    const { screenRecipe, fabricToneRules } = get();
+    const { recipes, fabricToneRules } = get();
     set({ isSyncing: true });
     try {
       await Promise.all([
-        upsertRecipe(screenRecipe),
+        ...Object.values(recipes).map(r => upsertRecipe(r)),
         upsertFabricToneRules(fabricToneRules),
       ]);
       // Let Zustand persist handle local storage as usual
+      toast.success('Cambios guardados exitosamente');
     } catch (error) {
       console.error('Error syncing recipe to cloud:', error);
-      alert('Error al guardar en la nube: ' + (error as Error).message);
+      toast.error('Error al guardar en la nube: ' + (error as Error).message);
     } finally {
       set({ isSyncing: false });
     }
@@ -342,24 +406,28 @@ export const createRulesSlice: StateCreator<
   loadRecipeFromCloud: async () => {
     set({ isSyncing: true });
     try {
-      const [recipes, toneRules] = await Promise.all([
+      const [fetchedRecipes, toneRules] = await Promise.all([
         fetchRecipes(),
         fetchFabricToneRulesFromCloud(),
       ]);
       
-      const defaultRecipe = recipes.find(r => r.id === 'screen-default') || recipes[0];
-      
-      if (defaultRecipe) {
+      if (fetchedRecipes.length > 0) {
+        const nextRecipes = { ...get().recipes };
+        fetchedRecipes.forEach(r => {
+          if (r.curtainType) {
+            nextRecipes[r.curtainType] = normalizeRecipeToneGroups(r);
+          }
+        });
         set({ 
-          screenRecipe: normalizeRecipeToneGroups(defaultRecipe),
+          recipes: nextRecipes,
           fabricToneRules: toneRules 
         });
       } else {
-        alert('No se encontro ninguna receta guardada en la nube.');
+        toast.error('No se encontro ninguna receta guardada en la nube.');
       }
     } catch (error) {
       console.error('Error loading recipe from cloud:', error);
-      alert('Error al cargar de la nube: ' + (error as Error).message);
+      toast.error('Error al cargar de la nube: ' + (error as Error).message);
     } finally {
       set({ isSyncing: false });
     }

@@ -1010,41 +1010,119 @@
 }
 
 /* ── Mobile (< 768px) ───────────────────────────────────────────────────── */
-@media (max-width: 767px) {
-  .pv2-root { padding-top: 48px; }
+@media (max-width: 768px) {
+  .pv2-root { padding-top: 16px; }
 
   .pv2-topbar {
-    height: 48px;
-    padding: 0 12px;
+    height: auto;
+    padding: 12px;
   }
 
   .pv2-topbar-order { display: none; }
   .pv2-topbar-sep   { display: none; }
 
+  /* 1. Cambiar los contenedores de grid a 1 sola columna */
   .pv2-grid-3 {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      'left'
-      'center'
-      'extra';
+    display: flex;
+    flex-direction: column;
     padding: 10px;
-    gap: 12px;
+    gap: 16px;
   }
-  .pv2-left   { grid-area: left; }
-  .pv2-right  { grid-area: center; }
-  .pv2-extra  { grid-area: extra; flex-direction: column; }
+  .pv2-left, .pv2-right, .pv2-extra {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
 
-  .pv2-metrics-row  { grid-template-columns: 1fr 1fr; }
-  .pv2-sys-option-group { grid-template-columns: 1fr 1fr; }
-  .pv2-sys-toggle-group { flex-direction: row; }
+  /* Secciones a 1 sola columna */
+  .pv2-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .pv2-metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* 3. Botones de sistema sin anchos fijos, permitiendo wrap y wrap de texto */
+  .pv2-sys-option-group, .pv2-sys-toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .pv2-sys-option {
+    white-space: normal;
+    height: auto;
+    padding: 12px;
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .pv2-sys-toggle {
+    white-space: normal;
+    height: auto;
+    padding: 12px;
+  }
 
   /* Footer compacto */
-  .pv2-footer { flex-direction: column; gap: 6px; height: auto; padding: 8px 12px; }
-  .pv2-footer-left, .pv2-footer-right { flex-wrap: wrap; gap: 8px; }
-  .pv2-footer-stat--sep { display: none; }
+  .pv2-footer { flex-direction: column; gap: 6px; height: auto; padding: 12px; position: static; }
+  .pv2-footer-left, .pv2-footer-right { flex-direction: column; align-items: flex-start; width: 100%; gap: 8px; }
+  .pv2-footer-stat--sep { border: none; padding: 0; }
 
-  /* Swatches: 2 filas, más columnas */
-  .pv2-swatches { gap: 6px 8px; }
+  /* 4. Tabla de cortes a formato tarjetas */
+  .pv2-table-panel {
+    background: transparent;
+    border: none;
+  }
+  .pv2-table-header {
+    border-radius: 8px 8px 0 0;
+  }
+  .pv2-table-scroll {
+    overflow-x: visible;
+  }
+  .pv2-table, .pv2-table tbody, .pv2-table tr, .pv2-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .pv2-table thead {
+    display: none;
+  }
+  .pv2-tbody-row {
+    margin-bottom: 16px;
+    background: rgba(21, 21, 26, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .pv2-td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    text-align: right;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    white-space: normal;
+  }
+  .pv2-td:last-child {
+    border-bottom: none;
+    justify-content: flex-end;
+  }
+  .pv2-td::before {
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a98989;
+    text-align: left;
+    margin-right: 16px;
+  }
+  .pv2-eff-row {
+    flex: 1;
+    justify-content: flex-end;
+  }
 }
 
 /* ── Pantallas muy pequeñas (< 400px) ───────────────────────────────────── */

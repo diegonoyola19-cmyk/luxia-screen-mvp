@@ -31,7 +31,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
         ruleConfig: state.ruleConfig,
         catalogOverrides: state.catalogOverrides,
         fabricToneRules: state.fabricToneRules,
-        screenRecipe: state.screenRecipe,
+        recipes: state.recipes,
       }),
     }
   )

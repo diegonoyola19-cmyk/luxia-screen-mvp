@@ -1,5 +1,6 @@
 import type {
   CalculationFormValues,
+  CalculationInput,
   CalculationResult,
   CatalogItem,
   CatalogItemOverride,
@@ -17,7 +18,10 @@ import type {
   SessionCalculationRecord,
   ToneGroup,
   WastePiece,
+  WasteReuseMatch,
   ProductionBatchItem,
+  CurtainType,
+  RecipeComponentRule,
 } from '../../../domain/curtains/types';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
@@ -28,10 +32,10 @@ export interface SessionWastePiece extends WastePiece {
 
 export interface UiSlice {
   theme: 'light' | 'dark';
-  activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2';
+  activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab';
   copyFeedbackVisible: boolean;
   setTheme: (theme: 'light' | 'dark') => void;
-  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2') => void;
+  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab') => void;
   setCopyFeedbackVisible: (visible: boolean) => void;
 }
 
@@ -51,7 +55,7 @@ export interface CalculationSlice {
   setResult: (result: CalculationResult | null) => void;
   handleFieldBlur: (field: 'widthMeters' | 'heightMeters') => void;
   handleNewCurtain: () => void;
-  addToHistory: (displayResult: CalculationResult, parsedFormValues: any) => void;
+  addToHistory: (displayResult: CalculationResult, parsedFormValues: CalculationInput) => void;
   copySummary: () => Promise<void>;
   
   itemsAProducir: ProductionBatchItem[];
@@ -77,7 +81,7 @@ export interface OrderSlice {
   selectedOrderId: string | null;
 
   setOrderDraft: (updater: (current: OrderDraft) => OrderDraft) => void;
-  addToOrder: (displayResult: CalculationResult, parsedFormValues: any, selectedWasteMatch: any) => void;
+  addToOrder: (displayResult: CalculationResult, parsedFormValues: CalculationInput, selectedWasteMatch: WasteReuseMatch | null) => void;
   removeOrderItem: (id: string) => void;
   setOrderNumber: (value: string) => void;
   setCustomerName: (value: string) => void;
@@ -109,7 +113,7 @@ export interface RulesSlice {
   catalogItems: CatalogItem[];
   catalogOverrides: Record<string, CatalogItemOverride>;
   fabricToneRules: FabricToneRule[];
-  screenRecipe: CurtainRecipe;
+  recipes: Record<CurtainType, CurtainRecipe>;
   isSyncing: boolean;
 
   setRuleConfig: (config: ScreenRuleConfig) => void;
@@ -127,7 +131,10 @@ export interface RulesSlice {
   updateCatalogItemColor: (itemCode: string, color: string) => void;
   updateCatalogItemSageCode: (itemCode: string, sageItemCode: string) => void;
   updateFabricToneRule: (family: string, openness: string, color: string, toneGroup: ToneGroup) => void;
-  updateRecipeItem: (componentId: string, toneGroup: ToneGroup, itemCode: string) => void;
+  updateRecipeItem: (curtainType: CurtainType, componentId: string, toneGroup: ToneGroup, itemCode: string) => void;
+  addRecipeComponent: (curtainType: CurtainType, component: Omit<RecipeComponentRule, 'id'>) => void;
+  updateRecipeComponentConfig: (curtainType: CurtainType, componentId: string, updates: Partial<RecipeComponentRule>) => void;
+  removeRecipeComponent: (curtainType: CurtainType, componentId: string) => void;
   saveRules: () => void;
   saveRecipeSettings: () => void;
   resetRules: () => void;

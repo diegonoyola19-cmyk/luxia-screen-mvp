@@ -50,6 +50,7 @@ function getNextCodeNumber(items: Array<{ code: string }>, prefix: string) {
   return (numbers.length === 0 ? 0 : Math.max(...numbers)) + 1;
 }
 
+
 function buildFabricScrapCode(inventory: ProductionInventory, color: string, openness: string) {
   const prefix = `RET-${slugCodePart(color)}-${slugCodePart(openness)}`;
   const nextNumber = getNextCodeNumber(inventory.fabrics, prefix);
@@ -59,9 +60,23 @@ function buildFabricScrapCode(inventory: ProductionInventory, color: string, ope
 function buildLinearOffcutCode(
   items: LinearInventoryItem[],
   prefix: 'SOB-TUB' | 'SOB-BOT',
+  color?: string,
 ) {
-  const nextNumber = getNextCodeNumber(items, prefix);
-  return `${prefix}-${String(nextNumber).padStart(3, '0')}`;
+  const colorTag = color ? `-${color.slice(0, 3).toUpperCase()}` : '';
+  const fullPrefix = `${prefix}${colorTag}`;
+  const nextNumber = getNextCodeNumber(items, fullPrefix);
+  return `${fullPrefix}-${String(nextNumber).padStart(3, '0')}`;
+}
+
+/** Deriva el tono de herraje a partir del color de la tela (mismo algoritmo que BOM engine) */
+function deriveBottomColor(fabricColor: string): string {
+  const c = fabricColor.toLowerCase();
+  if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke')) return 'grey';
+  if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('linen') ||
+      c.includes('bisque') || c.includes('taupe') || c.includes('off white') || c.includes('fawn')) return 'ivory';
+  if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
+      c.includes('gold') || c.includes('custard')) return 'bronze';
+  return 'white';
 }
 
 export function getStockBarMeters() {
@@ -230,13 +245,18 @@ function allocateLinearItem(
   orderNumber: string,
   label: string,
   prefix: string,
+  color?: string,
 ): { items: LinearInventoryItem[]; movements: InventoryMovement[] } {
   const nextItems = [...items];
   const movements: InventoryMovement[] = [];
   const requiredWithLoss = requiredMeters + CUT_LOSS_METERS;
-  const candidate = nextItems
-    .filter((item) => item.status === 'available' && item.lengthMeters >= requiredWithLoss)
-    .sort((left, right) => left.lengthMeters - right.lengthMeters)[0];
+  // Prefer bars matching color; fallback to any available bar
+  const pool = nextItems.filter(
+    (item) => item.status === 'available' && item.lengthMeters >= requiredWithLoss
+  );
+  const candidate = (
+    color ? pool.filter(i => i.color === color || !i.color) : pool
+  ).sort((l, r) => l.lengthMeters - r.lengthMeters)[0];
 
   if (!candidate) {
     return { items: nextItems, movements };
@@ -256,7 +276,7 @@ function allocateLinearItem(
     createdAt: new Date().toISOString(),
     orderId,
     orderNumber,
-    category: label === 'tubo' ? 'tube' : 'bottom',
+    category: label.startsWith('tubo') ? 'tube' : 'bottom',
     action: 'consume',
     itemCode: candidate.code,
     itemLabel: label,
@@ -266,7 +286,7 @@ function allocateLinearItem(
   });
 
   if (remainder >= MIN_LINEAR_OFFCUT_METERS) {
-    const offcutCode = buildLinearOffcutCode(nextItems, prefix as 'SOB-TUB' | 'SOB-BOT');
+    const offcutCode = buildLinearOffcutCode(nextItems, prefix as 'SOB-TUB' | 'SOB-BOT', color);
 
     nextItems.push({
       id: createId(),
@@ -275,6 +295,7 @@ function allocateLinearItem(
       kind: 'offcut',
       createdAt: new Date().toISOString(),
       status: 'available',
+      ...(color ? { color } : {}),
     });
 
     movements.push({
@@ -282,7 +303,7 @@ function allocateLinearItem(
       createdAt: new Date().toISOString(),
       orderId,
       orderNumber,
-      category: label === 'tubo' ? 'tube' : 'bottom',
+      category: label.startsWith('tubo') ? 'tube' : 'bottom',
       action: 'create_scrap',
       itemCode: offcutCode,
       itemLabel: `Sobrante de ${label}`,
@@ -296,7 +317,7 @@ function allocateLinearItem(
       createdAt: new Date().toISOString(),
       orderId,
       orderNumber,
-      category: label === 'tubo' ? 'tube' : 'bottom',
+      category: label.startsWith('tubo') ? 'tube' : 'bottom',
       action: 'discard',
       itemCode: candidate.code,
       itemLabel: `Descarte de ${label}`,
@@ -467,7 +488,7 @@ export function applyOrderToInventory(
 
       }
 
-      if (
+      if(
         item.result.wastePieceWidthMeters >= MIN_FABRIC_SCRAP_SIDE_METERS &&
         item.result.wastePieceHeightMeters >= MIN_FABRIC_SCRAP_SIDE_METERS
       ) {
@@ -518,6 +539,7 @@ export function applyOrderToInventory(
       item.input.widthMeters - TUBE_BOTTOM_DISCOUNT_METERS,
       0,
     );
+
     const tubeAllocation = allocateLinearItem(
       nextInventory.tubes,
       realLinearCutMeters,
@@ -529,13 +551,15 @@ export function applyOrderToInventory(
     nextInventory.tubes = tubeAllocation.items;
     movements.push(...tubeAllocation.movements);
 
+    const bottomColor = deriveBottomColor(item.input.fabricColor ?? '');
     const bottomAllocation = allocateLinearItem(
       nextInventory.bottoms,
       realLinearCutMeters,
       order.id,
       order.orderNumber,
-      'bottom',
+      `bottom ${bottomColor}`,
       'SOB-BOT',
+      bottomColor,
     );
     nextInventory.bottoms = bottomAllocation.items;
     movements.push(...bottomAllocation.movements);

@@ -2,10 +2,15 @@ import { Suspense, lazy, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
-import { ProductionModule } from './components/ProductionModule';
-import { ProductionModuleV2 } from './components/ProductionModuleV2';
 
-
+const ProductionModuleV2 = lazy(async () => {
+  const module = await import('./components/ProductionModuleV2');
+  return { default: module.ProductionModuleV2 };
+});
+const ProduccionV3 = lazy(async () => {
+  const module = await import('./components/ProduccionV3');
+  return { default: module.ProduccionV3 };
+});
 const InventoryPanelV2 = lazy(async () => {
   const module = await import('./components/InventoryPanelV2');
   return { default: module.InventoryPanelV2 };
@@ -62,8 +67,21 @@ export function ScreenCalculatorPage() {
             aria-pressed={activeView === 'production-v2'}
             onClick={() => setActiveView('production-v2')}
           >
-            Producción V2
+            Producción
           </button>
+          {/* V3 Lab oculto — motor integrado en Producción
+          <button
+            type="button"
+            className={[
+              'view-switcher__tab',
+              activeView === 'v3-lab' ? 'view-switcher__tab--active' : '',
+            ].join(' ')}
+            aria-pressed={activeView === 'v3-lab'}
+            onClick={() => setActiveView('v3-lab')}
+          >
+            V3 (Lab)
+          </button>
+          */}
           <button
             type="button"
             className={[
@@ -110,33 +128,82 @@ export function ScreenCalculatorPage() {
 
         <div className={`page-content${activeView === 'production-v2' ? ' page-content--fullwidth' : ''}`}>
           <AnimatePresence mode="wait">
-            <motion.div
-              key={activeView}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeView === 'production' ? (
-                <ProductionModule />
-              ) : activeView === 'production-v2' ? (
-                <ProductionModuleV2 />
-              ) : activeView === 'inventory' ? (
+            {activeView === 'production-v2' && (
+              <motion.div
+                key="production-v2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
+                <DeferredPanel>
+                  <ProductionModuleV2 />
+                </DeferredPanel>
+              </motion.div>
+            )}
+
+            {activeView === 'v3-lab' && (
+              <motion.div
+                key="v3-lab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
+                <DeferredPanel>
+                  <ProduccionV3 />
+                </DeferredPanel>
+              </motion.div>
+            )}
+
+            {activeView === 'inventory' && (
+              <motion.div
+                key="inventory"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
                 <DeferredPanel>
                   <InventoryPanelV2 />
                 </DeferredPanel>
-              ) : activeView === 'orders' ? (
+              </motion.div>
+            )}
+
+            {activeView === 'orders' && (
+              <motion.div
+                key="orders"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
                 <DeferredPanel>
                   <SavedOrdersPanel />
                 </DeferredPanel>
-              ) : (
+              </motion.div>
+            )}
+
+            {activeView === 'settings' && (
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
                 <DeferredPanel>
                   <section className="content-grid content-grid--rules">
                     <RulesPanel />
                   </section>
                 </DeferredPanel>
-              )}
-            </motion.div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </section>

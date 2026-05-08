@@ -3,7 +3,7 @@
  * Conectado 100% al store real (useCalculatorStore + useCalculatorDerivedState)
  * Sin afectar reglas de cálculo existentes
  */
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { useCalculatorDerivedState } from '../hooks/useCalculatorDerivedState';
 import { formatNumber } from '../../../lib/format';
@@ -11,7 +11,59 @@ import { generateId } from '../../../domain/curtains/constants';
 import type { CalculationInput, ProductionBatchItem } from '../../../domain/curtains/types';
 import type { WasteReuseMatch } from '../../../domain/curtains/types';
 import { calcularDescargoRetazo } from '../../../domain/curtains/screen';
+import { generateRollerBOM, TONE_COLOR_MAP, type BOMItem } from '../../../logic/generateRollerBOM';
+import type { Tone } from '../../../logic/rollerEngineV3';
+import { getHWDesc } from '../../../logic/rollerEngineV3';
 import './ProductionModuleV2.css';
+
+// ── BOM display helpers ───────────────────────────────────────────────────────
+const M_TO_FT = 3.28084;
+
+function colorFromSKU(sku: string): string | null {
+  if (sku.includes('AL-CLW')) return 'White';
+  if (sku.includes('AL-CLI')) return 'Ivory';
+  if (sku.includes('AL-CLA')) return 'Grey';
+  if (sku.includes('AL-CLZ')) return 'Bronze';
+  if (sku.includes('CH-WH') || sku.includes('CH-007')) return 'White';
+  if (sku.includes('CH-IV') || sku.includes('CH-003')) return 'Ivory';
+  if (sku.includes('CH-006')) return 'Grey';
+  if (sku.includes('CH-012')) return 'Bronze';
+  if (sku.includes('V20WH')) return 'White';
+  if (sku.includes('V20IV')) return 'Ivory';
+  if (sku.includes('V20GR')) return 'Grey';
+  if (sku.includes('V20BR')) return 'Bronze';
+  if (sku.includes('CA-001WH')) return 'White';
+  if (sku.includes('CA-001IY') || sku.includes('CA-001IV')) return 'Ivory';
+  if (sku.includes('CA-001GY')) return 'Grey';
+  if (sku.includes('CA-001BZ')) return 'Bronze';
+  if (sku.includes('CA-100WH')) return 'White';
+  if (sku.includes('CA-100IV')) return 'Ivory';
+  if (sku.includes('CA-100GR')) return 'Grey';
+  if (sku.includes('CA-100BZ')) return 'Bronze';
+  if (sku.includes('RE-005')) return 'White';
+  if (sku.includes('RE-112')) return 'Ivory';
+  if (sku.includes('RE-026')) return 'Grey';
+  if (sku.includes('RE-105')) return 'Bronze';
+  return null;
+}
+
+function bomDisplayLabel(componente: string, skuFinal: string): string {
+  const color = colorFromSKU(skuFinal);
+  const short = componente
+    .replace('Tubo de 38mm NEO', 'Tubo NEO')
+    .replace('Tubo de 38mm Normal', 'Tubo Normal')
+    .replace('Tubo de 50 mm', 'Tubo 50mm')
+    .replace('Tubo de 50mm', 'Tubo 50mm')
+    .replace('Soporte lado del control', 'Soporte Control')
+    .replace('Soporte del lado del end plug', 'Soporte End Plug')
+    .replace('Control de cortina VTX30', 'Control VTX30')
+    .replace('Control de cortina', 'Control')
+    .replace('Pesa de cadena', 'Pesa')
+    .replace('Tapaderas de bottomrail', 'Tapaderas')
+    .replace('Topes de cadena', 'Topes')
+    .replace('Adaptador para tubo de 50mm', 'Adaptador 50mm');
+  return color ? `${short} ${color}` : short;
+}
 
 // ── Swatch color map (fallback cuando no hay imageUrl) ───────────────────────
 const FABRIC_COLOR_MAP: Record<string, string> = {
@@ -92,12 +144,21 @@ export function ProductionModuleV2() {
   const [useManualRetazo, setUseManualRetazo] = useState(false);
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
 
-  // ── Config adicional (estado local, notas de producción) ──────────────────
-  const [bracketType, setBracketType] = useState<'single' | 'double'>('single');
-  const [endplugType, setEndplugType] = useState<'standard' | 'push'>('standard');
-  const [motorModel, setMotorModel] = useState('');
-  const [motorControl, setMotorControl] = useState('');
-  const [tubeOverride, setTubeOverride] = useState<'normal' | 'neo' | 'reinforced_45' | 'heavy_63'>('normal');
+  // ── Tono de herrajes: auto del color de tela, pero siempre editable ───────────
+  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
+
+  const autoTone = useMemo((): Tone => {
+    const c = (store.formValues.fabricColor ?? '').toLowerCase();
+    if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke')) return 'grey';
+    if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('linen') ||
+        c.includes('bisque') || c.includes('taupe') || c.includes('off white') || c.includes('fawn')) return 'ivory';
+    if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
+        c.includes('gold') || c.includes('custard')) return 'bronze';
+    return 'white';
+  }, [store.formValues.fabricColor]);
+
+  // Si el usuario elige manualmente el mismo que auto, lo reseteamos a auto
+  const activeTone: Tone = toneOverride ?? autoTone;
 
   const {
     fabricFamilies,
@@ -110,7 +171,7 @@ export function ProductionModuleV2() {
     colorWastePieces,
     selectedWasteMatch,
     hasValidDimensions,
-  } = useCalculatorDerivedState();
+  } = useCalculatorDerivedState(false);
 
   const typedMatches = colorWasteMatches as WasteReuseMatch[];
   const hasRetazos = typedMatches.length > 0 && hasValidDimensions;
@@ -123,6 +184,18 @@ export function ProductionModuleV2() {
     : null;
   const displayedYd2 = retazoResult?.alcanza ? retazoResult.descargar : displayResult?.fabricDownloadedYd2;
   const displayedWaste = retazoResult?.alcanza ? retazoResult.merma : displayResult?.wasteYd2;
+
+  // BOM: solo SKU + cantidad, sin consulta de inventario
+  const hwItems = useMemo((): BOMItem[] => {
+    const w = parsedFormValues?.widthMeters ?? 0;
+    const h = parsedFormValues?.heightMeters ?? 0;
+    if (w <= 0 || h <= 0) return [];
+    try { return generateRollerBOM(w, h, TONE_COLOR_MAP[activeTone]).items; }
+    catch { return []; }
+  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone]);
+
+
+
 
   // ── Batch summary ──────────────────────────────────────────────────────────
   const summary = useMemo(() => {
@@ -152,7 +225,7 @@ export function ProductionModuleV2() {
 
     const item: ProductionBatchItem = {
       id: generateId(),
-      input: parsedFormValues as CalculationInput,
+      input: { ...(parsedFormValues as CalculationInput) },
       reusedWastePiece: (selectedWasteMatch as WasteReuseMatch | null)?.wastePiece ?? null,
     };
     store.addProductionItem(item);
@@ -525,11 +598,20 @@ export function ProductionModuleV2() {
                       const pieces = group.items.length;
                       return (
                         <tr key={group.id ?? idx} className="pv2-tbody-row">
-                          <td className="pv2-td pv2-td-mono">{rowId}</td>
-                          <td className="pv2-td pv2-td-muted">{formatNumber(rollW, 2)}m</td>
-                          <td className="pv2-td pv2-td-mono">{formatNumber(usedWidth, 2)}m</td>
-                          <td className="pv2-td">{pieces} {pieces === 1 ? 'Cortina' : 'Cortinas'}</td>
-                          <td className="pv2-td pv2-td-eff">
+                          <td className="pv2-td pv2-td-mono" data-label="Fila de Corte">{rowId}</td>
+                          <td className="pv2-td pv2-td-muted" data-label="Rollo">{formatNumber(rollW, 2)}m</td>
+                          <td className="pv2-td pv2-td-mono" data-label="Utilizado">{formatNumber(usedWidth, 2)}m</td>
+                          <td className="pv2-td" data-label="Piezas">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: '500' }}>{pieces} {pieces === 1 ? 'Cortina' : 'Cortinas'}</span>
+                              {group.items.map((item: any) => (
+                                <span key={item.id} style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                  {formatNumber(item.input.widthMeters, 2)}m x {formatNumber(item.input.heightMeters, 2)}m
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="pv2-td pv2-td-eff" data-label="Eficiencia">
                             <div className="pv2-eff-row">
                               <div className="pv2-eff-bar-bg">
                                 <div
@@ -542,7 +624,7 @@ export function ProductionModuleV2() {
                               </span>
                             </div>
                           </td>
-                          <td className="pv2-td pv2-td-right">
+                          <td className="pv2-td pv2-td-right" data-label="Acción">
                             <button
                               className="pv2-row-action"
                               onClick={() => {
@@ -628,189 +710,122 @@ export function ProductionModuleV2() {
           </div>
         </section>
 
-        {/* ══ EXTRA PANEL: Configuración de Sistema ═══════════════════════ */}
+        {/* ══ EXTRA PANEL: Herrajes BOM ══════════════════════════════════ */}
         <section className="pv2-extra">
           <div className="pv2-glass pv2-sys-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
 
+
             {/* Header */}
-            <div className="pv2-config-header">
-              <span className="material-symbols-outlined pv2-icon-red">settings_suggest</span>
-              <h2 className="pv2-headline">Configuración de Sistema</h2>
+            <div className="pv2-config-header" style={{ justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="material-symbols-outlined pv2-icon-red">construction</span>
+                <h2 className="pv2-headline">Herrajes · BOM</h2>
+              </div>
+              {hwItems.length > 0 && (
+                <span className="pv2-badge" style={{ background: '#334155', fontSize: '0.6rem' }}>
+                  {hwItems.length} componentes
+                </span>
+              )}
             </div>
 
-            {/* ── Accionamiento */}
+            {/* Accionamiento */}
             <div className="pv2-sys-section">
               <span className="pv2-label">Accionamiento</span>
               <div className="pv2-sys-toggle-group">
                 {(['manual', 'motorized'] as const).map((dt) => (
                   <button
                     key={dt}
-                    className={`pv2-sys-toggle ${(store.formValues.driveType ?? 'manual') === dt ? 'pv2-sys-toggle--active' : ''
-                      }`}
+                    className={`pv2-sys-toggle ${(store.formValues.driveType ?? 'manual') === dt ? 'pv2-sys-toggle--active' : ''}`}
                     onClick={() => store.setFormValue('driveType', dt)}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                       {dt === 'manual' ? 'settings_remote' : 'electric_bolt'}
                     </span>
-                    {dt === 'manual' ? 'Manual (Cadena)' : 'Motorizado'}
+                    {dt === 'manual' ? 'Manual' : 'Motorizado'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Motor y Control (solo si motorizado) */}
-            {(store.formValues.driveType === 'motorized') && (
-              <div className="pv2-grid-2">
-                <div className="pv2-field">
-                  <label className="pv2-label">Modelo de Motor</label>
-                  <select
-                    className="pv2-select"
-                    value={motorModel}
-                    onChange={(e) => setMotorModel(e.target.value)}
+            {/* Tono de herrajes — auto + override manual */}
+            <div className="pv2-sys-section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span className="pv2-label" style={{ margin: 0 }}>Tono de Herrajes</span>
+                {toneOverride !== null && (
+                  <button
+                    onClick={() => setToneOverride(null)}
+                    style={{ fontSize: '0.55rem', color: '#6b7280', background: 'none', border: '1px solid #374151', borderRadius: 4, padding: '0.1rem 0.35rem', cursor: 'pointer' }}
+                    title="Volver al tono automático"
                   >
-                    <option value="">-- Seleccionar Motor --</option>
-                    {store.catalogItems
-                      .filter(item => {
-                        const code = item.itemCode.replace(/-/g, '').toLowerCase();
-                        return code.startsWith('6800mm') || code.startsWith('6800mb');
-                      })
-                      .map(item => (
-                        <option key={item.itemCode} value={item.itemCode}>
-                          {item.itemCode} - {item.description}
-                        </option>
+                    ↺ Auto
+                  </button>
+                )}
+              </div>
+              <div className="pv2-sys-toggle-group" style={{ flexWrap: 'wrap' }}>
+                {([
+                  { val: 'white',  label: 'White',  dot: '#f0ece4' },
+                  { val: 'ivory',  label: 'Ivory',  dot: '#d4c8b0' },
+                  { val: 'grey',   label: 'Grey',   dot: '#838b91' },
+                  { val: 'bronze', label: 'Bronze', dot: '#a07840' },
+                ] as const).map(({ val, label, dot }) => {
+                  const isAuto = val === autoTone && toneOverride === null;
+                  return (
+                    <button
+                      key={val}
+                      className={`pv2-sys-toggle ${activeTone === val ? 'pv2-sys-toggle--active' : ''}`}
+                      onClick={() => setToneOverride(val === autoTone && toneOverride === null ? null : val)}
+                      title={isAuto ? 'Auto-detectado del color de tela' : ''}
+                    >
+                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                      {label}
+                      {isAuto && <span style={{ fontSize: '0.48rem', opacity: 0.7, marginLeft: 1 }}>AUTO</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* BOM Table — SKU + cantidad, sin inventario */}
+            {hwItems.length > 0 ? (
+              <div style={{ flex: 1, overflowY: 'auto', marginTop: '0.25rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(0,0,0,0.35)' }}>
+                      {['Componente', 'SKU', 'Cant.'].map(h => (
+                        <th key={h} style={{ padding: '0.35rem 0.5rem', textAlign: 'left', color: '#6b7280', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                       ))}
-                  </select>
-                </div>
-                <div className="pv2-field">
-                  <label className="pv2-label">Control Remoto</label>
-                  <select
-                    className="pv2-select"
-                    value={motorControl}
-                    onChange={(e) => setMotorControl(e.target.value)}
-                  >
-                    <option value="">-- Seleccionar --</option>
-                    {store.catalogItems
-                      .filter(item => item.itemCode.replace(/-/g, '').toLowerCase().startsWith('6800at'))
-                      .map(item => (
-                        <option key={item.itemCode} value={item.itemCode}>
-                          {item.itemCode} - {item.description}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hwItems.map((item, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '0.35rem 0.5rem' }}>
+                          <div style={{ color: '#e5e7eb', fontSize: '0.66rem', fontWeight: 600 }}>
+                            {bomDisplayLabel(item.componente, item.skuFinal)}
+                          </div>
+                          <div style={{ color: '#6b7280', fontSize: '0.55rem', marginTop: '1px' }}>
+                            {getHWDesc(item.skuFinal) ?? item.componente}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.35rem 0.5rem', fontWeight: 700, color: '#f9fafb', fontFamily: 'monospace', fontSize: '0.62rem' }}>
+                          {item.skuFinal}
+                        </td>
+                        <td style={{ padding: '0.35rem 0.5rem', color: '#a5b4fc', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.65rem' }}>
+                          {item.unidad === 'm'
+                            ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft`
+                            : `${item.cantidadCalculada} EA`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.5rem', color: '#4b5563' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 32, opacity: 0.3 }}>construction</span>
+                <span style={{ fontSize: '0.75rem' }}>Ingresa dimensiones para ver el BOM</span>
               </div>
             )}
-
-            {/* ── Sistema de Tubo */}
-            <div className="pv2-sys-section">
-              <span className="pv2-label">Tubo / Tambor</span>
-              {displayResult?.requiresReinforcedTube && tubeOverride === 'normal' && (
-                <div className="pv2-sys-alert">
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
-                  {displayResult.tubeRecommendation}
-                </div>
-              )}
-              <div className="pv2-sys-option-group">
-                {([
-                  { val: 'normal', icon: 'hardware', label: 'Tubo Normal' },
-                  { val: 'neo', icon: 'auto_awesome', label: 'Tubo NEO' },
-                  { val: 'reinforced_45', icon: 'construction', label: 'Reforzado 45mm' },
-                  { val: 'heavy_63', icon: 'forklift', label: 'Heavy Duty 63mm' },
-                ] as const).map(({ val, icon, label }) => (
-                  <button
-                    key={val}
-                    className={`pv2-sys-option ${tubeOverride === val ? 'pv2-sys-option--active' : ''
-                      } ${displayResult?.requiresReinforcedTube && val === 'normal' ? 'pv2-sys-option--warn' : ''}`}
-                    onClick={() => setTubeOverride(val)}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Sistema de Bracket */}
-            <div className="pv2-sys-section">
-              <span className="pv2-label">Sistema de Bracket</span>
-              <div className="pv2-sys-option-group">
-                {([
-                  { val: 'single', icon: 'align_vertical_center', label: 'Bracket Simple' },
-                  { val: 'double', icon: 'align_horizontal_center', label: 'Bracket Doble' },
-                ] as const).map(({ val, icon, label }) => (
-                  <button
-                    key={val}
-                    className={`pv2-sys-option ${bracketType === val ? 'pv2-sys-option--active' : ''}`}
-                    onClick={() => setBracketType(val)}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Sistema de Endplug */}
-            <div className="pv2-sys-section">
-              <span className="pv2-label">Sistema de Endplug</span>
-              <div className="pv2-sys-option-group">
-                {([
-                  { val: 'standard', icon: 'radio_button_checked', label: 'Estándar' },
-                  { val: 'push', icon: 'touch_app', label: 'Push' },
-                ] as const).map(({ val, icon, label }) => (
-                  <button
-                    key={val}
-                    className={`pv2-sys-option ${endplugType === val ? 'pv2-sys-option--active' : ''}`}
-                    onClick={() => setEndplugType(val)}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Resumen de configuración */}
-            <div className="pv2-sys-summary">
-              <div className="pv2-sys-summary-row">
-                <span className="pv2-sys-summary-key">Accionamiento</span>
-                <span className="pv2-sys-summary-val">
-                  {(store.formValues.driveType ?? 'manual') === 'motorized' ? '⚡ Motorizado' : '⛓️ Manual'}
-                </span>
-              </div>
-              <div className="pv2-sys-summary-row">
-                <span className="pv2-sys-summary-key">Tubo</span>
-                <span className="pv2-sys-summary-val">
-                  {tubeOverride === 'normal' ? 'Tubo Normal' : 
-                   tubeOverride === 'neo' ? 'Tubo NEO' :
-                   tubeOverride === 'reinforced_45' ? 'Reforzado 45mm' : 'Heavy Duty 63mm'}
-                </span>
-              </div>
-              <div className="pv2-sys-summary-row">
-                <span className="pv2-sys-summary-key">Bracket</span>
-                <span className="pv2-sys-summary-val">
-                  {bracketType === 'single' ? 'Simple' : 'Doble'}
-                </span>
-              </div>
-              <div className="pv2-sys-summary-row">
-                <span className="pv2-sys-summary-key">Endplug</span>
-                <span className="pv2-sys-summary-val">
-                  {endplugType === 'standard' ? 'Estándar' : 'Push'}
-                </span>
-              </div>
-              {store.formValues.driveType === 'motorized' && motorModel && (
-                <div className="pv2-sys-summary-row">
-                  <span className="pv2-sys-summary-key">Motor</span>
-                  <span className="pv2-sys-summary-val">{motorModel}</span>
-                </div>
-              )}
-              {store.formValues.driveType === 'motorized' && motorControl && (
-                <div className="pv2-sys-summary-row">
-                  <span className="pv2-sys-summary-key">Control</span>
-                  <span className="pv2-sys-summary-val">{motorControl}</span>
-                </div>
-              )}
-            </div>
 
           </div>
         </section>

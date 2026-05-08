@@ -1,0 +1,338 @@
+[
+  {
+    "categoria": "Roller",
+    "rango_min_m": 0,
+    "rango_max_m": 1.8,
+    "componentes": [
+      {
+        "componente_tipo": "Tubo de 38mm NEO",
+        "sku_base": "0-154-TU-38111",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": null,
+        "reglas": "El tubo se calculara en base al ancho de la cortina."
+      },
+      {
+        "componente_tipo": "Bottomrail",
+        "sku_base": "0-151-AL-CLX19",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": "bottomrail",
+        "reglas": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina"
+      },
+      {
+        "componente_tipo": "Soporte lado del control",
+        "sku_base": "0-154-PB-E04WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Soporte del lado del end plug",
+        "sku_base": "0-154-PB-E03WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "End Plug",
+        "sku_base": "0-154-PE-00501",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Chapita",
+        "sku_base": "0-154-PS-00500",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Cadena",
+        "sku_base": "0-151-CH-XXXH0",
+        "valor": 2,
+        "tipo_calculo": "Factor (alto)",
+        "unidad": "m",
+        "color_key": "cadena",
+        "reglas": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina"
+      },
+      {
+        "componente_tipo": "Control de cortina",
+        "sku_base": "0-154-CL-V20XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "control",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Pesa de cadena",
+        "sku_base": "0-151-CA-001XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "pesa",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Tapaderas de bottomrail",
+        "sku_base": "0-151-RE-XXX00",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "tapaderas",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Topes de cadena",
+        "sku_base": "0-151-CA-100XX",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "topes",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      }
+    ]
+  },
+  {
+    "categoria": "Roller",
+    "rango_min_m": 1.801,
+    "rango_max_m": 2.5,
+    "componentes": [
+      {
+        "componente_tipo": "Tubo de 38mm Normal",
+        "sku_base": "0-154-TU-38001",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": null,
+        "reglas": "El tubo se calculara en base al ancho de la cortina."
+      },
+      {
+        "componente_tipo": "Bottomrail",
+        "sku_base": "0-151-AL-CLX19",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": "bottomrail",
+        "reglas": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina"
+      },
+      {
+        "componente_tipo": "Soporte lado del control",
+        "sku_base": "0-154-PB-E04WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Soporte del lado del end plug",
+        "sku_base": "0-154-PB-E03WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "End Plug",
+        "sku_base": "0-154-PE-00501",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Chapita",
+        "sku_base": "0-154-PS-00500",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Cadena",
+        "sku_base": "0-151-CH-XXXH0",
+        "valor": 2,
+        "tipo_calculo": "Factor (alto)",
+        "unidad": "m",
+        "color_key": "cadena",
+        "reglas": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina"
+      },
+      {
+        "componente_tipo": "Control de cortina",
+        "sku_base": "0-154-CL-V20XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "control",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Pesa de cadena",
+        "sku_base": "0-151-CA-001XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "pesa",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Tapaderas de bottomrail",
+        "sku_base": "0-151-RE-XXX00",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "tapaderas",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Topes de cadena",
+        "sku_base": "0-151-CA-100XX",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "topes",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      }
+    ]
+  },
+  {
+    "categoria": "Roller",
+    "rango_min_m": 2.501,
+    "rango_max_m": 2.95,
+    "componentes": [
+      {
+        "componente_tipo": "Tubo de 50 mm",
+        "sku_base": "0-154-TU-50001",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": null,
+        "reglas": "El tubo se calculara en base al ancho de la cortina."
+      },
+      {
+        "componente_tipo": "Bottomrail",
+        "sku_base": "0-151-AL-CLX19",
+        "valor": 30,
+        "tipo_calculo": "Descuento (mm)",
+        "unidad": "m",
+        "color_key": "bottomrail",
+        "reglas": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina"
+      },
+      {
+        "componente_tipo": "Soporte lado del control",
+        "sku_base": "0-154-PB-E04WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Soporte del lado del end plug",
+        "sku_base": "0-154-PB-E03WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "End Plug",
+        "sku_base": "0-154-PE-00501",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Chapita",
+        "sku_base": "0-154-PS-00500",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Cadena",
+        "sku_base": "0-151-CH-XXXH0",
+        "valor": 2,
+        "tipo_calculo": "Factor (alto)",
+        "unidad": "m",
+        "color_key": "cadena",
+        "reglas": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina"
+      },
+      {
+        "componente_tipo": "Control de cortina",
+        "sku_base": "0-154-CL-V20XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "control",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Pesa de cadena",
+        "sku_base": "0-151-CA-001XX",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "pesa",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Tapaderas de bottomrail",
+        "sku_base": "0-151-RE-XXX00",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "tapaderas",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Topes de cadena",
+        "sku_base": "0-151-CA-100XX",
+        "valor": 2,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": "topes",
+        "reglas": "Se sustituye la X en base al color de la tela seleccionado"
+      },
+      {
+        "componente_tipo": "Adaptador para tubo de 50mm",
+        "sku_base": "0-154-AD-RA250",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco"
+      },
+      {
+        "componente_tipo": "Control de cortina VTX30",
+        "sku_base": "0-154-CL-V30WH",
+        "valor": 1,
+        "tipo_calculo": "Cantidad fija",
+        "unidad": "EA",
+        "color_key": null,
+        "reglas": "No existen otros colores que no sea blanco, al tener una cortina en estos tamaños sugerir el cambio por el control grande, dejarlo a criterio del personal de bodega"
+      }
+    ]
+  }
+]

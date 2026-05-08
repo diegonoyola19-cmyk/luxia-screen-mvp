@@ -8,10 +8,58 @@ import { summarizeOrdersProduction, summarizeProduction } from '../../../lib/pro
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { downloadSavedOrders, importSavedOrdersFile } from '../../../lib/orderTransfer';
 import { downloadCsvReport } from '../../../lib/csvExport';
-import {
-  downloadSageOrderEntry,
-  getSageExportableLineCount,
-} from '../../../lib/sageExport';
+import { downloadSageOrderEntry, getSageExportableLineCount } from '../../../lib/sageExport';
+import { generateRollerBOM, TONE_COLOR_MAP, type BOMItem } from '../../../logic/generateRollerBOM';
+import { getHWDesc, type Tone } from '../../../logic/rollerEngineV3';
+
+// ── BOM display helpers (compartidos con ProductionModuleV2) ──────────────
+const M_TO_FT = 3.28084;
+
+function colorFromSKU(sku: string): string | null {
+  if (sku.includes('AL-CLW')) return 'White';
+  if (sku.includes('AL-CLI')) return 'Ivory';
+  if (sku.includes('AL-CLA')) return 'Grey';
+  if (sku.includes('AL-CLZ')) return 'Bronze';
+  if (sku.includes('CH-WH') || sku.includes('CH-007')) return 'White';
+  if (sku.includes('CH-IV') || sku.includes('CH-003')) return 'Ivory';
+  if (sku.includes('CH-006')) return 'Grey';
+  if (sku.includes('CH-012')) return 'Bronze';
+  if (sku.includes('V20WH')) return 'White';
+  if (sku.includes('V20IV')) return 'Ivory';
+  if (sku.includes('V20GR')) return 'Grey';
+  if (sku.includes('V20BR')) return 'Bronze';
+  if (sku.includes('CA-001WH')) return 'White';
+  if (sku.includes('CA-001IY') || sku.includes('CA-001IV')) return 'Ivory';
+  if (sku.includes('CA-001GY')) return 'Grey';
+  if (sku.includes('CA-001BZ')) return 'Bronze';
+  if (sku.includes('CA-100WH')) return 'White';
+  if (sku.includes('CA-100IV')) return 'Ivory';
+  if (sku.includes('CA-100GR')) return 'Grey';
+  if (sku.includes('CA-100BZ')) return 'Bronze';
+  if (sku.includes('RE-005')) return 'White';
+  if (sku.includes('RE-112')) return 'Ivory';
+  if (sku.includes('RE-026')) return 'Grey';
+  if (sku.includes('RE-105')) return 'Bronze';
+  return null;
+}
+
+function bomDisplayLabel(componente: string, skuFinal: string): string {
+  const color = colorFromSKU(skuFinal);
+  const short = componente
+    .replace('Tubo de 38mm NEO', 'Tubo NEO')
+    .replace('Tubo de 38mm Normal', 'Tubo Normal')
+    .replace('Tubo de 50 mm', 'Tubo 50mm')
+    .replace('Tubo de 50mm', 'Tubo 50mm')
+    .replace('Soporte lado del control', 'Soporte Control')
+    .replace('Soporte del lado del end plug', 'Soporte End Plug')
+    .replace('Control de cortina VTX30', 'Control VTX30')
+    .replace('Control de cortina', 'Control')
+    .replace('Pesa de cadena', 'Pesa')
+    .replace('Tapaderas de bottomrail', 'Tapaderas')
+    .replace('Topes de cadena', 'Topes')
+    .replace('Adaptador para tubo de 50mm', 'Adaptador 50mm');
+  return color ? `${short} ${color}` : short;
+}
 
 interface OrderReportRow {
   order: SavedOrder;
@@ -72,6 +120,16 @@ function getRealWastePercentage(
 ) {
   const totalMaterialUsed = downloadedArea + reusedArea;
   return totalMaterialUsed === 0 ? 0 : (wasteArea / totalMaterialUsed) * 100;
+}
+
+function deriveAutoTone(fabricColor: string): Tone {
+  const c = fabricColor.toLowerCase();
+  if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke')) return 'grey';
+  if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('linen') ||
+      c.includes('bisque') || c.includes('taupe') || c.includes('off white') || c.includes('fawn')) return 'ivory';
+  if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
+      c.includes('gold') || c.includes('custard')) return 'bronze';
+  return 'white';
 }
 
 function MetricInfo({
@@ -243,16 +301,36 @@ export function SavedOrdersPanel() {
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const isMobile = useIsMobile(640);
   const detailMotion = isMobile
-    ? {
-        initial: { opacity: 0, y: 28 },
-        animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: 16 },
-      }
-    : {
-        initial: { opacity: 0, x: 28 },
-        animate: { opacity: 1, x: 0 },
-        exit: { opacity: 0, x: 16 },
-      };
+    ? { initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 16 } }
+    : { initial: { opacity: 0, x: 28 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 16 } };
+
+  // BOM consolidado de la orden seleccionada (suma todos los componentes de cada cortina)
+  const orderBOM = useMemo((): BOMItem[] => {
+    if (!selectedRow) return [];
+    const aggregated = new Map<string, BOMItem>();
+    for (const item of selectedRow.order.items) {
+      const tone = deriveAutoTone(item.input.fabricColor ?? '');
+      try {
+        const bom = generateRollerBOM(
+          item.input.widthMeters,
+          item.input.heightMeters,
+          TONE_COLOR_MAP[tone]
+        );
+        for (const bomItem of bom.items) {
+          const existing = aggregated.get(bomItem.skuFinal);
+          if (existing) {
+            aggregated.set(bomItem.skuFinal, {
+              ...existing,
+              cantidadCalculada: parseFloat((existing.cantidadCalculada + bomItem.cantidadCalculada).toFixed(3)),
+            });
+          } else {
+            aggregated.set(bomItem.skuFinal, { ...bomItem });
+          }
+        }
+      } catch { /* dimensiones inválidas, skip */ }
+    }
+    return Array.from(aggregated.values());
+  }, [selectedRow]);
 
   const reusedWasteArea = selectedRow
     ? selectedRow.order.items.reduce(
@@ -331,21 +409,43 @@ export function SavedOrdersPanel() {
         </article>
       </div>
 
-      <details className="project-detail-block">
-        <summary>Componentes y tubos</summary>
-        <div className="component-summary__list component-summary__list--compact" style={{ marginTop: '12px' }}>
-          {selectedRow.summary.fixedComponents.map((component) => (
-            <article
-              key={`${component.name}-${component.unit}`}
-              className="component-summary__item"
-            >
-              <span>
-                {component.name} - {formatNumber(component.quantity, 0)} {component.unit}
-              </span>
-              <strong>${formatNumber(component.totalCost)}</strong>
-            </article>
-          ))}
-        </div>
+      <details className="project-detail-block" open>
+        <summary>Herrajes · BOM ({orderBOM.length} componentes)</summary>
+        {orderBOM.length > 0 ? (
+          <div style={{ marginTop: '8px', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+              <thead>
+                <tr style={{ background: 'rgba(0,0,0,0.12)' }}>
+                  {['Componente', 'SKU', 'Cant. Total'].map(h => (
+                    <th key={h} style={{ padding: '0.35rem 0.5rem', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orderBOM.map((item, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid rgba(128,128,128,0.12)' }}>
+                    <td style={{ padding: '0.3rem 0.5rem' }}>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>
+                        {bomDisplayLabel(item.componente, item.skuFinal)}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '1px' }}>
+                        {getHWDesc(item.skuFinal) ?? item.componente}
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.3rem 0.5rem', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.68rem' }}>{item.skuFinal}</td>
+                    <td style={{ padding: '0.3rem 0.5rem', fontWeight: 600, whiteSpace: 'nowrap', color: '#818cf8' }}>
+                      {item.unidad === 'm'
+                        ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft`
+                        : `${item.cantidadCalculada} EA`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '8px' }}>Sin datos — verifica que las cortinas tengan dimensiones válidas.</p>
+        )}
       </details>
 
       <details className="project-detail-block">

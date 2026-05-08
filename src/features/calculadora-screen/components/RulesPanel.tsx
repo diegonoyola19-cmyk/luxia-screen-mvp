@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { COMPONENT_CATEGORY_OPTIONS, TONE_GROUP_OPTIONS } from '../../../domain/curtains/constants';
-import type { ComponentCategory, ToneGroup } from '../../../domain/curtains/types';
+import type { ComponentCategory, ToneGroup, CurtainType } from '../../../domain/curtains/types';
 import {
   getCatalogItemLabel,
   getToneLabel,
@@ -24,7 +24,7 @@ const tabs: Array<{ id: RulesTab; label: string }> = [
   { id: 'calculation', label: 'Calculo' },
   { id: 'catalog', label: 'Catalogo' },
   { id: 'tones', label: 'Tonos' },
-  { id: 'recipe', label: 'Receta Screen' },
+  { id: 'recipe', label: 'Recetas de Componentes' },
 ];
 
 export function RulesPanel() {
@@ -377,11 +377,15 @@ const CONDITION_GROUPS = [
 
 function RecipeSection() {
   const store = useCalculatorStore();
-  const [selectedId, setSelectedId] = useState<string | null>(
-    store.screenRecipe.components[0]?.id ?? null,
-  );
+  const [activeType, setActiveType] = useState<CurtainType>('screen');
+  const currentRecipe = store.recipes[activeType];
 
-  const selectedComponent = store.screenRecipe.components.find(
+  const [selectedId, setSelectedId] = useState<string | null>(
+    currentRecipe?.components[0]?.id ?? null,
+  );
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
+
+  const selectedComponent = currentRecipe?.components.find(
     (c) => c.id === selectedId,
   );
 
@@ -416,7 +420,7 @@ function RecipeSection() {
   function handleSameForAllChange(itemCode: string) {
     if (!selectedComponent) return;
     TONE_GROUP_OPTIONS.forEach((t) => {
-      store.updateRecipeItem(selectedComponent.id, t.value, itemCode);
+      store.updateRecipeItem(activeType, selectedComponent.id, t.value, itemCode);
     });
   }
 
@@ -454,13 +458,44 @@ function RecipeSection() {
         </div>
       </div>
 
+      <div className="recipe-type-tabs" style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Button 
+          type="button"
+          variant={activeType === 'screen' ? 'primary' : 'secondary'} 
+          onClick={() => { setActiveType('screen'); setSelectedId(null); setIsEditingConfig(false); }}
+        >
+          Screen / Roller
+        </Button>
+        <Button 
+          type="button"
+          variant={activeType === 'neollux' ? 'primary' : 'secondary'} 
+          onClick={() => { setActiveType('neollux'); setSelectedId(null); setIsEditingConfig(false); }}
+        >
+          Neollux
+        </Button>
+        <Button 
+          type="button"
+          variant={activeType === 'vertical' ? 'primary' : 'secondary'} 
+          onClick={() => { setActiveType('vertical'); setSelectedId(null); setIsEditingConfig(false); }}
+        >
+          Verticales
+        </Button>
+        <Button 
+          type="button"
+          variant={activeType === 'wood' ? 'primary' : 'secondary'} 
+          onClick={() => { setActiveType('wood'); setSelectedId(null); setIsEditingConfig(false); }}
+        >
+          Madera
+        </Button>
+      </div>
+
       <div className="recipe-layout">
         {/* LEFT — Component list */}
         <aside className="recipe-list">
           {CONDITION_GROUPS.map((group) => {
-            const components = store.screenRecipe.components.filter(
+            const components = currentRecipe?.components.filter(
               (c) => (c.condition ?? 'always') === group.key,
-            );
+            ) ?? [];
             if (components.length === 0) return null;
             return (
               <div key={group.key} className="recipe-list__group">
@@ -493,10 +528,52 @@ function RecipeSection() {
               </div>
             );
           })}
+          <Button 
+            type="button" 
+            variant="secondary" 
+            style={{ marginTop: 16, width: '100%', borderStyle: 'dashed' }}
+            onClick={() => {
+              setSelectedId('new');
+              setIsEditingConfig(true);
+            }}
+          >
+            ＋ Agregar Componente
+          </Button>
         </aside>
 
         {/* RIGHT — Detail panel */}
-        {selectedComponent ? (
+        {selectedId === 'new' || (selectedComponent && isEditingConfig) ? (
+          <RecipeComponentEditor
+            component={selectedComponent ?? null}
+            onSave={(data) => {
+              if (selectedId === 'new') {
+                store.addRecipeComponent(activeType, {
+                  ...data,
+                  itemByTone: { white: '', bronze: '', ivory: '', grey: '' },
+                });
+                toast.success(`Componente agregado a la receta de ${activeType}`);
+              } else if (selectedComponent) {
+                store.updateRecipeComponentConfig(activeType, selectedComponent.id, data);
+                toast.success('Componente actualizado');
+              }
+              setIsEditingConfig(false);
+              if (selectedId === 'new') {
+                // Focus will ideally go to the newly created component, but setSelectedId(null) resets to top
+                setSelectedId(null);
+              }
+            }}
+            onCancel={() => {
+              setIsEditingConfig(false);
+              if (selectedId === 'new') setSelectedId(null);
+            }}
+            onDelete={selectedComponent ? () => {
+              store.removeRecipeComponent(activeType, selectedComponent.id);
+              toast.success('Componente eliminado');
+              setIsEditingConfig(false);
+              setSelectedId(null);
+            } : undefined}
+          />
+        ) : selectedComponent ? (
           <div className="recipe-detail">
             {/* Header */}
             <div className="recipe-detail__header">
@@ -515,6 +592,14 @@ function RecipeSection() {
                     {CONDITION_GROUPS.find((g) => g.key === selectedComponent.condition)?.label}
                   </span>
                 ) : null}
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  style={{ marginLeft: 8, padding: '4px 8px', fontSize: '12px' }}
+                  onClick={() => setIsEditingConfig(true)}
+                >
+                  ✎ Editar
+                </Button>
               </div>
               {previewItem?.imageUrl ? (
                 <img
@@ -558,7 +643,7 @@ function RecipeSection() {
                     value={selectedComponent.itemByTone[tone.value] ?? ''}
                     items={selectedOptions}
                     onChange={(itemCode) =>
-                      store.updateRecipeItem(selectedComponent.id, tone.value, itemCode)
+                      store.updateRecipeItem(activeType, selectedComponent.id, tone.value, itemCode)
                     }
                   />
                 ))
@@ -744,5 +829,112 @@ function RuleNumberField({
       />
       {error ? <small className="field__error">{error}</small> : null}
     </label>
+  );
+}
+
+export function RecipeComponentEditor({
+  component,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  component: {
+    label: string;
+    category: ComponentCategory;
+    quantityMode: 'fixed' | 'widthMeters' | 'heightMeters' | 'tubeFeet' | 'bottomFeet' | 'chainFeet';
+    condition: 'always' | 'motorized_only' | 'manual_only' | 'large_tube_only';
+  } | null;
+  onSave: (data: any) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const [label, setLabel] = useState(component?.label ?? '');
+  const [category, setCategory] = useState<ComponentCategory>(component?.category ?? 'other');
+  const [quantityMode, setQuantityMode] = useState(component?.quantityMode ?? 'fixed');
+  const [condition, setCondition] = useState(component?.condition ?? 'always');
+
+  const isNew = !component;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) return;
+    onSave({ label: label.trim(), category, quantityMode, condition });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="recipe-detail recipe-detail--editor">
+      <div className="recipe-detail__header">
+        <strong>{isNew ? 'Nuevo Componente' : 'Editar Componente'}</strong>
+      </div>
+      
+      <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
+        <label className="field">
+          <span>Nombre del Ítem</span>
+          <input 
+            type="text" 
+            value={label} 
+            onChange={e => setLabel(e.target.value)} 
+            placeholder="Ej: Tubo Reforzado" 
+            autoFocus
+            required
+          />
+        </label>
+        
+        <label className="field">
+          <span>Categoría</span>
+          <select value={category} onChange={e => setCategory(e.target.value as ComponentCategory)}>
+            {COMPONENT_CATEGORY_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </label>
+        
+        <label className="field">
+          <span>Modo de Cantidad (Quantity Mode)</span>
+          <select value={quantityMode} onChange={e => setQuantityMode(e.target.value as any)}>
+            <option value="fixed">Fijo (ej. 1 unidad)</option>
+            <option value="widthMeters">Por Ancho (metros)</option>
+            <option value="heightMeters">Por Alto (metros)</option>
+            <option value="tubeFeet">Por Tubo (pies lineales)</option>
+            <option value="bottomFeet">Por Base (pies lineales)</option>
+            <option value="chainFeet">Por Cadena (pies lineales)</option>
+          </select>
+        </label>
+        
+        <label className="field">
+          <span>Condición</span>
+          <select value={condition} onChange={e => setCondition(e.target.value as any)}>
+            <option value="always">Siempre</option>
+            <option value="manual_only">Solo Manual</option>
+            <option value="motorized_only">Solo Motorizado</option>
+            <option value="large_tube_only">Tubo Reforzado</option>
+          </select>
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+        <Button type="submit" variant="primary">
+          {isNew ? 'Crear Componente' : 'Guardar Cambios'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancelar
+        </Button>
+        {!isNew && onDelete && (
+          <div style={{ marginLeft: 'auto' }}>
+            <Button 
+              type="button" 
+              variant="danger" 
+              onClick={() => {
+                if (window.confirm('¿Estás seguro de eliminar este componente de la receta? Esta acción no se puede deshacer.')) {
+                  onDelete();
+                }
+              }}
+            >
+              Eliminar Componente
+            </Button>
+          </div>
+        )}
+      </div>
+    </form>
   );
 }

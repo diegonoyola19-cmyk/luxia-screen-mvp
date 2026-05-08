@@ -162,7 +162,7 @@ export const createOrderSlice: StateCreator<
       cuttingGroups,
       productionInventory,
       ruleConfig,
-      screenRecipe,
+      recipes,
       fabricToneRules,
       catalogItems,
     } = get();
@@ -308,7 +308,7 @@ export const createOrderSlice: StateCreator<
       const recipeResolution = resolveScreenRecipeMaterials(
         batchItem.input,
         calculatedResult,
-        screenRecipe,
+        recipes.screen,
         fabricToneRules,
         catalogItems,
       );
