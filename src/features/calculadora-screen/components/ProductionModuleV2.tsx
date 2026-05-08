@@ -149,11 +149,11 @@ export function ProductionModuleV2() {
 
   const autoTone = useMemo((): Tone => {
     const c = (store.formValues.fabricColor ?? '').toLowerCase();
-    if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke')) return 'grey';
+    if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke') || c.includes('slate') || c.includes('graphite')) return 'grey';
     if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('linen') ||
         c.includes('bisque') || c.includes('taupe') || c.includes('off white') || c.includes('fawn')) return 'ivory';
     if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
-        c.includes('gold') || c.includes('custard')) return 'bronze';
+        c.includes('gold') || c.includes('custard') || c.includes('black') || c.includes('charcoal') || c.includes('dark') || c.includes('onyx')) return 'bronze';
     return 'white';
   }, [store.formValues.fabricColor]);
 
@@ -861,3 +861,4 @@ export function ProductionModuleV2() {
     </div>
   );
 }
+

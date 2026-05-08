@@ -13,7 +13,7 @@ export function parseDecimalValue(value: string) {
 
 export function parseFormValues(values: CalculationFormValues): Partial<CalculationInput> {
   return {
-    curtainType: values.curtainType,
+    curtainType: values.curtainType || 'screen',
     fabricFamily: values.fabricFamily,
     fabricOpenness: values.fabricOpenness,
     fabricColor: values.fabricColor,
