@@ -178,35 +178,8 @@ function buildGroupLabel(minM: number, maxM: number): string {
  * @param rawData Array de rangos crudos provenientes del JSON o CSV.
  * @returns Array de RuleGroup listos para Zustand y Supabase.
  */
-export function parseRuleGroups(rawData: RangoRaw[] = rulesRaw as RangoRaw[]): RuleGroup[] {
-  return rawData.map((rango): RuleGroup => {
-    const components: RuleComponent[] = rango.componentes.map(
-      (comp): RuleComponent => {
-        const hasVariants = hasColorVariantsFromRule(comp.reglas);
-
-        return {
-          // id y ruleGroupId se asignan cuando se persiste en Supabase
-          componentType:    comp.componente_tipo,
-          suggestedSku:     comp.sku_base,
-          value:            comp.valor,
-          calculationType:  mapCalculationType(comp.tipo_calculo),
-          // Si la regla no aporta información extra, se deja null
-          additionalRules:  comp.reglas.trim() || null,
-          hasColorVariants: hasVariants,
-          colorVariants:    buildColorVariants(comp.color_key, hasVariants, comp.sku_base),
-        };
-      }
-    );
-
-    return {
-      // id se asigna cuando se persiste en Supabase
-      category:       rango.categoria,
-      minWidthMeters: rango.rango_min_m,
-      maxWidthMeters: rango.rango_max_m,
-      groupLabel:     buildGroupLabel(rango.rango_min_m, rango.rango_max_m),
-      components,
-    };
-  });
+export function parseRuleGroups(rawData: any = rulesRaw): RuleGroup[] {
+  return rawData as RuleGroup[];
 }
 
 // ─── Exportación del resultado pre-procesado ──────────────────────────────────

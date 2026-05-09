@@ -356,8 +356,8 @@ export function resolveHardwareRecipeFromBOM(
 ): RecipeLine[] {
 
   // 1. Generar BOM data-driven
-  const colorMap = TONE_COLOR_MAP[tone];
-  const { items } = generateRollerBOM(widthM, heightM, colorMap);
+  // 1. Generar BOM data-driven
+  const { items } = generateRollerBOM(widthM, heightM, tone);
 
   // 2. Enriquecer con catálogo
   const lines: RecipeLine[] = items.map((item): RecipeLine => {
