@@ -309,12 +309,15 @@ export function SavedOrdersPanel() {
     if (!selectedRow) return [];
     const aggregated = new Map<string, BOMItem>();
     for (const item of selectedRow.order.items) {
-      const tone = deriveAutoTone(item.input.fabricColor ?? '');
+      // Usar el tono persistido en el input; si no existe (órdenes antiguas), derivar del color de tela
+      const tone = item.input.hardwareTone ?? deriveAutoTone(item.input.fabricColor ?? '');
+      const mounting = item.input.mountingSystem ?? 'standard';
       try {
         const bom = generateRollerBOM(
           item.input.widthMeters,
           item.input.heightMeters,
-          TONE_COLOR_MAP[tone]
+          tone as import('../../../logic/generateRollerBOM').Tone,
+          mounting
         );
         for (const bomItem of bom.items) {
           const existing = aggregated.get(bomItem.skuFinal);

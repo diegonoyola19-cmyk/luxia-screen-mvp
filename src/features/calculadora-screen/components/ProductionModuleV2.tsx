@@ -144,9 +144,9 @@ export function ProductionModuleV2() {
   const [useManualRetazo, setUseManualRetazo] = useState(false);
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
 
-  // ── Tono de herrajes: auto del color de tela, pero siempre editable ───────────
-  const [toneOverride, setToneOverride] = useState<Tone | null>(null);
-
+  // -- Tono de herrajes: conectado al store para persistir en saveOrder ----------
+  const toneOverride = store.hardwareTone as Tone | null;
+  const setToneOverride = (t: Tone | null) => store.setHardwareTone(t);
   const autoTone = useMemo((): Tone => {
     const c = (store.formValues.fabricColor ?? '').toLowerCase();
     if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke') || c.includes('slate') || c.includes('graphite')) return 'grey';
@@ -190,9 +190,9 @@ export function ProductionModuleV2() {
     const w = parsedFormValues?.widthMeters ?? 0;
     const h = parsedFormValues?.heightMeters ?? 0;
     if (w <= 0 || h <= 0) return [];
-    try { return generateRollerBOM(w, h, TONE_COLOR_MAP[activeTone]).items; }
+    try { return generateRollerBOM(w, h, activeTone, store.mountingSystem ?? 'standard').items; }
     catch { return []; }
-  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone]);
+  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem]);
 
 
 
@@ -237,6 +237,9 @@ export function ProductionModuleV2() {
   };
 
   const handleSaveOrder = async () => {
+    // Siempre persistir el tono activo (auto o manual) en el store ANTES de guardar,
+    // para que orderSlice.saveOrder use el mismo tono que muestra la UI.
+    store.setHardwareTone(activeTone);
     try { setIsSaving(true); store.saveOrder(); }
     finally { setIsSaving(false); }
   };
@@ -746,6 +749,30 @@ export function ProductionModuleV2() {
                 ))}
               </div>
             </div>
+            {/* Sistema de Montaje */}
+            <div className="pv2-sys-section">
+              <span className="pv2-label">Sistema de Montaje</span>
+              <div className="pv2-sys-toggle-group" style={{ flexWrap: "wrap" }}>
+                {([
+                  { val: 'standard'       as const, label: 'Est\u00e1ndar',      icon: 'grid_view' },
+                  { val: 'pin_endplug'   as const, label: 'Pin EndPlug',   icon: 'push_pin' },
+                  { val: 'double_bracket' as const, label: 'Bracket Doble', icon: 'view_column' },
+                ]).map(({ val, label, icon }) => {
+                  const isActive = (store.mountingSystem ?? 'standard') === val;
+                  return (
+                    <button
+                      key={val}
+                      className={isActive ? "pv2-sys-toggle pv2-sys-toggle--active" : "pv2-sys-toggle"}
+                      onClick={() => store.setMountingSystem(val)}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
 
             {/* Tono de herrajes — auto + override manual */}
             <div className="pv2-sys-section">
@@ -773,7 +800,7 @@ export function ProductionModuleV2() {
                     <button
                       key={val}
                       className={`pv2-sys-toggle ${activeTone === val ? 'pv2-sys-toggle--active' : ''}`}
-                      onClick={() => setToneOverride(val === autoTone && toneOverride === null ? null : val)}
+                      onClick={() => setToneOverride(val)}
                       title={isAuto ? 'Auto-detectado del color de tela' : ''}
                     >
                       <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />

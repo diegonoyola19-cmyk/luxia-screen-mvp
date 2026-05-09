@@ -1,8 +1,9 @@
-import { StateCreator } from 'zustand';
+﻿import { StateCreator } from 'zustand';
 import { CalculatorStore, CalculationSlice } from '../types';
 import { DEFAULT_FORM_VALUES, generateId } from '../../../../domain/curtains/constants';
 import { getRollerFabricSelectionDefaults, getRollerFabricOpennessOptions, getRollerFabricColorOptions } from '../../../../lib/priceCatalog';
 import { formatNumber } from '../../../../lib/format';
+import type { MountingSystem, HardwareTone } from '../../../../domain/curtains/types';
 // storage removed
 import { optimizeCuts } from '../../../../domain/curtains/cuttingOptimizer';
 
@@ -67,6 +68,8 @@ export const createCalculationSlice = (
     blurredFields: { widthMeters: false, heightMeters: false },
     itemsAProducir: [],
     cuttingGroups: [],
+    hardwareTone: null,
+    mountingSystem: 'standard' as MountingSystem,
 
     setFormValues: (updater) => set((state) => ({ formValues: typeof updater === 'function' ? updater(state.formValues) : updater })),
     
@@ -128,6 +131,9 @@ export const createCalculationSlice = (
       errors: { ...state.errors, general: undefined },
       blurredFields: { widthMeters: false, heightMeters: false },
     })),
+
+    setHardwareTone: (tone: HardwareTone | null) => set({ hardwareTone: tone }),
+    setMountingSystem: (system: MountingSystem) => set({ mountingSystem: system }),
 
     addToHistory: (displayResult, parsedFormValues) => {
       const { formValues } = get();

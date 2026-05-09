@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   CalculationFormValues,
   CalculationInput,
   CalculationResult,
@@ -22,6 +22,8 @@ import type {
   ProductionBatchItem,
   CurtainType,
   RecipeComponentRule,
+  MountingSystem,
+  HardwareTone,
 } from '../../../domain/curtains/types';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
@@ -62,6 +64,10 @@ export interface CalculationSlice {
   cuttingGroups: CuttingGroup[];
   addProductionItem: (item: ProductionBatchItem) => void;
   removeProductionItem: (id: string) => void;
+  hardwareTone: HardwareTone | null;
+  mountingSystem: MountingSystem;
+  setHardwareTone: (tone: HardwareTone | null) => void;
+  setMountingSystem: (system: MountingSystem) => void;
   recalculateOptimizedGroups: (getAvailableWidths: (f: string, o: string, c: string) => number[]) => void;
 }
 

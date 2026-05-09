@@ -158,6 +158,8 @@ export const createOrderSlice: StateCreator<
       cuttingGroups,
       productionInventory,
       ruleConfig,
+      hardwareTone,
+      mountingSystem,
     } = get();
     const trimmedOrderNumber = orderDraft.orderNumber.trim();
 
@@ -298,16 +300,20 @@ export const createOrderSlice: StateCreator<
           linearDownloadedFeetByItem.get(batchItem.id) ?? baseResult.bottomRailFeet,
       };
 
-      const colorLower = batchItem.input.fabricColor.toLowerCase();
-      let toneGroup = 'white';
-      if (colorLower.includes('grey') || colorLower.includes('gray') || colorLower.includes('slate') || colorLower.includes('graphite')) toneGroup = 'grey';
-      else if (colorLower.includes('black') || colorLower.includes('charcoal') || colorLower.includes('dark') || colorLower.includes('onyx') || colorLower.includes('chocolate')) toneGroup = 'bronze';
-      else if (colorLower.includes('ivory') || colorLower.includes('beige') || colorLower.includes('sand') || colorLower.includes('pearl') || colorLower.includes('linen')) toneGroup = 'ivory';
+      // Tono: respetar seleccion manual; auto-inferir solo si no hay override
+      const resolvedTone: string = hardwareTone ?? (() => {
+        const colorLower = batchItem.input.fabricColor.toLowerCase();
+        if (colorLower.includes('grey') || colorLower.includes('gray') || colorLower.includes('slate') || colorLower.includes('graphite')) return 'grey';
+        if (colorLower.includes('black') || colorLower.includes('charcoal') || colorLower.includes('dark') || colorLower.includes('onyx') || colorLower.includes('chocolate')) return 'bronze';
+        if (colorLower.includes('ivory') || colorLower.includes('beige') || colorLower.includes('sand') || colorLower.includes('pearl') || colorLower.includes('linen')) return 'ivory';
+        return 'white';
+      })();
+      const toneGroup = resolvedTone;
 
       let materialLines: any[] = [];
       let warnings: string[] = [];
       try {
-        const bom = generateRollerBOM(batchItem.input.widthMeters, batchItem.input.heightMeters, TONE_COLOR_MAP[toneGroup]);
+        const bom = generateRollerBOM(batchItem.input.widthMeters, batchItem.input.heightMeters, toneGroup as import('../../../../logic/generateRollerBOM').Tone, mountingSystem ?? 'standard');
         materialLines = bom.items.map(item => ({
           id: `auto-${item.skuFinal}`,
           itemCode: item.skuFinal,
@@ -347,7 +353,13 @@ export const createOrderSlice: StateCreator<
         id: batchItem.id,
         createdAt: new Date().toISOString(),
         title: `Cortina ${idx + 1}`,
-        input: batchItem.input,
+        // Persistir el tono resuelto y el sistema de montaje en el input
+        // para que SavedOrdersPanel pueda reconstruir el BOM exacto.
+        input: {
+          ...batchItem.input,
+          hardwareTone: resolvedTone as import('../../../../domain/curtains/types').HardwareTone,
+          mountingSystem: mountingSystem ?? 'standard',
+        },
         result: resultWithMaterials,
         materialLines: materialLines,
         materialWarnings: warnings,

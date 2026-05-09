@@ -1,5 +1,8 @@
 export type CurtainType = 'screen' | 'neollux' | 'vertical' | 'wood';
 
+/** Sistema de montaje de la cortina Roller — afecta los componentes de herraje */
+export type MountingSystem = 'standard' | 'pin_endplug' | 'double_bracket';
+
 export type ComponentCategory =
   | 'fabric'
   | 'tube'
@@ -89,9 +92,14 @@ export interface ResolvedMaterialLine {
 
 export type DriveType = 'manual' | 'motorized';
 
+/** Tono de herraje seleccionado por el usuario (null = auto desde color de tela) */
+export type HardwareTone = 'white' | 'ivory' | 'grey' | 'bronze';
+
 export interface CalculationInput {
   driveType?: DriveType;
   curtainType: CurtainType;
+  mountingSystem?: MountingSystem;
+  hardwareTone?: HardwareTone;
   fabricFamily: string;
   fabricOpenness: string;
   fabricColor: string;
@@ -102,6 +110,8 @@ export interface CalculationInput {
 export interface CalculationFormValues {
   curtainType?: CurtainType;
   driveType?: DriveType;
+  mountingSystem?: MountingSystem;
+  hardwareTone?: HardwareTone;
   fabricFamily: string;
   fabricOpenness: string;
   fabricColor: string;
