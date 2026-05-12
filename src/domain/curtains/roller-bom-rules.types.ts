@@ -237,7 +237,7 @@ export interface CurtainOrderLine {
  */
 export interface ResolvedBomLine {
   componentType: string;
-  /** Final SKU after colour substitution — no placeholders remain. */
+  /** Final SKU after colour substitution — may still contain X if colorMap is not populated. */
   resolvedSku: string;
   /** Computed quantity (metres or EA) based on curtain dimensions. */
   quantity: number;
@@ -247,6 +247,18 @@ export interface ResolvedBomLine {
   notes: string;
   optional: boolean;
   recommended: boolean;
+  /**
+   * Set when SKU colour resolution failed.
+   * The `resolvedSku` must NOT be used as a final SKU when this field is present.
+   *
+   * Possible codes:
+   *   COLOR_SKU_NOT_FOUND         – tone has no entry in colorMaps[colorKey].
+   *   UNRESOLVED_SKU_PLACEHOLDER  – baseSku still has an X placeholder.
+   *   COLOR_NOT_SUPPORTED         – no tone specified or tone is unknown.
+   */
+  colorError?: "COLOR_SKU_NOT_FOUND" | "UNRESOLVED_SKU_PLACEHOLDER" | "COLOR_NOT_SUPPORTED";
+  /** Human-readable reason for the colorError, suitable for UI display. */
+  colorErrorMessage?: string;
 }
 
 /** Aggregated BOM result for a complete order line (one mounting group). */
@@ -277,11 +289,16 @@ export interface DoubleBracketValidationError {
     | "WIDTH_MISMATCH"
     | "NO_MATCHING_RULE"
     | "INVALID_DIMENSIONS"
-    /**
-     * Fired when a Roller Bracket Doble line exceeds 2.80 m without explicit
-     * customer approval (`riskAcceptedByCustomer: true`).
-     */
-    | "DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED";
+    | "DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED"
+    // ── Color resolution errors ───────────────────────────────────────────
+    /** No entry found in colorMaps[colorKey] for the requested color tone. */
+    | "COLOR_SKU_NOT_FOUND"
+    /** baseSku still contains an X/XX/XXX placeholder after resolution attempt. */
+    | "UNRESOLVED_SKU_PLACEHOLDER"
+    /** The tone requested by the order does not exist in any colorMap. */
+    | "COLOR_NOT_SUPPORTED";
   message: string;
   orderLineId: string;
+  /** Present on color-resolution errors to identify the offending component. */
+  componentType?: string;
 }

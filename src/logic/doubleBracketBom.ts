@@ -99,26 +99,143 @@ function findRule(
   );
 }
 
+// ─── Color resolution ────────────────────────────────────────────────────────
+
+/** SKU placeholder pattern: one or more contiguous X characters. */
+const SKU_PLACEHOLDER_RE = /X+/;
+
+export type ColorResolutionError =
+  | 'COLOR_SKU_NOT_FOUND'
+  | 'UNRESOLVED_SKU_PLACEHOLDER'
+  | 'COLOR_NOT_SUPPORTED';
+
+export interface ResolvedSkuResult {
+  resolvedSku: string;
+  /** Set when color resolution failed — the SKU should NOT be used as-is. */
+  colorError?: ColorResolutionError;
+  colorErrorMessage?: string;
+}
+
+/**
+ * Resolves the baseSku of a BomComponent by substituting X placeholders
+ * using the colorMaps registry and the requested tone.
+ *
+ * Error codes returned:
+ *   COLOR_SKU_NOT_FOUND      — colorKey exists but tone has no entry.
+ *   UNRESOLVED_SKU_PLACEHOLDER — SKU still has X after resolution.
+ *   COLOR_NOT_SUPPORTED      — tone not found in any colorMap entry.
+ */
+export function resolveSku(
+  baseSku: string,
+  colorKey: string | null,
+  tone: string | null | undefined,
+  colorMaps: Record<string, Record<string, string>>
+): ResolvedSkuResult {
+
+  // No colorKey → use baseSku as-is (but still warn if it has a placeholder)
+  if (!colorKey) {
+    if (SKU_PLACEHOLDER_RE.test(baseSku)) {
+      return {
+        resolvedSku: baseSku,
+        colorError: 'UNRESOLVED_SKU_PLACEHOLDER',
+        colorErrorMessage:
+          `El SKU "${baseSku}" contiene un placeholder (X) pero no tiene colorKey. ` +
+          `No existe SKU configurado para el color seleccionado en este componente.`,
+      };
+    }
+    return { resolvedSku: baseSku };
+  }
+
+  const map = colorMaps[colorKey];
+
+  // colorKey exists in schema but no tone requested
+  if (!tone) {
+    if (SKU_PLACEHOLDER_RE.test(baseSku)) {
+      return {
+        resolvedSku: baseSku,
+        colorError: 'COLOR_NOT_SUPPORTED',
+        colorErrorMessage:
+          'No se especificó un tono de herrajes. El SKU no puede resolverse. ' +
+          'No existe SKU configurado para el color seleccionado en este componente.',
+      };
+    }
+    return { resolvedSku: baseSku };
+  }
+
+  // colorMap is empty or not present → catalog not yet populated (known gap)
+  if (!map || Object.keys(map).length === 0) {
+    if (SKU_PLACEHOLDER_RE.test(baseSku)) {
+      return {
+        resolvedSku: baseSku,
+        colorError: 'COLOR_SKU_NOT_FOUND',
+        colorErrorMessage:
+          `colorMaps["${colorKey}"] no tiene entradas configuradas para el tono "${tone}". ` +
+          `No existe SKU configurado para el color seleccionado en este componente. ` +
+          `Revisa el colorMap antes de generar el descargo.`,
+      };
+    }
+    return { resolvedSku: baseSku };
+  }
+
+  // Lookup tone in map
+  const suffix = map[tone];
+  if (!suffix) {
+    return {
+      resolvedSku: baseSku,
+      colorError: 'COLOR_SKU_NOT_FOUND',
+      colorErrorMessage:
+        `No existe SKU configurado para el tono "${tone}" en colorMaps["${colorKey}"]. ` +
+        `No existe SKU configurado para el color seleccionado en este componente. ` +
+        `Revisa el colorMap antes de generar el descargo.`,
+    };
+  }
+
+  // Replace all X-sequences with the resolved suffix
+  const resolved = baseSku.replace(/X+/g, suffix);
+
+  // Paranoid check: verify no placeholder remains
+  if (SKU_PLACEHOLDER_RE.test(resolved)) {
+    return {
+      resolvedSku: resolved,
+      colorError: 'UNRESOLVED_SKU_PLACEHOLDER',
+      colorErrorMessage:
+        `El SKU "${resolved}" todavía contiene un placeholder después de la resolución. ` +
+        `Verifica el patrón de sustituión en colorMaps["${colorKey}"]["${tone}"].`,
+    };
+  }
+
+  return { resolvedSku: resolved };
+}
+
 /**
  * Resolves a single BomComponent into a ResolvedBomLine for a given curtain.
+ * Accepts an optional tone + colorMaps for SKU colour substitution.
  */
 function resolveComponent(
   comp: BomComponent,
   widthM: number,
-  heightM: number
+  heightM: number,
+  tone?: string | null,
+  colorMaps?: Record<string, Record<string, string>>
 ): ResolvedBomLine {
   const quantity = computeQuantity(comp.calculation, widthM, heightM);
   const unit     = resolveUnit(comp.calculation);
 
+  const skuResult = colorMaps
+    ? resolveSku(comp.baseSku, comp.colorKey, tone ?? null, colorMaps)
+    : { resolvedSku: comp.baseSku };
+
   return {
     componentType: comp.componentType,
-    resolvedSku:   comp.baseSku,  // SKU colour resolution left to caller/colorMaps layer
+    resolvedSku:   skuResult.resolvedSku,
     quantity,
     unit,
-    scope:       comp.scope,
-    notes:       comp.notes,
-    optional:    comp.optional    ?? false,
-    recommended: comp.recommended ?? false,
+    scope:         comp.scope,
+    notes:         comp.notes,
+    optional:      comp.optional    ?? false,
+    recommended:   comp.recommended ?? false,
+    colorError:    skuResult.colorError,
+    colorErrorMessage: skuResult.colorErrorMessage,
   };
 }
 
