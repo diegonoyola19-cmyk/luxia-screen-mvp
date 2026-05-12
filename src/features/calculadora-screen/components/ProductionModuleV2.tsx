@@ -14,6 +14,8 @@ import { calcularDescargoRetazo } from '../../../domain/curtains/screen';
 import { generateRollerBOM, TONE_COLOR_MAP, type BOMItem } from '../../../logic/generateRollerBOM';
 import type { Tone } from '../../../logic/rollerEngineV3';
 import { getHWDesc } from '../../../logic/rollerEngineV3';
+import { useDoubleBracketWidthGuard } from '../hooks/useDoubleBracketWidthGuard';
+import { DoubleBracketWidthAlert } from './DoubleBracketWidthAlert';
 import './ProductionModuleV2.css';
 
 // ── BOM display helpers ───────────────────────────────────────────────────────
@@ -177,6 +179,13 @@ export function ProductionModuleV2() {
   const hasRetazos = typedMatches.length > 0 && hasValidDimensions;
   const usingWaste = Boolean(store.selectedWastePieceId);
 
+  // ── Bracket Doble width guard ───────────────────────────────────────────
+  // parsedFormValues ya está disponible aqui — seguro usarlo en el hook.
+  const widthGuard = useDoubleBracketWidthGuard({
+    widthM:         parsedFormValues?.widthMeters ?? 0,
+    mountingSystem: store.mountingSystem,
+  });
+
   // ── Cálculo de retazo manual ────────────────────────────────────────────────
   const manualRetazoVal = Number(manualRetazoSqYd) || 0;
   const retazoResult = displayResult && useManualRetazo && manualRetazoVal > 0
@@ -185,14 +194,16 @@ export function ProductionModuleV2() {
   const displayedYd2 = retazoResult?.alcanza ? retazoResult.descargar : displayResult?.fabricDownloadedYd2;
   const displayedWaste = retazoResult?.alcanza ? retazoResult.merma : displayResult?.wasteYd2;
 
-  // BOM: solo SKU + cantidad, sin consulta de inventario
+  // BOM: solo SKU + cantidad, sin consulta de inventario.
+  // Bloqueado si el operador canceló la autorización de bracket doble.
   const hwItems = useMemo((): BOMItem[] => {
     const w = parsedFormValues?.widthMeters ?? 0;
     const h = parsedFormValues?.heightMeters ?? 0;
     if (w <= 0 || h <= 0) return [];
+    if (widthGuard.approvalState === 'cancelled') return [];
     try { return generateRollerBOM(w, h, activeTone, store.mountingSystem ?? 'standard').items; }
     catch { return []; }
-  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem]);
+  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem, widthGuard.approvalState]);
 
 
 
@@ -225,7 +236,11 @@ export function ProductionModuleV2() {
 
     const item: ProductionBatchItem = {
       id: generateId(),
-      input: { ...(parsedFormValues as CalculationInput) },
+      input: {
+        ...(parsedFormValues as CalculationInput),
+        // Persisit specialFabrication metadata when applicable
+        ...(widthGuard.specialFabricationMeta ?? {}),
+      },
       reusedWastePiece: (selectedWasteMatch as WasteReuseMatch | null)?.wastePiece ?? null,
     };
     store.addProductionItem(item);
@@ -885,7 +900,44 @@ export function ProductionModuleV2() {
           </div>
         </div>
       </footer>
+
+      {/* ── Bracket Doble width guard modal (portal) ─────────────────────── */}
+      {widthGuard.needsConfirmation && (
+        <DoubleBracketWidthAlert
+          widthM={parsedFormValues?.widthMeters ?? 0}
+          onCancel={widthGuard.handleCancel}
+          onConfirm={widthGuard.handleConfirm}
+        />
+      )}
+
+      {/* ── Fabricación especial inline badge ────────────────────────────── */}
+      {widthGuard.approvalState === 'risk_accepted' && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '4.5rem',
+            right: '1rem',
+            zIndex: 8000,
+            background: 'rgba(239,68,68,0.12)',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: 10,
+            padding: '0.45rem 0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            fontSize: '0.72rem',
+            color: '#fca5a5',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+          Fabricación Especial · Riesgo asumido por cliente
+        </div>
+      )}
     </div>
   );
 }
+
+
 
