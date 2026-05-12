@@ -173,6 +173,7 @@ export function ProductionModuleV2() {
     colorWastePieces,
     selectedWasteMatch,
     hasValidDimensions,
+    displayErrors,
   } = useCalculatorDerivedState(false);
 
   const typedMatches = colorWasteMatches as WasteReuseMatch[];
@@ -238,6 +239,8 @@ export function ProductionModuleV2() {
       id: generateId(),
       input: {
         ...(parsedFormValues as CalculationInput),
+        mountingSystem: store.mountingSystem,
+        hardwareTone: activeTone,
         // Persisit specialFabrication metadata when applicable
         ...(widthGuard.specialFabricationMeta ?? {}),
       },
@@ -336,6 +339,11 @@ export function ProductionModuleV2() {
                   onChange={(e) => store.setFormValue('widthMeters', e.target.value)}
                   onBlur={() => store.handleFieldBlur('widthMeters')}
                 />
+                {displayErrors.widthMeters && (
+                  <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    {displayErrors.widthMeters}
+                  </div>
+                )}
               </div>
               <div className="pv2-field">
                 <label className="pv2-label">Alto (m)</label>
@@ -348,6 +356,11 @@ export function ProductionModuleV2() {
                   onChange={(e) => store.setFormValue('heightMeters', e.target.value)}
                   onBlur={() => store.handleFieldBlur('heightMeters')}
                 />
+                {displayErrors.heightMeters && (
+                  <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    {displayErrors.heightMeters}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -531,6 +544,7 @@ export function ProductionModuleV2() {
                 className="pv2-btn-primary pv2-btn-grow"
                 onClick={handleAddToBatch}
                 disabled={!canAdd}
+                title={displayErrors.general || 'Agregar a Lote'}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_box</span>
                 Agregar a Lote
@@ -544,6 +558,13 @@ export function ProductionModuleV2() {
               </button>
             </div>
           </div>
+
+          {displayErrors.general && (
+            <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px', padding: '8px', backgroundColor: '#fef2f2', borderRadius: '4px', border: '1px solid #fecaca' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>error</span>
+              {displayErrors.general}
+            </div>
+          )}
 
           {/* Save order dashed button */}
           <button

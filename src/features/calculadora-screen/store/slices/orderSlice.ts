@@ -7,6 +7,9 @@ import { applyOrderToInventory } from '../../../../lib/inventory';
 import { getAvailableWidths, resolveFabricSelection } from '../../../../lib/priceCatalog';
 import { calculateScreenMaterials } from '../../../../domain/curtains/screen';
 import { generateRollerBOM, TONE_COLOR_MAP } from '../../../../logic/generateRollerBOM';
+import { resolveGroupBom } from '../../../../logic/doubleBracketBom';
+import type { CurtainOrderLine } from '../../../../domain/curtains/roller-bom-rules.types';
+import rollerBomRulesConfig from '../../../../data/roller-bom-rules-v2.json';
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
 
@@ -225,6 +228,114 @@ export const createOrderSlice: StateCreator<
 
     const materialIssues: string[] = [];
     const linearDownloadedFeetByItem = calculateLinearDownloadedFeetByItem(itemsAProducir);
+    
+    // ─── Group items for BOM calculation ─────────────────────────────────────────
+    const curtainLines: CurtainOrderLine[] = [];
+    const pendingDoubleBrackets = new Map<number, ProductionBatchItem[]>();
+
+    const inferTone = (fabricColor: string): "white" | "ivory" | "grey" | "bronze" => {
+      const c = fabricColor.toLowerCase();
+      if (c.includes('grey') || c.includes('gray') || c.includes('slate') || c.includes('graphite')) return 'grey';
+      if (c.includes('black') || c.includes('charcoal') || c.includes('dark') || c.includes('onyx') || c.includes('chocolate')) return 'bronze';
+      if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('pearl') || c.includes('linen')) return 'ivory';
+      return 'white';
+    };
+
+    itemsAProducir.forEach((item) => {
+      const mounting = item.input.mountingSystem ?? 'standard';
+      const width = item.input.widthMeters;
+      const tone = (item.input.hardwareTone ?? inferTone(item.input.fabricColor)) as "white" | "ivory" | "grey" | "bronze";
+      
+      if (mounting === 'double_bracket') {
+        const existing = pendingDoubleBrackets.get(width) || [];
+        existing.push(item);
+        if (existing.length === 2) {
+          curtainLines.push({
+            orderLineId: `G-${existing[0].id}`,
+            category: 'Roller Bracket Doble',
+            mountingType: 'doubleBracket',
+            curtains: existing.map(e => ({
+              curtainId: e.id,
+              widthM: e.input.widthMeters,
+              heightM: e.input.heightMeters,
+              tone: (e.input.hardwareTone ?? inferTone(e.input.fabricColor)) as "white" | "ivory" | "grey" | "bronze"
+            }))
+          });
+          pendingDoubleBrackets.delete(width);
+        } else {
+          pendingDoubleBrackets.set(width, existing);
+        }
+      } else {
+        const category = mounting === 'pin_endplug' ? 'Roller Pin EndPlug' : 'Roller';
+        curtainLines.push({
+          orderLineId: `G-${item.id}`,
+          category: category,
+          mountingType: 'singleBracket',
+          curtains: [{
+            curtainId: item.id,
+            widthM: width,
+            heightM: item.input.heightMeters,
+            tone: tone
+          }]
+        });
+      }
+    });
+
+    for (const [width, items] of pendingDoubleBrackets.entries()) {
+      curtainLines.push({
+        orderLineId: `G-${items[0].id}`,
+        category: 'Roller Bracket Doble',
+        mountingType: 'doubleBracket',
+        curtains: items.map(e => ({
+          curtainId: e.id,
+          widthM: e.input.widthMeters,
+          heightM: e.input.heightMeters,
+          tone: (e.input.hardwareTone ?? inferTone(e.input.fabricColor)) as "white" | "ivory" | "grey" | "bronze"
+        }))
+      });
+    }
+
+    const bomResultByItem = new Map<string, { lines: any[], warnings: string[], tones: Record<string, string> }>();
+    itemsAProducir.forEach(i => bomResultByItem.set(i.id, { lines: [], warnings: [], tones: {} }));
+
+    curtainLines.forEach(line => {
+      try {
+        const bom = resolveGroupBom(line, rollerBomRulesConfig as any, { throwOnError: false, riskAcceptedByCustomer: true });
+        
+        const firstCurtainId = line.curtains[0].curtainId;
+        const target = bomResultByItem.get(firstCurtainId)!;
+        target.warnings.push(...bom.warnings);
+        
+        // Save resolved tones for metadata
+        for (const c of line.curtains) {
+          bomResultByItem.get(c.curtainId)!.tones['tone'] = c.tone || 'white';
+        }
+        
+        target.lines = bom.lines.map(item => {
+          if (item.colorError) {
+            target.warnings.push(`Color error en ${item.componentType}: ${item.colorErrorMessage}`);
+          }
+          return {
+            id: `auto-${item.resolvedSku}-${item.componentType}`,
+            itemCode: item.resolvedSku,
+            sageItemCode: item.resolvedSku,
+            description: item.componentType,
+            category: 'hardware',
+            toneGroup: line.curtains[0].tone,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitCost: 0,
+            totalCost: 0,
+            source: 'V3_GROUP'
+          };
+        });
+      } catch (err: any) {
+        const firstCurtainId = line.curtains[0].curtainId;
+        bomResultByItem.get(firstCurtainId)!.warnings.push(err.message || 'Error en BOM');
+      }
+    });
+    // ─────────────────────────────────────────────────────────────────────────────
+
     const orderItems: ProjectCurtainItem[] = itemsAProducir.map((batchItem, idx) => {
       const availableWidths = getAvailableWidths(
         batchItem.input.fabricFamily,
@@ -300,36 +411,10 @@ export const createOrderSlice: StateCreator<
           linearDownloadedFeetByItem.get(batchItem.id) ?? baseResult.bottomRailFeet,
       };
 
-      // Tono: respetar seleccion manual; auto-inferir solo si no hay override
-      const resolvedTone: string = hardwareTone ?? (() => {
-        const colorLower = batchItem.input.fabricColor.toLowerCase();
-        if (colorLower.includes('grey') || colorLower.includes('gray') || colorLower.includes('slate') || colorLower.includes('graphite')) return 'grey';
-        if (colorLower.includes('black') || colorLower.includes('charcoal') || colorLower.includes('dark') || colorLower.includes('onyx') || colorLower.includes('chocolate')) return 'bronze';
-        if (colorLower.includes('ivory') || colorLower.includes('beige') || colorLower.includes('sand') || colorLower.includes('pearl') || colorLower.includes('linen')) return 'ivory';
-        return 'white';
-      })();
-      const toneGroup = resolvedTone;
-
-      let materialLines: any[] = [];
-      let warnings: string[] = [];
-      try {
-        const bom = generateRollerBOM(batchItem.input.widthMeters, batchItem.input.heightMeters, toneGroup as import('../../../../logic/generateRollerBOM').Tone, mountingSystem ?? 'standard');
-        materialLines = bom.items.map(item => ({
-          id: `auto-${item.skuFinal}`,
-          itemCode: item.skuFinal,
-          sageItemCode: item.skuFinal,
-          description: item.componente,
-          category: 'hardware',
-          toneGroup: toneGroup,
-          quantity: item.cantidadCalculada,
-          unit: item.unidad,
-          unitCost: 0,
-          totalCost: 0,
-          source: 'V3'
-        }));
-      } catch (err: any) {
-        warnings.push(err.message || 'Error en BOM');
-      }
+      const bomData = bomResultByItem.get(batchItem.id)!;
+      const materialLines = bomData.lines;
+      const warnings = bomData.warnings;
+      const resolvedTone = bomData.tones['tone'] || 'white';
 
       if (warnings.length > 0) {
         materialIssues.push(
@@ -353,12 +438,10 @@ export const createOrderSlice: StateCreator<
         id: batchItem.id,
         createdAt: new Date().toISOString(),
         title: `Cortina ${idx + 1}`,
-        // Persistir el tono resuelto y el sistema de montaje en el input
-        // para que SavedOrdersPanel pueda reconstruir el BOM exacto.
         input: {
           ...batchItem.input,
           hardwareTone: resolvedTone as import('../../../../domain/curtains/types').HardwareTone,
-          mountingSystem: mountingSystem ?? 'standard',
+          mountingSystem: batchItem.input.mountingSystem ?? 'standard',
         },
         result: resultWithMaterials,
         materialLines: materialLines,

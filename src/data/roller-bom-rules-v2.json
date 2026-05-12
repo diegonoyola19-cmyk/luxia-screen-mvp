@@ -1,0 +1,1833 @@
+{
+  "version": "1.0.0",
+  "system": "rollerBomRules",
+  "rules": [
+    {
+      "category": "Roller",
+      "minWidthM": 0,
+      "maxWidthM": 2.2,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm NEO",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-154-PB-E04WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-154-PB-E03WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-154-PE-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Chapita",
+          "baseSku": "0-154-PS-00500",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-154-CL-V20XX",
+          "colorKey": "control",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller",
+      "minWidthM": 2.201,
+      "maxWidthM": 2.4,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm Normal",
+          "baseSku": "0-154-TU-38001",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-154-PB-E04WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-154-PB-E03WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-154-PE-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Chapita",
+          "baseSku": "0-154-PS-00500",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-154-CL-V20XX",
+          "colorKey": "control",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller",
+      "minWidthM": 2.401,
+      "maxWidthM": 2.8,
+      "components": [
+        {
+          "componentType": "Tubo de 45 mm",
+          "baseSku": "0-154-TU-45211",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-154-PB-E04WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-154-PB-E03WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-154-PE-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Chapita",
+          "baseSku": "0-154-PS-00500",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-154-CL-V20XX",
+          "colorKey": "control",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado, es opcional, queda a eleccion del encargado de pruduccion usarlo",
+          "optional": true,
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Adaptador para tubo de 45 mm",
+          "baseSku": "0-154-PA-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina VTX30",
+          "baseSku": "0-154-CL-V30WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco, esta debe de ser la primera opcion al momento de hacer cortinas de este ancho",
+          "recommended": true,
+          "priority": 1,
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller",
+      "minWidthM": 2.801,
+      "maxWidthM": 3,
+      "components": [
+        {
+          "componentType": "Tubo de 50 mm",
+          "baseSku": "0-154-TU-50001",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-154-PB-E04WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-154-PB-E03WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-154-PE-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Chapita",
+          "baseSku": "0-154-PS-00500",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-154-CL-V20XX",
+          "colorKey": "control",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina VTX30",
+          "baseSku": "0-154-CL-V30WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco, esta debe de ser la primera opcion al momento de hacer cortinas de este ancho",
+          "recommended": true,
+          "priority": 1,
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Adaptador para tubo de 50mm",
+          "baseSku": "0-154-AD-RA250",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller",
+      "minWidthM": 3.01,
+      "maxWidthM": 3.6,
+      "components": [
+        {
+          "componentType": "Tubo de 63 mm",
+          "baseSku": "0-154-TU-63001",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Camisa de 63 mm",
+          "baseSku": "6-700-AC-45063",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Camisa de 50mm",
+          "baseSku": "0-154-AD-RA250",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina VTX30",
+          "baseSku": "0-154-CL-V30WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco, esta debe de ser la primera opcion al momento de hacer cortinas de este ancho",
+          "recommended": true,
+          "priority": 1,
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Chapita",
+          "baseSku": "0-154-PS-ES0X3",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-154-PE-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-154-PB-E04WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-154-PB-E03WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Pin EndPlug",
+      "minWidthM": 0,
+      "maxWidthM": 1.5,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm NEO",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BW-SL020",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-155-BW-SLI20",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLE53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Pin EndPlug",
+      "minWidthM": 1.501,
+      "maxWidthM": 2.2,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm NEO",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BW-SL020",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-155-BW-SLI20",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Pin EndPlug",
+      "minWidthM": 2.201,
+      "maxWidthM": 2.4,
+      "components": [
+        {
+          "componentType": "Tubo de 38 mm Normal",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BW-SL020",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-155-BW-SLI20",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "scope": "curtain",
+          "notes": "End Plug grande — aplica en rango 2.201-2.40 (confirmado por producción)",
+          "optional": false,
+          "recommended": false
+        }
+      ]
+    },
+    {
+      "category": "Roller Pin EndPlug",
+      "minWidthM": 2.401,
+      "maxWidthM": 2.8,
+      "components": [
+        {
+          "componentType": "Tubo de 45 mm",
+          "baseSku": "0-154-TU-45211",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BW-SL020",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte del lado del end plug",
+          "baseSku": "0-155-BW-SLI20",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Adaptador para tubo de 45 mm",
+          "baseSku": "0-154-PA-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Bracket Doble",
+      "minWidthM": 0,
+      "maxWidthM": 1.5,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm NEO",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BD-SL50W",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "group"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLE53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Bracket Doble",
+      "minWidthM": 1.501,
+      "maxWidthM": 2.2,
+      "components": [
+        {
+          "componentType": "Tubo de 38mm NEO",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BD-SL50W",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "group"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Bracket Doble",
+      "minWidthM": 2.201,
+      "maxWidthM": 2.4,
+      "components": [
+        {
+          "componentType": "Tubo de 38 mm Normal",
+          "baseSku": "0-154-TU-38111",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Soporte lado del control",
+          "baseSku": "0-155-BD-SL50W",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "group"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        }
+      ]
+    },
+    {
+      "category": "Roller Bracket Doble",
+      "minWidthM": 2.401,
+      "maxWidthM": 2.8,
+      "components": [
+        {
+          "componentType": "Tubo de 45 mm",
+          "baseSku": "0-154-TU-45211",
+          "colorKey": null,
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "El tubo se calculara en base al ancho de la cortina.",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Bottomrail",
+          "baseSku": "0-151-AL-CLX19",
+          "colorKey": "bottomrail",
+          "calculation": {
+            "type": "widthMinus",
+            "value": 30,
+            "unit": "mm",
+            "resultUnit": "m"
+          },
+          "notes": "Se calcula en base al ancho de la cortina, sustituir la X por el color seleccionado de tela en la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Cadena",
+          "baseSku": "0-151-CH-XXXH0",
+          "colorKey": "cadena",
+          "calculation": {
+            "type": "heightMultiplier",
+            "value": 2,
+            "unit": "m",
+            "basedOn": "height"
+          },
+          "notes": "Multiplica el alto de la cortina por este valor, las X se sustituyen por el color seleccionado de tela de la cortina",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Control de cortina",
+          "baseSku": "0-155-CL-V20WH",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Pesa de cadena",
+          "baseSku": "0-151-CA-001XX",
+          "colorKey": "pesa",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Tapaderas de bottomrail",
+          "baseSku": "0-151-RE-XXX00",
+          "colorKey": "tapaderas",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Topes de cadena",
+          "baseSku": "0-151-CA-100XX",
+          "colorKey": "topes",
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "Se sustituye la X en base al color de la tela seleccionado",
+          "scope": "curtain"
+        },
+        {
+          "componentType": "Adaptador para tubo de 45 mm",
+          "baseSku": "0-154-PA-00501",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 2,
+            "unit": "EA"
+          },
+          "notes": "No existen otros colores que no sea blanco",
+          "scope": "curtain"
+        }
+      ]
+    }
+  ],
+  "colorMaps": {
+    "bottomrail": {
+      "gray": "0-151-AL-CLA19",
+      "ivory": "0-151-AL-CLI19",
+      "white": "0-151-AL-CLW19",
+      "bronze": "0-151-AL-CLZ19",
+      "grey": "0-151-AL-CLA19"
+    },
+    "cadena": {
+      "gray": "0-151-CH-006H0",
+      "ivory": "0-151-CH-003H0",
+      "white": "0-151-CH-007H0",
+      "bronze": "0-151-CH-012H0",
+      "grey": "0-151-CH-006H0"
+    },
+    "control": {
+      "gray": "0-154-CL-V20GR",
+      "ivory": "0-154-CL-V20IV",
+      "white": "0-154-CL-V20WH",
+      "bronze": "0-154-CL-V20BR",
+      "grey": "0-154-CL-V20GR"
+    },
+    "pesa": {
+      "gray": "0-151-CA-001GY",
+      "ivory": "0-151-CA-001IV",
+      "white": "0-151-CA-001WH",
+      "bronze": "0-151-CA-001BZ",
+      "grey": "0-151-CA-001GY"
+    },
+    "tapaderas": {
+      "gray": "0-151-RE-02600",
+      "ivory": "0-151-RE-11200",
+      "white": "0-151-RE-00500",
+      "bronze": "0-151-RE-10500",
+      "grey": "0-151-RE-02600"
+    },
+    "topes": {
+      "gray": "0-151-CA-100GR",
+      "ivory": "0-151-CA-100IV",
+      "white": "0-151-CA-100WH",
+      "bronze": "0-151-CA-100BZ",
+      "grey": "0-151-CA-100GR"
+    }
+  }
+}

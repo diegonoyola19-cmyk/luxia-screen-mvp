@@ -304,10 +304,38 @@ export function SavedOrdersPanel() {
     ? { initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 16 } }
     : { initial: { opacity: 0, x: 28 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 16 } };
 
-  // BOM consolidado de la orden seleccionada (suma todos los componentes de cada cortina)
   const orderBOM = useMemo((): BOMItem[] => {
     if (!selectedRow) return [];
     const aggregated = new Map<string, BOMItem>();
+    
+    const isV3 = selectedRow.order.items.some(i => i.materialLines && i.materialLines.length > 0);
+
+    if (isV3) {
+      for (const item of selectedRow.order.items) {
+        if (!item.materialLines) continue;
+        for (const line of item.materialLines) {
+          const sku = line.sageItemCode || line.itemCode;
+          const existing = aggregated.get(sku);
+          if (existing) {
+            aggregated.set(sku, {
+              ...existing,
+              cantidadCalculada: parseFloat((existing.cantidadCalculada + line.quantity).toFixed(3)),
+            });
+          } else {
+            aggregated.set(sku, {
+              componente: line.description,
+              skuBase: sku,
+              skuFinal: sku,
+              unidad: line.unit,
+              cantidadCalculada: line.quantity,
+              regla: ''
+            });
+          }
+        }
+      }
+      return Array.from(aggregated.values());
+    }
+
     for (const item of selectedRow.order.items) {
       // Usar el tono persistido en el input; si no existe (órdenes antiguas), derivar del color de tela
       const tone = item.input.hardwareTone ?? deriveAutoTone(item.input.fabricColor ?? '');

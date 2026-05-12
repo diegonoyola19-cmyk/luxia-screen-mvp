@@ -400,9 +400,25 @@ export function resolveGroupBom(
     };
   }
 
+  // ── Apply exclusion rules (e.g. VTX30 replaces normal control) ─────────
+  const hasRecommendedControl = rule.components.some(
+    (c) => c.componentType.startsWith('Control de cortina') && c.recommended
+  );
+
+  const activeComponents = rule.components.filter((c) => {
+    if (
+      hasRecommendedControl &&
+      c.componentType.startsWith('Control de cortina') &&
+      !c.recommended
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   // ── Separate components by scope ─────────────────────────────────────────
-  const curtainComps = rule.components.filter((c) => c.scope === 'curtain');
-  const groupComps   = rule.components.filter((c) => c.scope === 'group');
+  const curtainComps = activeComponents.filter((c) => c.scope === 'curtain');
+  const groupComps   = activeComponents.filter((c) => c.scope === 'group');
 
   const outputLines: ResolvedBomLine[] = [];
 
@@ -413,15 +429,15 @@ export function resolveGroupBom(
 
   for (const curtain of line.curtains) {
     for (const comp of curtainComps) {
-      const resolved = resolveComponent(comp, curtain.widthM, curtain.heightM);
+      const resolved = resolveComponent(comp, curtain.widthM, curtain.heightM, curtain.tone, config.colorMaps);
 
-      if (curtainAgg.has(comp.componentType)) {
-        // Accumulate quantity for same component type across curtains
-        curtainAgg.get(comp.componentType)!.quantity = parseFloat(
-          (curtainAgg.get(comp.componentType)!.quantity + resolved.quantity).toFixed(3)
+      if (curtainAgg.has(resolved.resolvedSku)) {
+        // Accumulate quantity for same SKU across curtains
+        curtainAgg.get(resolved.resolvedSku)!.quantity = parseFloat(
+          (curtainAgg.get(resolved.resolvedSku)!.quantity + resolved.quantity).toFixed(3)
         );
       } else {
-        curtainAgg.set(comp.componentType, { ...resolved });
+        curtainAgg.set(resolved.resolvedSku, { ...resolved });
       }
     }
   }
@@ -430,7 +446,7 @@ export function resolveGroupBom(
 
   // ── Group-scoped: calculated exactly once using reference curtain ─────────
   for (const comp of groupComps) {
-    outputLines.push(resolveComponent(comp, refCurtain.widthM, refCurtain.heightM));
+    outputLines.push(resolveComponent(comp, refCurtain.widthM, refCurtain.heightM, refCurtain.tone, config.colorMaps));
   }
 
   return {
