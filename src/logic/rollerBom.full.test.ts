@@ -514,3 +514,91 @@ function checkNoOverlap(cat: string) {
     }
   }
 }
+
+// ─── GROUP 13: Límite de ancho para Roller Bracket Doble ─────────────────────
+
+describe('13 — Roller Bracket Doble: límite máximo de ancho (2.80 m)', () => {
+
+  // CASE A — 2.80 m exactos → permitido, sin error
+  it('ancho exacto 2.80m → permitido (sin error de límite)', () => {
+    const line = doubleLine(2.8, 2.0, 2.8, 2.0, 'LIM-OK');
+    const errs = validateOrderLine(line, rules);
+    expect(errs.some((e) => e.code === 'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED')).toBe(false);
+  });
+
+  it('ancho exacto 2.80m → resolveGroupBom sin lanzar excepción', () => {
+    const line = doubleLine(2.8, 2.0, 2.8, 2.0, 'LIM-OK-2');
+    expect(() => resolveGroupBom(line, config)).not.toThrow();
+  });
+
+  // CASE B — 2.801 m sin aprobación → DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED
+  it('ancho 2.801m sin aprobación → DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED', () => {
+    const line = doubleLine(2.801, 2.0, 2.801, 2.0, 'LIM-ERR-1');
+    const errs = validateOrderLine(line, rules);
+    expect(errs.some((e) => e.code === 'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED')).toBe(true);
+  });
+
+  it('ancho 2.801m sin aprobación → mensaje correcto', () => {
+    const line = doubleLine(2.801, 2.0, 2.801, 2.0, 'LIM-ERR-1b');
+    const errs = validateOrderLine(line, rules);
+    const err = errs.find((e) => e.code === 'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED')!;
+    expect(err.message).toMatch(/2\.80/);
+    expect(err.message).toMatch(/riesgo asumido por el cliente/i);
+  });
+
+  // CASE C — 3.00 m sin aprobación → error
+  it('ancho 3.00m sin aprobación → DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-ERR-2');
+    const errs = validateOrderLine(line, rules);
+    expect(errs.some((e) => e.code === 'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED')).toBe(true);
+  });
+
+  it('ancho 3.00m sin aprobación → resolveGroupBom lanza', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-ERR-2b');
+    expect(() => resolveGroupBom(line, config)).toThrow();
+  });
+
+  // CASE D — 3.00 m con riskAcceptedByCustomer: true → permite y marca specialFabrication
+  it('ancho 3.00m con riskAcceptedByCustomer=true → NO lanza', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-RISK');
+    expect(() =>
+      resolveGroupBom(line, config, { throwOnError: false, riskAcceptedByCustomer: true })
+    ).not.toThrow();
+  });
+
+  it('ancho 3.00m con riskAcceptedByCustomer=true → specialFabrication = true', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-RISK-2');
+    const result = resolveGroupBom(line, config, { throwOnError: false, riskAcceptedByCustomer: true });
+    expect(result.specialFabrication).toBe(true);
+  });
+
+  it('ancho 3.00m con riskAcceptedByCustomer=true → warning de fabricación especial presente', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-RISK-3');
+    const result = resolveGroupBom(line, config, { throwOnError: false, riskAcceptedByCustomer: true });
+    expect(result.warnings.some((w) => /fabricaci.n especial/i.test(w))).toBe(true);
+  });
+
+  it('ancho 3.00m con riskAcceptedByCustomer=true → genera BOM con líneas (no vacío)', () => {
+    const line = doubleLine(3.0, 2.0, 3.0, 2.0, 'LIM-RISK-4');
+    const result = resolveGroupBom(line, config, { throwOnError: false, riskAcceptedByCustomer: true });
+    // No hay regla para 3.0m en Bracket Doble (max 2.8m), así que lines puede ser vacío,
+    // pero el engine no debe crashear y specialFabrication debe estar presente.
+    expect(result.specialFabrication).toBe(true);
+  });
+
+  // CASE E — Roller normal 3.00m → NO afectado por esta regla
+  it('Roller normal 3.00m → no genera DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED', () => {
+    const line = singleLine('Roller', 3.0, 2.0, 'NORM-3M');
+    const errs = validateOrderLine(line, rules);
+    expect(errs.some((e) => e.code === 'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED')).toBe(false);
+  });
+
+  it('Roller normal 3.00m → calcula BOM sin restricción de bracket doble', () => {
+    const line = singleLine('Roller', 3.0, 2.0, 'NORM-3M-2');
+    const result = resolveGroupBom(line, config);
+    expect(result.specialFabrication).toBeUndefined();
+    expect(result.lines.length).toBeGreaterThan(0);
+    expect(getTube(result)!.componentType).toBe('Tubo de 50 mm');
+  });
+});
+

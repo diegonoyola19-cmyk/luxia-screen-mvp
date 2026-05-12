@@ -258,6 +258,12 @@ export interface ResolvedGroupBom {
   warnings: string[];
   /** All resolved material lines for the group. */
   lines: ResolvedBomLine[];
+  /**
+   * True when the order line was processed under a special-fabrication exception
+   * (e.g. Roller Bracket Doble > 2.80 m with `riskAcceptedByCustomer: true`).
+   * Must be surfaced clearly in the UI / production order.
+   */
+  specialFabrication?: true;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +276,12 @@ export interface DoubleBracketValidationError {
     | "REQUIRES_TWO_CURTAINS"
     | "WIDTH_MISMATCH"
     | "NO_MATCHING_RULE"
-    | "INVALID_DIMENSIONS";
+    | "INVALID_DIMENSIONS"
+    /**
+     * Fired when a Roller Bracket Doble line exceeds 2.80 m without explicit
+     * customer approval (`riskAcceptedByCustomer: true`).
+     */
+    | "DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED";
   message: string;
   orderLineId: string;
 }

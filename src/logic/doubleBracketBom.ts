@@ -33,6 +33,12 @@ const WIDTH_TOLERANCE_M = 0.001;
 /** Category name used to identify double-bracket rules in the JSON. */
 const DOUBLE_BRACKET_CATEGORY = 'Roller Bracket Doble';
 
+/**
+ * Maximum width (inclusive, in metres) for standard Roller Bracket Doble fabrication.
+ * Widths above this require explicit customer approval (`riskAcceptedByCustomer: true`).
+ */
+const DOUBLE_BRACKET_MAX_WIDTH_M = 2.8;
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -128,12 +134,15 @@ function resolveComponent(
  *   2. Exactly 2 curtains for double-bracket lines.
  *   3. Both curtains must share the same width (within WIDTH_TOLERANCE_M).
  *   4. A matching BOM rule must exist for the given category + width.
+ *   5. Width must not exceed DOUBLE_BRACKET_MAX_WIDTH_M (without approval flag).
  */
 export function validateOrderLine(
   line: CurtainOrderLine,
-  rules: BomRule[]
+  rules: BomRule[],
+  options: { riskAcceptedByCustomer?: boolean; customerApproval?: boolean } = {}
 ): DoubleBracketValidationError[] {
   const errors: DoubleBracketValidationError[] = [];
+  const riskAccepted = options.riskAcceptedByCustomer === true || options.customerApproval === true;
 
   // 1. Dimension sanity for every curtain
   for (const c of line.curtains) {
@@ -171,7 +180,26 @@ export function validateOrderLine(
     }
   }
 
-  // 4. A matching BOM rule must exist (use first curtain's width as reference)
+  // 4. Width limit for double-bracket — checked before rule lookup
+  if (
+    line.mountingType === 'doubleBracket' &&
+    line.curtains.length > 0 &&
+    !riskAccepted
+  ) {
+    const refWidth = line.curtains[0].widthM;
+    if (refWidth > DOUBLE_BRACKET_MAX_WIDTH_M) {
+      errors.push({
+        code:        'DOUBLE_BRACKET_WIDTH_LIMIT_EXCEEDED',
+        message:
+          'El bracket doble está recomendado solo hasta 2.80 m de ancho. ' +
+          'Para medidas superiores, la fabricación queda bajo autorización ' +
+          'especial y riesgo asumido por el cliente.',
+        orderLineId: line.orderLineId,
+      });
+    }
+  }
+
+  // 5. A matching BOM rule must exist (use first curtain's width as reference)
   if (line.curtains.length > 0) {
     const refWidth = line.curtains[0].widthM;
     const rule = findRule(rules, line.category, refWidth);
@@ -193,30 +221,47 @@ export function validateOrderLine(
 /**
  * Resolves the complete BOM for a CurtainOrderLine, respecting component scope.
  *
- * - Components with `scope: "curtain"` are calculated once per curtain and
- *   their quantities summed into the output lines.
- * - Components with `scope: "group"` are calculated exactly once using the
- *   first curtain's dimensions as the reference (width is shared in valid groups).
- *
- * @param line      The order group line to resolve.
- * @param config    The full RollerBomRulesConfig document.
- * @throws {DoubleBracketValidationError[]} Array of errors if validation fails
- *         (only when `throwOnError` is true, default).
+ * Options:
+ *   - `throwOnError`          — throw the errors array on validation failure (default: true).
+ *   - `riskAcceptedByCustomer`— allow Roller Bracket Doble > 2.80 m; marks result as
+ *                               `specialFabrication: true` (default: false).
+ *   - `customerApproval`      — alias for `riskAcceptedByCustomer`.
  */
 export function resolveGroupBom(
   line: CurtainOrderLine,
   config: RollerBomRulesConfig,
-  options: { throwOnError?: boolean } = { throwOnError: true }
+  options: {
+    throwOnError?: boolean;
+    riskAcceptedByCustomer?: boolean;
+    customerApproval?: boolean;
+  } = { throwOnError: true }
 ): ResolvedGroupBom {
 
   // ── Validate ──────────────────────────────────────────────────────────────
-  const validationErrors = validateOrderLine(line, config.rules);
+  const riskAccepted =
+    options.riskAcceptedByCustomer === true || options.customerApproval === true;
+
+  const validationErrors = validateOrderLine(line, config.rules, { riskAcceptedByCustomer: riskAccepted });
 
   if (validationErrors.length > 0 && options.throwOnError !== false) {
     throw validationErrors;
   }
 
   const warnings: string[] = validationErrors.map((e) => e.message);
+
+  // Flag special fabrication when width limit was waived
+  const isSpecialFab =
+    riskAccepted &&
+    line.mountingType === 'doubleBracket' &&
+    line.curtains.length > 0 &&
+    line.curtains[0].widthM > 2.8;
+
+  if (isSpecialFab) {
+    warnings.push(
+      'FABRICACIÓN ESPECIAL: ancho supera 2.80 m en bracket doble. ' +
+      'Riesgo asumido por el cliente.'
+    );
+  }
 
   // Use first curtain as the reference for group-scoped dimensions
   const refCurtain: CurtainInput = line.curtains[0] ?? {
@@ -231,14 +276,15 @@ export function resolveGroupBom(
   if (!rule) {
     // Return empty result with warning rather than crashing
     return {
-      orderLineId: line.orderLineId,
-      category:    line.category,
+      orderLineId:  line.orderLineId,
+      category:     line.category,
       mountingType: line.mountingType,
-      warnings:    [
+      warnings: [
         ...warnings,
         `No BOM rule matched for category="${line.category}" widthM=${refCurtain.widthM}`,
       ],
       lines: [],
+      ...(isSpecialFab ? { specialFabrication: true as const } : {}),
     };
   }
 
@@ -276,11 +322,12 @@ export function resolveGroupBom(
   }
 
   return {
-    orderLineId:  line.orderLineId,
-    category:     line.category,
-    mountingType: line.mountingType,
+    orderLineId:       line.orderLineId,
+    category:          line.category,
+    mountingType:      line.mountingType,
     warnings,
-    lines:        outputLines,
+    lines:             outputLines,
+    ...(isSpecialFab ? { specialFabrication: true as const } : {}),
   };
 }
 
