@@ -385,11 +385,15 @@ describe('14 — ColorMaps y resolución de SKU', () => {
     expect(r.colorError).toBe('COLOR_NOT_SUPPORTED');
   });
 
-  it('14j colorMaps ya no está vacío — 24 SKUs reales del Excel cargados', () => {
+  it('14j colorMaps poblado: 30 SKUs (24 reales + 6 alias grey=gray)', () => {
     const empties = Object.entries(config.colorMaps).filter(([,v]) => Object.keys(v).length === 0);
     expect(empties).toHaveLength(0);
     const total = Object.values(config.colorMaps).reduce((s, v) => s + Object.keys(v).length, 0);
-    expect(total).toBe(24);
+    expect(total).toBe(30);
+    // Verificar que grey es alias exacto de gray en cada mapa
+    for (const [key, cmap] of Object.entries(config.colorMaps)) {
+      expect(cmap['grey'], `grey != gray en ${key}`).toBe(cmap['gray']);
+    }
   });
 
   it('14k colorError messages son mapeables a UI (contienen texto de usuario)', () => {
