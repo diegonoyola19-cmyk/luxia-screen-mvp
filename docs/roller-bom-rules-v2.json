@@ -1166,6 +1166,20 @@
           },
           "notes": "Se sustituye la X en base al color de la tela seleccionado",
           "scope": "curtain"
+        },
+        {
+          "componentType": "End Plug",
+          "baseSku": "0-155-EW-SLH53",
+          "colorKey": null,
+          "calculation": {
+            "type": "fixedQuantity",
+            "value": 1,
+            "unit": "EA"
+          },
+          "scope": "curtain",
+          "notes": "End Plug grande — aplica en rango 2.201-2.40 (confirmado por producción)",
+          "optional": false,
+          "recommended": false
         }
       ]
     },

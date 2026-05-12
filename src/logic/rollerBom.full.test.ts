@@ -478,9 +478,9 @@ describe('11 — Integridad estructural del JSON v2', () => {
     expect(config.rules).toHaveLength(13);
   });
 
-  it('136 componentes en total', () => {
+  it('137 componentes en total', () => {
     const total = config.rules.reduce((s, r) => s + r.components.length, 0);
-    expect(total).toBe(136);
+    expect(total).toBe(137);
   });
 });
 

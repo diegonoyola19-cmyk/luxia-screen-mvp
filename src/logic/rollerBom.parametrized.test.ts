@@ -113,14 +113,13 @@ describe('Roller normal — rangos de ancho', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Roller Pin EndPlug — rangos y End Plug', () => {
   // [widthM, expectedEndPlugSku | null]
-  // null = el rango no incluye End Plug según el Excel fuente (2.201-2.40)
   const CASES: [number, string | null][] = [
     [1.40,  '0-155-EW-SLE53'],
     [1.50,  '0-155-EW-SLE53'],
     [1.501, '0-155-EW-SLH53'],
     [1.80,  '0-155-EW-SLH53'],
-    [2.30,  null],              // Rango 2.201-2.40: sin End Plug según Excel
-    [2.60,  '0-155-EW-SLH53'], // Rango 2.401-2.80: tiene End Plug
+    [2.30,  '0-155-EW-SLH53'], // Rango 2.201-2.40: corregido por producción (SLH53)
+    [2.60,  '0-155-EW-SLH53'], // Rango 2.401-2.80
   ];
 
   it.each(CASES)(
