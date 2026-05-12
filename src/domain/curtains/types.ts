@@ -105,6 +105,9 @@ export interface CalculationInput {
   fabricColor: string;
   widthMeters: number;
   heightMeters: number;
+  specialFabrication?: boolean;
+  specialFabricationReason?: string;
+  riskAcceptedByCustomer?: boolean;
 }
 
 export interface CalculationFormValues {

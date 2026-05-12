@@ -516,7 +516,23 @@ export function SavedOrdersPanel() {
         </div>
       </details>
 
-      <div className="order-status-actions">
+      <div className="order-status-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <Button
+          type="button"
+          size="sm"
+          variant="primary"
+          onClick={async () => {
+            try {
+              const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+              await generateOrderMaterialsPdf(selectedRow.order);
+            } catch (err: any) {
+              alert(err.message || 'Error al generar el PDF.');
+            }
+          }}
+        >
+          Generar PDF de materiales
+        </Button>
+
         {getOrderStatus(selectedRow.order) === 'sent_to_sage' ? (
           <Button
             type="button"
@@ -553,6 +569,21 @@ export function SavedOrdersPanel() {
             <h2>Reporte de Produccion</h2>
           </div>
           <div className="saved-orders-actions saved-orders-actions--phone">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  const { generateSubstitutionPdf } = await import('../../../lib/pdf/generateSubstitutionPdf');
+                  await generateSubstitutionPdf();
+                } catch (err: any) {
+                  alert(err.message || 'Error al generar la hoja de sustituciones.');
+                }
+              }}
+            >
+              Hoja Sustituciones
+            </Button>
             <Button
               type="button"
               size="sm"
