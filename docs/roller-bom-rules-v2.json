@@ -1773,11 +1773,41 @@
     }
   ],
   "colorMaps": {
-    "bottomrail": {},
-    "cadena": {},
-    "control": {},
-    "pesa": {},
-    "tapaderas": {},
-    "topes": {}
+    "bottomrail": {
+      "gray": "0-151-AL-CLA19",
+      "ivory": "0-151-AL-CLI19",
+      "white": "0-151-AL-CLW19",
+      "bronze": "0-151-AL-CLZ19"
+    },
+    "cadena": {
+      "gray": "0-151-CH-006H0",
+      "ivory": "0-151-CH-003H0",
+      "white": "0-151-CH-007H0",
+      "bronze": "0-151-CH-012H0"
+    },
+    "control": {
+      "gray": "0-154-CL-V20GR",
+      "ivory": "0-154-CL-V20IV",
+      "white": "0-154-CL-V20WH",
+      "bronze": "0-154-CL-V20BR"
+    },
+    "pesa": {
+      "gray": "0-151-CA-001GY",
+      "ivory": "0-151-CA-001IV",
+      "white": "0-151-CA-001WH",
+      "bronze": "0-151-CA-001BZ"
+    },
+    "tapaderas": {
+      "gray": "0-151-RE-02600",
+      "ivory": "0-151-RE-11200",
+      "white": "0-151-RE-00500",
+      "bronze": "0-151-RE-10500"
+    },
+    "topes": {
+      "gray": "0-151-CA-100GR",
+      "ivory": "0-151-CA-100IV",
+      "white": "0-151-CA-100WH",
+      "bronze": "0-151-CA-100BZ"
+    }
   }
 }

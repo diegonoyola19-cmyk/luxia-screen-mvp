@@ -117,13 +117,17 @@ export interface ResolvedSkuResult {
 }
 
 /**
- * Resolves the baseSku of a BomComponent by substituting X placeholders
- * using the colorMaps registry and the requested tone.
+ * Resolves the baseSku of a BomComponent using the colorMaps registry.
+ *
+ * Design: colorMaps[colorKey][tone] stores the **complete final SKU** for that
+ * tone (as exported from the BOM Excel). The baseSku is used as the fallback
+ * when no map entry exists, and to detect X placeholders that would indicate
+ * an unresolved code.
  *
  * Error codes returned:
- *   COLOR_SKU_NOT_FOUND      — colorKey exists but tone has no entry.
- *   UNRESOLVED_SKU_PLACEHOLDER — SKU still has X after resolution.
- *   COLOR_NOT_SUPPORTED      — tone not found in any colorMap entry.
+ *   COLOR_NOT_SUPPORTED      — no tone specified.
+ *   COLOR_SKU_NOT_FOUND      — colorKey exists but tone has no entry in the map.
+ *   UNRESOLVED_SKU_PLACEHOLDER — baseSku contains X and no resolution was found.
  */
 export function resolveSku(
   baseSku: string,
@@ -132,7 +136,7 @@ export function resolveSku(
   colorMaps: Record<string, Record<string, string>>
 ): ResolvedSkuResult {
 
-  // No colorKey → use baseSku as-is (but still warn if it has a placeholder)
+  // No colorKey → SKU is fixed, use as-is (guard against accidental X)
   if (!colorKey) {
     if (SKU_PLACEHOLDER_RE.test(baseSku)) {
       return {
@@ -146,40 +150,34 @@ export function resolveSku(
     return { resolvedSku: baseSku };
   }
 
+  // colorKey set but no tone provided
+  if (!tone) {
+    return {
+      resolvedSku: baseSku,
+      colorError: 'COLOR_NOT_SUPPORTED',
+      colorErrorMessage:
+        'No se especificó un tono de herrajes. El SKU no puede resolverse. ' +
+        'No existe SKU configurado para el color seleccionado en este componente.',
+    };
+  }
+
   const map = colorMaps[colorKey];
 
-  // colorKey exists in schema but no tone requested
-  if (!tone) {
-    if (SKU_PLACEHOLDER_RE.test(baseSku)) {
-      return {
-        resolvedSku: baseSku,
-        colorError: 'COLOR_NOT_SUPPORTED',
-        colorErrorMessage:
-          'No se especificó un tono de herrajes. El SKU no puede resolverse. ' +
-          'No existe SKU configurado para el color seleccionado en este componente.',
-      };
-    }
-    return { resolvedSku: baseSku };
-  }
-
-  // colorMap is empty or not present → catalog not yet populated (known gap)
+  // colorMap key exists but has no entries yet (known data gap)
   if (!map || Object.keys(map).length === 0) {
-    if (SKU_PLACEHOLDER_RE.test(baseSku)) {
-      return {
-        resolvedSku: baseSku,
-        colorError: 'COLOR_SKU_NOT_FOUND',
-        colorErrorMessage:
-          `colorMaps["${colorKey}"] no tiene entradas configuradas para el tono "${tone}". ` +
-          `No existe SKU configurado para el color seleccionado en este componente. ` +
-          `Revisa el colorMap antes de generar el descargo.`,
-      };
-    }
-    return { resolvedSku: baseSku };
+    return {
+      resolvedSku: baseSku,
+      colorError: 'COLOR_SKU_NOT_FOUND',
+      colorErrorMessage:
+        `colorMaps["${colorKey}"] no tiene entradas configuradas para el tono "${tone}". ` +
+        `No existe SKU configurado para el color seleccionado en este componente. ` +
+        `Revisa el colorMap antes de generar el descargo.`,
+    };
   }
 
-  // Lookup tone in map
-  const suffix = map[tone];
-  if (!suffix) {
+  // Lookup: the map value IS the complete final SKU
+  const finalSku = map[tone];
+  if (!finalSku) {
     return {
       resolvedSku: baseSku,
       colorError: 'COLOR_SKU_NOT_FOUND',
@@ -190,21 +188,18 @@ export function resolveSku(
     };
   }
 
-  // Replace all X-sequences with the resolved suffix
-  const resolved = baseSku.replace(/X+/g, suffix);
-
-  // Paranoid check: verify no placeholder remains
-  if (SKU_PLACEHOLDER_RE.test(resolved)) {
+  // Paranoid: verify the resolved SKU has no X placeholder
+  if (SKU_PLACEHOLDER_RE.test(finalSku)) {
     return {
-      resolvedSku: resolved,
+      resolvedSku: finalSku,
       colorError: 'UNRESOLVED_SKU_PLACEHOLDER',
       colorErrorMessage:
-        `El SKU "${resolved}" todavía contiene un placeholder después de la resolución. ` +
-        `Verifica el patrón de sustituión en colorMaps["${colorKey}"]["${tone}"].`,
+        `El SKU resuelto "${finalSku}" todavía contiene un placeholder. ` +
+        `Verifica colorMaps["${colorKey}"]["${tone}"].`,
     };
   }
 
-  return { resolvedSku: resolved };
+  return { resolvedSku: finalSku };
 }
 
 /**

@@ -299,8 +299,8 @@ describe('11 — SKUs no modificados vs JSON', () => {
     expect(ep.baseSku).toBe('0-155-EW-SLE53');
   });
   it('End Plug SLH53 en rango 1.501-2.2 Pin', () => {
-    const r = findRule('Roller Pin EndPlug', 1.8)!;
-    expect(r.components.find(c => c.componentType === 'End Plug')!.baseSku).toBe('0-155-EW-SLH53');
+    const rule18 = findRule('Roller Pin EndPlug', 1.8)!;
+    expect(rule18.components.find(c => c.componentType === 'End Plug')!.baseSku).toBe('0-155-EW-SLH53');
   });
 });
 
@@ -329,56 +329,48 @@ describe('12 — Todos los errores tienen código y mensaje', () => {
 
 // ─── 14. colorMaps y resolución de SKU ───────────────────────────────────────
 describe('14 — ColorMaps y resolución de SKU', () => {
-  // Estado actual: todos los colorMaps vacíos → gap conocido y documentado
 
   it('14a colorMaps tiene exactamente 6 keys (estructura correcta)', () => {
-    const keys = Object.keys(config.colorMaps);
-    expect(keys.sort()).toEqual(['bottomrail','cadena','control','pesa','tapaderas','topes']);
+    expect(Object.keys(config.colorMaps).sort()).toEqual(['bottomrail','cadena','control','pesa','tapaderas','topes']);
   });
 
   it('14b todos los colorKey de componentes existen en colorMaps', () => {
-    for (const rule of config.rules) {
-      for (const comp of rule.components) {
-        if (comp.colorKey) {
-          expect(config.colorMaps, `colorKey "${comp.colorKey}" no existe en colorMaps`).toHaveProperty(comp.colorKey);
-        }
-      }
-    }
+    for (const rule of config.rules)
+      for (const comp of rule.components)
+        if (comp.colorKey)
+          expect(config.colorMaps).toHaveProperty(comp.colorKey);
   });
 
-  it('14c no hay colorKey huérfanos (usados pero no declarados)', () => {
+  it('14c no hay colorKey huérfanos', () => {
     const declared = new Set(Object.keys(config.colorMaps));
     for (const rule of config.rules)
       for (const comp of rule.components)
         if (comp.colorKey)
-          expect(declared.has(comp.colorKey), `huérfano: ${comp.colorKey}`).toBe(true);
+          expect(declared.has(comp.colorKey)).toBe(true);
   });
 
-  // resolveSku — casos A-E
+  // ── Casos A-E con SKUs reales del Excel ───────────────────────────────
 
-  it('14d Caso A: colorKey + color en map → SKU resuelto sin error', () => {
-    const maps = { bottomrail: { white: 'W' } };
-    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'white', maps);
+  it('14d Caso A: bottomrail white → SKU final correcto sin error', () => {
+    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'white', config.colorMaps);
     expect(r.colorError).toBeUndefined();
     expect(r.resolvedSku).toBe('0-151-AL-CLW19');
   });
 
-  it('14e Caso B: colorKey + color inexistente → COLOR_SKU_NOT_FOUND', () => {
-    const maps = { bottomrail: { white: 'W' } };
-    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'bronze', maps);
+  it('14e Caso B: bottomrail color inexistente → COLOR_SKU_NOT_FOUND', () => {
+    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'black', config.colorMaps);
     expect(r.colorError).toBe('COLOR_SKU_NOT_FOUND');
     expect(r.colorErrorMessage).toMatch(/no existe SKU/i);
   });
 
-  it('14f Caso C: SKU con X + colorMap vacío → COLOR_SKU_NOT_FOUND (gap conocido)', () => {
-    const maps = { bottomrail: {} };
-    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'white', maps);
+  it('14f Caso C: SKU con X + colorMap vacío → COLOR_SKU_NOT_FOUND', () => {
+    const r = resolveSku('0-151-AL-CLX19', 'bottomrail', 'white', { bottomrail: {} });
     expect(r.colorError).toBe('COLOR_SKU_NOT_FOUND');
-    expect(r.resolvedSku).toBe('0-151-AL-CLX19'); // SKU no resuelto
+    expect(r.resolvedSku).toBe('0-151-AL-CLX19');
   });
 
-  it('14g Caso D: sin colorKey y SKU fijo → usa baseSku directamente', () => {
-    const r = resolveSku('0-155-EW-SLE53', null, 'white', {});
+  it('14g Caso D: sin colorKey + SKU fijo → usa baseSku directamente', () => {
+    const r = resolveSku('0-155-EW-SLE53', null, 'white', config.colorMaps);
     expect(r.colorError).toBeUndefined();
     expect(r.resolvedSku).toBe('0-155-EW-SLE53');
   });
@@ -393,10 +385,11 @@ describe('14 — ColorMaps y resolución de SKU', () => {
     expect(r.colorError).toBe('COLOR_NOT_SUPPORTED');
   });
 
-  it('14j todos los colorMaps actuales están vacíos (gap conocido pendiente de catálogo)', () => {
+  it('14j colorMaps ya no está vacío — 24 SKUs reales del Excel cargados', () => {
     const empties = Object.entries(config.colorMaps).filter(([,v]) => Object.keys(v).length === 0);
-    // Este test documenta el gap — cuando el equipo de compras entregue los SKUs pasará a 0
-    expect(empties.map(([k]) => k).sort()).toEqual(['bottomrail','cadena','control','pesa','tapaderas','topes']);
+    expect(empties).toHaveLength(0);
+    const total = Object.values(config.colorMaps).reduce((s, v) => s + Object.keys(v).length, 0);
+    expect(total).toBe(24);
   });
 
   it('14k colorError messages son mapeables a UI (contienen texto de usuario)', () => {
