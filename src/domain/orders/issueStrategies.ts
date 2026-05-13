@@ -1,3 +1,5 @@
+import { componentCatalogBySku } from '../inventory/componentCatalog';
+
 export type IssueMode = 
   | 'exact_area'
   | 'full_piece_with_remainders'
@@ -28,43 +30,64 @@ export interface IssueEngineInputLine {
   description: string;
   quantity: number;
   unit: string;
-  category?: string; // Optional if we infer mode from unit or description
+  category?: string;
   orderId?: string;
+  itemId?: string;
+  curtainRef?: string;
 }
+
+export type CutPlanCut = {
+  sourceOrderId: string;
+  sourceItemId?: string;
+  curtainRef?: string;
+  lengthFt: number;
+  lengthM?: number;
+};
+
+export type CutPlanBar = {
+  barIndex: number;
+  cuts: CutPlanCut[];
+  usedFt: number;
+  remainingFt: number;
+};
+
+export type CutPlan = {
+  sku: string;
+  description: string;
+  pieceLengthFt: number;
+  bars: CutPlanBar[];
+};
 
 export interface IssueEngineResult {
   sageLines: SageDetailLine[];
   updatedRemainders: ReusableRemainder[];
+  cutPlans: CutPlan[];
 }
 
-export function determineIssueMode(sku: string, description: string, unit: string): IssueMode {
-  // Infer the issue mode based on units or known strings since we don't have a rigid catalog DB here yet.
-  const lowerDesc = description.toLowerCase();
+export function determineIssueMode(sku: string, unit: string): IssueMode {
+  const catalogEntry = componentCatalogBySku[sku];
+
+  // 1. Usar el catálogo si tiene explícitamente issueMode
+  if (catalogEntry?.issueMode) {
+    return catalogEntry.issueMode as IssueMode;
+  }
+
+  // 2. Fallback conservador puro por unidad
+  const lowerUnit = unit.toLowerCase();
   
-  // Fabric is already pre-filtered out and exported directly as Y2 via finalFabricLines, 
-  // but if it ever gets here, its unit would be Y2 or m2.
-  if (unit === 'Y2') {
+  if (lowerUnit === 'y2') {
     return 'exact_area';
   }
 
-  // Tubes and Bottomrails -> full piece
-  if (
-    lowerDesc.includes('tubo') || 
-    lowerDesc.includes('tube') || 
-    lowerDesc.includes('bottomrail') || 
-    lowerDesc.includes('riel inferior') ||
-    lowerDesc.includes('perfil')
-  ) {
-    return 'full_piece_with_remainders';
+  if (lowerUnit === 'ea') {
+    return 'exact_each';
   }
 
-  // Linear elements (Bottomrail, chain, cord, fascia) -> exact_linear
-  if (unit === 'ft' || unit === 'm' || unit === 'yd') {
+  if (lowerUnit === 'ft' || lowerUnit === 'm' || lowerUnit === 'yd' || lowerUnit === 'yd2') {
     return 'exact_linear';
   }
 
-  // Default to exact_each
-  return 'exact_each';
+  return 'exact_each'; // Default super conservador
 }
 
 export function generateId(): string {
@@ -80,74 +103,150 @@ export function calculateIssueLines(
 ): IssueEngineResult {
   const sageExportMap = new Map<string, number>();
   const remainders = [...availableRemainders.map(r => ({...r, consumedByOrderIds: [...r.consumedByOrderIds]}))];
+  const cutPlans: CutPlan[] = [];
+
+  // Agrupar líneas por SKU
+  const groupedLines = new Map<string, { sku: string, description: string, mode: IssueMode, lines: IssueEngineInputLine[] }>();
 
   for (const line of lines) {
     if (!line.sku || line.quantity <= 0) continue;
+    
+    // Override unit and issue mode based on catalog
+    const catalogEntry = componentCatalogBySku[line.sku];
+    const unitToUse = catalogEntry?.sageUnit || line.unit;
+    const mode = determineIssueMode(line.sku, unitToUse);
+    
+    if (!groupedLines.has(line.sku)) {
+       groupedLines.set(line.sku, { sku: line.sku, description: line.description, mode, lines: [] });
+    }
+    groupedLines.get(line.sku)!.lines.push(line);
+  }
 
-    const mode = determineIssueMode(line.sku, line.description, line.unit.toLowerCase());
+  for (const group of groupedLines.values()) {
+    const { sku, description, mode, lines: groupLines } = group;
 
     if (mode === 'exact_area' || mode === 'exact_linear' || mode === 'exact_each') {
-      const current = sageExportMap.get(line.sku) || 0;
-      sageExportMap.set(line.sku, current + line.quantity);
+      const totalQty = groupLines.reduce((sum, l) => sum + l.quantity, 0);
+      const current = sageExportMap.get(sku) || 0;
+      sageExportMap.set(sku, current + totalQty);
       continue;
     }
 
     if (mode === 'full_piece_with_remainders') {
-      const FULL_PIECE_FT = 19;
-      let neededFt = line.quantity;
+      const FULL_PIECE_FT = componentCatalogBySku[sku]?.pieceLengthFt || 19;
+      // First Fit Decreasing asume cortes ideales sin pérdida de sierra (kerf = 0)
       
-      // Assume unit is FT. If it's meters we'd have to convert, but let's assume FT for tubes in Luxia.
-      if (line.unit.toLowerCase() === 'm') {
-        neededFt = line.quantity * 3.28084;
-      }
+      const cuts = groupLines.map(line => {
+        let ft = line.quantity;
+        if (line.unit.toLowerCase() === 'm') {
+          ft = line.quantity * 3.28084;
+        }
+        return {
+           lengthFt: ft,
+           lengthM: line.unit.toLowerCase() === 'm' ? line.quantity : undefined,
+           sourceOrderId: line.orderId || '',
+           sourceItemId: line.itemId,
+           curtainRef: line.curtainRef,
+           line
+        };
+      });
 
-      // Try to find a remainder
-      let usedRemainder = false;
-      
-      // Sort remainders ascending so we use the smallest valid one first to minimize waste
+      // Ordenar de mayor a menor
+      cuts.sort((a, b) => b.lengthFt - a.lengthFt);
+
+      // Sobrantes disponibles
       const validRemainders = remainders
-        .filter(r => r.sku === line.sku && r.status === 'available' && r.remainingLengthFt >= neededFt)
+        .filter(r => r.sku === sku && r.status === 'available')
         .sort((a, b) => a.remainingLengthFt - b.remainingLengthFt);
 
-      if (validRemainders.length > 0) {
-        const remainder = validRemainders[0];
-        remainder.remainingLengthFt -= neededFt;
-        if (line.orderId && !remainder.consumedByOrderIds.includes(line.orderId)) {
-          remainder.consumedByOrderIds.push(line.orderId);
+      const bars: CutPlanBar[] = [];
+
+      for (const cut of cuts) {
+        if (cut.lengthFt > FULL_PIECE_FT) {
+           throw new Error(`CUT_EXCEEDS_PIECE_LENGTH: El corte de ${cut.lengthFt.toFixed(2)} FT excede la barra de ${FULL_PIECE_FT} FT para el SKU ${sku}`);
         }
-        if (remainder.remainingLengthFt < 0.1) {
-          remainder.status = 'consumed';
+
+        // 1. Intentar sobrantes existentes
+        const suitableRemainder = validRemainders.find(r => r.remainingLengthFt >= cut.lengthFt);
+        if (suitableRemainder) {
+           suitableRemainder.remainingLengthFt -= cut.lengthFt;
+           if (cut.sourceOrderId && !suitableRemainder.consumedByOrderIds.includes(cut.sourceOrderId)) {
+             suitableRemainder.consumedByOrderIds.push(cut.sourceOrderId);
+           }
+           if (suitableRemainder.remainingLengthFt < 0.1) {
+             suitableRemainder.status = 'consumed';
+           }
+           continue; // Resuelto con sobrante
         }
-        usedRemainder = true;
+
+        // 2. Intentar barra abierta en el plan
+        let placedInBar = false;
+        for (const bar of bars) {
+           if (bar.usedFt + cut.lengthFt <= FULL_PIECE_FT) {
+             bar.usedFt += cut.lengthFt;
+             bar.remainingFt -= cut.lengthFt;
+             bar.cuts.push({
+               sourceOrderId: cut.sourceOrderId,
+               sourceItemId: cut.sourceItemId,
+               curtainRef: cut.curtainRef,
+               lengthFt: cut.lengthFt,
+               lengthM: cut.lengthM
+             });
+             placedInBar = true;
+             break;
+           }
+        }
+
+        // 3. Abrir nueva barra
+        if (!placedInBar) {
+           bars.push({
+             barIndex: bars.length + 1,
+             usedFt: cut.lengthFt,
+             remainingFt: FULL_PIECE_FT - cut.lengthFt,
+             cuts: [{
+               sourceOrderId: cut.sourceOrderId,
+               sourceItemId: cut.sourceItemId,
+               curtainRef: cut.curtainRef,
+               lengthFt: cut.lengthFt,
+               lengthM: cut.lengthM
+             }]
+           });
+        }
       }
 
-      if (!usedRemainder) {
-        // Issue a full piece
-        const current = sageExportMap.get(line.sku) || 0;
-        sageExportMap.set(line.sku, current + FULL_PIECE_FT); // Exporting 19 FT
+      // Finalizar descargo a Sage y generar sobrantes
+      if (bars.length > 0) {
+         cutPlans.push({
+           sku,
+           description,
+           pieceLengthFt: FULL_PIECE_FT,
+           bars
+         });
 
-        // Create a new remainder
-        const leftOver = FULL_PIECE_FT - neededFt;
-        if (leftOver > 0) {
-          remainders.push({
-            id: generateId(),
-            sku: line.sku,
-            description: line.description,
-            originalLengthFt: FULL_PIECE_FT,
-            remainingLengthFt: leftOver,
-            createdFromOrderId: line.orderId,
-            consumedByOrderIds: line.orderId ? [line.orderId] : [],
-            createdAt: new Date().toISOString(),
-            status: 'available'
-          });
-        }
+         const current = sageExportMap.get(sku) || 0;
+         sageExportMap.set(sku, current + (bars.length * FULL_PIECE_FT));
+
+         for (const bar of bars) {
+            if (bar.remainingFt > 0) {
+              const allOrderIds = Array.from(new Set(bar.cuts.map(c => c.sourceOrderId).filter(Boolean)));
+              remainders.push({
+                id: generateId(),
+                sku: sku,
+                description: description,
+                originalLengthFt: FULL_PIECE_FT,
+                remainingLengthFt: bar.remainingFt,
+                consumedByOrderIds: allOrderIds,
+                createdAt: new Date().toISOString(),
+                status: 'available'
+              });
+            }
+         }
       }
     }
   }
 
   const sageLines: SageDetailLine[] = [];
   sageExportMap.forEach((quantity, itemCode) => {
-    // Round quantity to 4 decimals to avoid floating point precision issues
     sageLines.push({ 
       itemCode, 
       quantity: Number(quantity.toFixed(4)) 
@@ -156,6 +255,7 @@ export function calculateIssueLines(
 
   return {
     sageLines,
-    updatedRemainders: remainders
+    updatedRemainders: remainders,
+    cutPlans
   };
 }

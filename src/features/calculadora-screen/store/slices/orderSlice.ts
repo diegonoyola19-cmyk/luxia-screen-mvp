@@ -500,11 +500,12 @@ export const createOrderSlice: StateCreator<
     selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
   })),
 
-  updateSavedOrderStatus: (id, status) => set((state) => ({
+  updateSavedOrderStatus: (id, status, metadata) => set((state) => ({
     savedOrders: state.savedOrders.map((order) =>
       order.id === id
         ? {
             ...order,
+            ...metadata,
             status: status,
             sageExportedAt: status === 'sent_to_sage'
               ? order.sageExportedAt ?? new Date().toISOString()

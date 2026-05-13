@@ -28,10 +28,39 @@ function getAggregatedMaterials(order: SavedOrder) {
     throw new Error('Esta orden fue creada con una versión anterior y no tiene materiales guardados. Reabre o reguarda la orden para generar el PDF.');
   }
 
+  const doubleBracketGroups: number[][] = [];
+  const pendingDoubleBrackets = new Map<number, number[]>();
+
+  order.items.forEach((item, idx) => {
+    const mounting = item.input.mountingSystem ?? 'standard';
+    const width = item.input.widthMeters;
+    
+    if (mounting === 'double_bracket') {
+      const existing = pendingDoubleBrackets.get(width) || [];
+      existing.push(idx + 1);
+      if (existing.length === 2) {
+        doubleBracketGroups.push(existing);
+        pendingDoubleBrackets.delete(width);
+      } else {
+        pendingDoubleBrackets.set(width, existing);
+      }
+    }
+  });
+
+  for (const [width, items] of pendingDoubleBrackets.entries()) {
+    doubleBracketGroups.push(items);
+  }
+
+  const getGroupOf = (curtainIndex: number) => doubleBracketGroups.find(g => g.includes(curtainIndex));
+
   const aggregated = new Map<string, any>();
   
-  for (const item of order.items) {
+  for (let idx = 0; idx < order.items.length; idx++) {
+    const item = order.items[idx];
     if (!item.materialLines) continue;
+
+    const curtainIndex = idx + 1;
+    const group = getGroupOf(curtainIndex);
 
     for (const line of item.materialLines) {
       const sku = line.sageItemCode || line.itemCode;
@@ -44,15 +73,31 @@ function getAggregatedMaterials(order: SavedOrder) {
         throw new Error(`La orden contiene un código (SKU) sin resolver: ${sku}. Por favor revisa el color de la orden.`);
       }
 
-      const existing = aggregated.get(sku);
+      const key = `${sku}_${line.unit || ''}`;
+      
+      const existing = aggregated.get(key);
       if (existing) {
         existing.quantity = parseFloat((existing.quantity + line.quantity).toFixed(3));
+        
+        if (group) {
+          const groupStr = group.join('+');
+          if (!existing.groups.some((g: number[]) => g.join('+') === groupStr)) {
+             existing.groups.push(group);
+          }
+        } else {
+          if (!existing.curtains.includes(curtainIndex)) {
+             existing.curtains.push(curtainIndex);
+          }
+        }
+
       } else {
-        aggregated.set(sku, {
+        aggregated.set(key, {
           itemCode: sku,
           description: line.description,
           quantity: line.quantity,
-          unit: line.unit
+          unit: line.unit,
+          curtains: group ? [] : [curtainIndex],
+          groups: group ? [group] : []
         });
       }
     }
@@ -200,11 +245,11 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
         
         const group = fabricGroups.get(groupKey)!;
         group.totalY2 += (areaY2 || 0);
-        group.items.push({
+         group.items.push({
            label: `#${idx + 1}`,
-           medida: `${formatNumber(item.input.widthMeters)}x${formatNumber(item.input.heightMeters)}`,
+           medida: `${formatNumber(item.input.widthMeters)}x${formatNumber(item.input.heightMeters)}${item.result?.oversizedRotated ? ' (Rotada: ancho mayor a 3.00 m)' : ''}`,
            y2: areaY2
-        });
+         });
       });
 
       return Array.from(fabricGroups.values()).map(group => {
@@ -277,9 +322,41 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
     doc.setFont('helvetica', 'normal');
     doc.text('|', 73, currentY);
     
-    const availableWidth = pageWidth - 76 - 14; 
+    const refParts = [];
+    if (mat.groups && mat.groups.length > 0) {
+      for (const g of mat.groups) {
+        refParts.push(`Grupo: ${g.map((c: number) => '#' + c).join('+')}`);
+      }
+    }
+    if (mat.curtains && mat.curtains.length > 0) {
+      refParts.push(`Ref: ${mat.curtains.map((c: number) => '#' + c).join(',')}`);
+    }
+    let refStr = refParts.length > 0 ? refParts.join(', ') : 'Ref: —';
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    let actualRefWidth = doc.getTextWidth(refStr);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+
+    let nameAvailableWidth = pageWidth - 76 - 14 - actualRefWidth - 2;
+    if (nameAvailableWidth < 40) {
+        nameAvailableWidth = 40;
+        const leftForRef = pageWidth - 76 - 14 - 40 - 2;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        refStr = doc.splitTextToSize(refStr, leftForRef)[0];
+        if (refStr.length < refParts.join(', ').length) {
+            refStr = refStr.slice(0, -3) + '...';
+        }
+        actualRefWidth = doc.getTextWidth(refStr);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+    }
+    
     let finalName = nameStr;
-    const splitName = doc.splitTextToSize(finalName, availableWidth);
+    const splitName = doc.splitTextToSize(finalName, nameAvailableWidth);
     if (splitName.length > 1) {
        const firstLine = splitName[0];
        finalName = firstLine.length > 3 ? firstLine.substring(0, firstLine.length - 3) + '...' : firstLine;
@@ -287,7 +364,14 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
        finalName = splitName[0];
     }
     
+    doc.setTextColor(0, 0, 0);
     doc.text(finalName, 76, currentY);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(130, 130, 130);
+    doc.text(refStr, pageWidth - 14, currentY, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
     
     currentY += 7;
   }
@@ -295,28 +379,42 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
   currentY += 5;
 
   // Footer / Cierre
-  if (currentY > pageHeight - 40) {
+  if (currentY > pageHeight - 55) {
     doc.addPage();
     currentY = 20;
   }
 
+  const boxHeight = 48;
   doc.setDrawColor(150, 150, 150);
   doc.setLineWidth(0.5);
   doc.setFillColor(250, 250, 250);
-  doc.rect(14, currentY, pageWidth - 28, 30, 'FD');
+  doc.rect(14, currentY, pageWidth - 28, boxHeight, 'FD');
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('Observaciones generales:', 18, currentY + 6);
+  doc.text('CAMBIOS / SUSTITUCIONES', 18, currentY + 6);
+
+  doc.setFontSize(8);
+  doc.text('Código calculado', 18, currentY + 12);
+  doc.text('Código usado', 70, currentY + 12);
+  doc.text('Motivo', 120, currentY + 12);
+
   doc.setDrawColor(200, 200, 200);
   doc.setLineDashPattern([1, 1], 0);
-  doc.line(62, currentY + 6, pageWidth - 18, currentY + 6);
-  doc.line(18, currentY + 13, pageWidth - 18, currentY + 13);
+  let lineY = currentY + 16;
+  for (let i = 0; i < 4; i++) {
+    doc.line(18, lineY, 65, lineY);
+    doc.line(70, lineY, 115, lineY);
+    doc.line(120, lineY, pageWidth - 18, lineY);
+    lineY += 6;
+  }
 
   doc.setLineDashPattern([], 0);
   doc.setDrawColor(100, 100, 100);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
 
-  const boxBottom = currentY + 24;
+  const boxBottom = currentY + 42;
   doc.text('Entregado por:', 18, boxBottom);
   doc.line(45, boxBottom, 80, boxBottom);
 

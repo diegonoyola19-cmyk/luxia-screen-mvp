@@ -242,4 +242,65 @@ describe('generateOrderMaterialsPdf', () => {
     );
     expect(fallbackCall).toBeDefined();
   });
+
+  it('muestra la referencia de cortina correcta', async () => {
+    const customOrder = createMockOrder([
+      {
+        id: 'c1',
+        input: { widthMeters: 1, heightMeters: 1, mountingSystem: 'standard' },
+        result: { selectedFabric: null },
+        materialLines: [
+          { sageItemCode: 'ITEM-SINGLE', description: 'Item', quantity: 1, unit: 'EA' }
+        ]
+      },
+      {
+        id: 'c2',
+        input: { widthMeters: 1, heightMeters: 1, mountingSystem: 'standard' },
+        result: { selectedFabric: null },
+        materialLines: [
+          { sageItemCode: 'ITEM-SHARED', description: 'Item', quantity: 1, unit: 'EA' }
+        ]
+      },
+      {
+        id: 'c3',
+        input: { widthMeters: 1, heightMeters: 1, mountingSystem: 'standard' },
+        result: { selectedFabric: null },
+        materialLines: [
+          { sageItemCode: 'ITEM-SHARED', description: 'Item', quantity: 1, unit: 'EA' }
+        ]
+      },
+      {
+        id: 'c4',
+        input: { widthMeters: 2, heightMeters: 1, mountingSystem: 'double_bracket' },
+        result: { selectedFabric: null },
+        materialLines: [
+          { sageItemCode: 'ITEM-GROUP', description: 'Item', quantity: 1, unit: 'EA' }
+        ]
+      },
+      {
+        id: 'c5',
+        input: { widthMeters: 2, heightMeters: 1, mountingSystem: 'double_bracket' },
+        result: { selectedFabric: null },
+        materialLines: []
+      }
+    ]);
+
+    await generateOrderMaterialsPdf(customOrder);
+    
+    const jsPDFModule = await import('jspdf');
+    const textCalls = (jsPDFModule.default as any).textMock.mock.calls;
+
+    const findCall = (str: string) => textCalls.find((call: any) => 
+      typeof call[0] === 'string' && call[0].includes(str)
+    );
+
+    // 1. Componente de una cortina muestra Ref: #1.
+    expect(findCall('Ref: #1')).toBeDefined();
+    
+    // 2. Componente compartido por varias cortinas muestra Ref: #2,#3.
+    expect(findCall('Ref: #2,#3')).toBeDefined();
+
+    // 3. Bracket doble scope group muestra Grupo: #4+#5.
+    expect(findCall('Grupo: #4+#5')).toBeDefined();
+  });
 });

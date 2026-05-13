@@ -1,5 +1,9 @@
 export interface CatalogEntry {
   marketName: string;
+  sageUnit?: "EA" | "FT" | "M" | "Y2" | string;
+  issueMode?: "exact_each" | "exact_linear" | "exact_area" | "full_piece_with_remainders";
+  pieceLengthFt?: number;
+  materialKind?: "tube" | "bottomrail" | "fabric" | "chain" | "hardware" | "other";
 }
 
 export const componentCatalogBySku: Record<string, CatalogEntry> = {
@@ -506,8 +510,8 @@ export const componentCatalogBySku: Record<string, CatalogEntry> = {
   "0-151-AL-CLI19": { marketName: "Rollux-Al. Bottomrail Classic Ivory 19'" },
   "0-151-AL-CLW19": { marketName: "Rollux-Al. Bottomrail Classic White 19'" },
   "0-151-AL-CLZ16": { marketName: "DI Rollux-Al. Bottomrail Classic Bronze 16'" },
-  "0-151-AL-CLZ19": { marketName: "SO Rollux-Al. Bottomrail Classic Bronze 19'" },
-  "0-151-AL-COW19": { marketName: "Rollux-Al. Bottomrail Contemporary White 19'" },
+  "0-151-AL-CLZ19": { marketName: "SO Rollux-Al. Bottomrail Classic Bronze 19'", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "bottomrail" },
+  "0-151-AL-COW19": { marketName: "Rollux-Al. Bottomrail Contemporary White 19'", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "bottomrail" },
   "0-151-AL-TDW19": { marketName: "Rollux - Aluminum Teardrop Bottomrail White 19'" },
   "0-151-CA-001BZ": { marketName: "Small Cord/Chain Weight Pulley - Bronze (Export Only)" },
   "0-151-CA-001GY": { marketName: "Small Cord/Chain Weight Pulley - Grey (Export Only)" },
@@ -525,7 +529,7 @@ export const componentCatalogBySku: Record<string, CatalogEntry> = {
   "0-151-CH-006H0": { marketName: "#10 6mm Pitch Plastic Chain Grey" },
   "0-151-CH-00700": { marketName: "#10 12mm Pitch Plastic Chain White" },
   "0-151-CH-007H0": { marketName: "#10 6mm Pitch Plastic Chain White" },
-  "0-151-CH-012H0": { marketName: "#10 6mm Pitch Plastic Chain Bronze" },
+  "0-151-CH-012H0": { marketName: "#10 6mm Pitch Plastic Chain Bronze", sageUnit: "FT", issueMode: "exact_linear", materialKind: "chain" },
   "0-151-CH-LBZ05": { marketName: "#10 6mm Pitch Plastic Chain Loop Bronze 5ft Drop" },
   "0-151-CH-LBZ06": { marketName: "#10 6mm Pitch Plastic Chain Loop Bronze 6ft Drop" },
   "0-151-CH-LGR05": { marketName: "#10 6mm Pitch Plastic Chain Loop Grey 5ft Drop" },
@@ -544,7 +548,7 @@ export const componentCatalogBySku: Record<string, CatalogEntry> = {
   "0-151-R2-P0407": { marketName: "DISRollux PET Fabric Locking Tape One Side Adhesive7mm(9/32)" },
   "0-151-RE-00500": { marketName: "Rollux-Roller Shade Bott/Endcap White Classic" },
   "0-151-RE-02600": { marketName: "Rollux-Roller Shade Bott/Endcap Grey Classic" },
-  "0-151-RE-10500": { marketName: "Rollux-Roller Shade Bott/Endcap Bronze Classic" },
+  "0-151-RE-10500": { marketName: "Rollux-Roller Shade Bott/Endcap Bronze Classic", sageUnit: "EA", issueMode: "exact_each", materialKind: "hardware" },
   "0-151-RE-11200": { marketName: "Rollux-Roller Shade Bott/Endcap Ivory Classic" },
   "0-151-RE-C0005": { marketName: "Rollux-Roller Shade Bott/Endcap White Contemporary" },
   "0-151-RE-T0050": { marketName: "Rollux-Roller Shade Bott/End Cap Teardrop White" },
@@ -554,7 +558,7 @@ export const componentCatalogBySku: Record<string, CatalogEntry> = {
   "0-153-01-01502": { marketName: "SO Arion - Atos Manual System Control 3:1 White" },
   "0-153-01-01624": { marketName: "DI Arion - Atos Manual Syst 70mm Nylon End Square" },
   "0-153-01-05002": { marketName: "DI Rollux- Atos Wall/Ceiling Mounting bracket w inserts&pin" },
-  "0-154-AD-RA250": { marketName: "Rollux-End Plug Adapter for 2\"(50mm) Tube, White" },
+  "0-154-AD-RA250": { marketName: "Rollux-End Plug Adapter for 2\"(50mm) Tube, White", sageUnit: "EA", issueMode: "exact_each", materialKind: "hardware" },
   "0-154-BW-36038": { marketName: "Installation Brakets | Small TM | 1½\" (38mm)Projection|White" },
   "0-154-BW-58050": { marketName: "Installation Brakets | Large TM | 2\" (50mm) Projection|White" },
   "0-154-CL-V17WH": { marketName: "Elegant Clutch VTX 15 - Tab Mount - 1 1/2\" (38mm) - White" },
@@ -590,10 +594,11 @@ export const componentCatalogBySku: Record<string, CatalogEntry> = {
   "0-154-TU-38000": { marketName: "1½\" (38mm) Alu. Tube w/Tape, 16' MF" },
   "0-154-TU-38001": { marketName: "@ 1½\" (38mm) Alu.Tube Custom Tape, 19' MF" },
   "0-154-TU-38011": { marketName: "1½\" (38mm) Alu. Tube w/Tape, 19' MF" },
-  "0-154-TU-38111": { marketName: "1½\" (38mm) Alu. NEO Tube T6, W/Tape, 19' MF" },
-  "0-154-TU-45211": { marketName: "1¾\" (45mm) Alu. Tube w/2 flat channels&Tape, 19' MF" },
+  "0-154-TU-38111": { marketName: "1½\" (38mm) Alu. NEO Tube T6, W/Tape, 19' MF", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "tube" },
+  "0-154-TU-45211": { marketName: "1¾\" (45mm) Alu. Tube w/2 flat channels&Tape, 19' MF", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "tube" },
+  "0-154-TU-50001": { marketName: "2\" (50mm) Smooth Alu. Motor Tube w/Tape, 19' MF", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "tube" },
   "0-154-TU-50011": { marketName: "2\" (50mm) Smooth Alu. Motor Tube w/Tape, 19' MF" },
-  "0-154-TU-63001": { marketName: "2½\" Struct.Alu.Tube w/Rec.&Flat Chan.Custom Tape,19' MF" },
+  "0-154-TU-63001": { marketName: "2½\" Struct.Alu.Tube w/Rec.&Flat Chan.Custom Tape,19' MF", sageUnit: "FT", issueMode: "full_piece_with_remainders", pieceLengthFt: 19, materialKind: "tube" },
   "0-154-TU-63021": { marketName: "SO 2½\" (63mm)Struct.Alu.Tube w/Rec.&Flat Chan.,NOTape,19' MF" },
   "0-154-TU-78022": { marketName: "3 1/16\" (78mm) Alu. Grooved Tube 19.5' MF" },
   "0-154-TU-83021": { marketName: "3 ¼\" (83mm) Struct. Alu.Tube No Tape w/Rec.& Flat Chan.19'MF" },

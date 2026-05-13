@@ -98,7 +98,7 @@ export interface OrderSlice {
   clearOrder: () => void;
   saveOrder: () => void;
   deleteSavedOrder: (id: string) => void;
-  updateSavedOrderStatus: (id: string, status: SavedOrderStatus) => void;
+  updateSavedOrderStatus: (id: string, status: SavedOrderStatus, metadata?: Partial<SavedOrder>) => void;
   saveProductionReview: (orderId: string, review: ProductionMaterialReview) => void;
   markOrdersSentToSage: (ids: string[]) => void;
   setSelectedOrderId: (id: string | null) => void;

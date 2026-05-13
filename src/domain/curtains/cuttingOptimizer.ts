@@ -128,11 +128,19 @@ function calculateGroupStats(
   let maxCutHeight = 0;
 
   groupItems.forEach((it, idx) => {
-    const w = Number(it.input.widthMeters) || 0;
-    totalCutWidth += (w + 0.10);
+    let w = 0;
+    let h = 0;
+    if (it.result) {
+      w = it.result.cutWidthMeters;
+      h = it.result.cutLengthMeters;
+    } else {
+      w = (Number(it.input.widthMeters) || 0) + 0.10;
+      h = (Number(it.input.heightMeters) || 0) + config.cutHeightExtraMeters + 0.10;
+    }
+    
+    totalCutWidth += w;
     if (idx > 0) totalCutWidth += 0.05; // Margen entre piezas
     
-    const h = (Number(it.input.heightMeters) || 0) + config.cutHeightExtraMeters + 0.10;
     if (h > maxCutHeight) maxCutHeight = h;
   });
 

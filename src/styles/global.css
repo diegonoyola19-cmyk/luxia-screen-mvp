@@ -199,18 +199,7 @@ summary {
   box-shadow: 0 1px 0 var(--line), var(--shadow);
 }
 
-/* Logo LUXIA */
-.view-switcher::before {
-  content: 'LUXIA';
-  font-size: 1.15rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  color: var(--text);
-  text-transform: uppercase;
-  margin-right: 40px;
-  flex-shrink: 0;
-  font-family: 'Inter', sans-serif;
-}
+/* Logo movido a React component */
 
 .view-switcher__tab {
   flex: 1;

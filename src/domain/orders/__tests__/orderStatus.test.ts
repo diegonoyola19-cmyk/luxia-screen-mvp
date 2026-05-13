@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeOrderStatus } from '../orderStatus';
+import { normalizeOrderStatus, getNextStatusAfterPdfGeneration } from '../orderStatus';
 
 describe('orderStatus normalization', () => {
   it('normalizes "pending" to "ready_for_production"', () => {
@@ -23,5 +23,40 @@ describe('orderStatus normalization', () => {
     expect(normalizeOrderStatus('draft')).toBe('draft');
     expect(normalizeOrderStatus('completed')).toBe('completed');
     expect(normalizeOrderStatus('cancelled')).toBe('cancelled');
+  });
+});
+
+describe('getNextStatusAfterPdfGeneration', () => {
+  it('returns in_production for ready_for_production', () => {
+    expect(getNextStatusAfterPdfGeneration('ready_for_production', false)).toBe('in_production');
+    expect(getNextStatusAfterPdfGeneration('ready_for_production', true)).toBe('in_production');
+  });
+
+  it('returns in_production for draft if hasValidMaterialLines is true', () => {
+    expect(getNextStatusAfterPdfGeneration('draft', true)).toBe('in_production');
+  });
+
+  it('returns null for draft if hasValidMaterialLines is false', () => {
+    expect(getNextStatusAfterPdfGeneration('draft', false)).toBeNull();
+  });
+
+  it('returns null for in_production', () => {
+    expect(getNextStatusAfterPdfGeneration('in_production', true)).toBeNull();
+  });
+
+  it('returns null for materials_checked', () => {
+    expect(getNextStatusAfterPdfGeneration('materials_checked', true)).toBeNull();
+  });
+
+  it('returns null for sent_to_sage', () => {
+    expect(getNextStatusAfterPdfGeneration('sent_to_sage', true)).toBeNull();
+  });
+
+  it('returns null for completed', () => {
+    expect(getNextStatusAfterPdfGeneration('completed', true)).toBeNull();
+  });
+
+  it('returns null for cancelled', () => {
+    expect(getNextStatusAfterPdfGeneration('cancelled', true)).toBeNull();
   });
 });

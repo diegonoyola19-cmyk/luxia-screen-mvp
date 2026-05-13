@@ -55,6 +55,11 @@ export function ScreenCalculatorPage() {
     <main className="page-shell">
       <section className="page-frame">
         <div className="view-switcher">
+          <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px', gap: '16px', flexShrink: 0 }}>
+            <span style={{ fontSize: '1.15rem', fontWeight: 900, letterSpacing: '-0.04em', textTransform: 'uppercase', color: 'var(--text)' }}>LUXIA</span>
+            <div style={{ width: '1px', height: '18px', background: 'var(--line-strong)' }}></div>
+            <img src="/vertilux-logo.png" alt="Vertilux" style={{ height: '14px', filter: theme === 'dark' ? 'invert(1) brightness(2)' : 'none', opacity: 0.9 }} />
+          </div>
           <button
             type="button"
             className={[

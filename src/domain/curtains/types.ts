@@ -108,6 +108,7 @@ export interface CalculationInput {
   specialFabrication?: boolean;
   specialFabricationReason?: string;
   riskAcceptedByCustomer?: boolean;
+  oversizedRotatedAccepted?: boolean;
 }
 
 export interface CalculationFormValues {
@@ -136,6 +137,7 @@ export interface SelectedFabric {
 export interface ProductionBatchItem {
   id: string;
   input: CalculationInput;
+  result?: CalculationResult;
   reusedWastePiece?: WastePiece | null;
 }
 
@@ -187,6 +189,12 @@ export interface CalculationResult {
   materialWarnings?: string[];
   requiresReinforcedTube: boolean;
   tubeRecommendation?: string;
+  edgeRollFit?: boolean;
+  edgeRollFitReason?: string;
+  standardCutWidthMeters?: number;
+  oversizedRotated?: boolean;
+  oversizedRotatedAccepted?: boolean;
+  rotatedReason?: string;
 }
 
 export interface WastePiece {
@@ -272,6 +280,9 @@ export interface SavedOrder extends OrderDraft {
   status?: SavedOrderStatus | OrderProductionStatus;
   sageExportedAt?: string | null;
   productionReview?: ProductionMaterialReview;
+  productionStartedAt?: string | null;
+  productionStartedBy?: string | null;
+  productionStartTrigger?: string | null;
 }
 
 export interface ScreenValidationErrors {

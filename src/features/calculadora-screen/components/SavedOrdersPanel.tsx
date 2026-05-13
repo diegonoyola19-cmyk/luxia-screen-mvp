@@ -589,6 +589,25 @@ export function SavedOrdersPanel() {
                 try {
                   const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
                   await generateOrderMaterialsPdf(selectedRow.order);
+                  
+                  let newStatus = status;
+                  if (status === 'ready_for_production') {
+                    newStatus = 'in_production';
+                  } else if (status === 'draft') {
+                    const hasValidMaterialLines = selectedRow.order.items.some(
+                      (item) => item.materialLines && item.materialLines.length > 0
+                    );
+                    if (hasValidMaterialLines) {
+                      newStatus = 'in_production';
+                    }
+                  }
+
+                  if (newStatus !== status) {
+                    store.updateSavedOrderStatus(selectedRow.order.id, newStatus as any, {
+                      productionStartedAt: new Date().toISOString(),
+                      productionStartTrigger: 'materials_pdf_generated'
+                    });
+                  }
                 } catch (err: any) { alert(err.message); }
               }}>
                 📄 PDF

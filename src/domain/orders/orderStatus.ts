@@ -34,3 +34,17 @@ export function normalizeOrderStatus(status: unknown): SavedOrderStatus {
   
   return "ready_for_production";
 }
+
+export function getNextStatusAfterPdfGeneration(
+  currentStatus: SavedOrderStatus | string | undefined | null,
+  hasValidMaterialLines: boolean
+): SavedOrderStatus | null {
+  const status = normalizeOrderStatus(currentStatus);
+  if (status === 'ready_for_production') {
+    return 'in_production';
+  }
+  if (status === 'draft' && hasValidMaterialLines) {
+    return 'in_production';
+  }
+  return null;
+}

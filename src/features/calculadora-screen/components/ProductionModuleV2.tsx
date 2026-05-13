@@ -145,6 +145,7 @@ export function ProductionModuleV2() {
   const [scrapsOpen, setScrapsOpen] = useState(false);
   const [useManualRetazo, setUseManualRetazo] = useState(false);
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
+  const [oversizedRotatedAccepted, setOversizedRotatedAccepted] = useState(false);
 
   // -- Tono de herrajes: conectado al store para persistir en saveOrder ----------
   const toneOverride = store.hardwareTone as Tone | null;
@@ -241,9 +242,11 @@ export function ProductionModuleV2() {
         ...(parsedFormValues as CalculationInput),
         mountingSystem: store.mountingSystem,
         hardwareTone: activeTone,
+        oversizedRotatedAccepted,
         // Persisit specialFabrication metadata when applicable
         ...(widthGuard.specialFabricationMeta ?? {}),
       },
+      result: displayResult,
       reusedWastePiece: (selectedWasteMatch as WasteReuseMatch | null)?.wastePiece ?? null,
     };
     store.addProductionItem(item);
@@ -251,6 +254,7 @@ export function ProductionModuleV2() {
     store.setSelectedWastePieceId(null);
     store.setFormValue('widthMeters', '');
     store.setFormValue('heightMeters', '');
+    setOversizedRotatedAccepted(false);
     window.requestAnimationFrame(() => widthRef.current?.focus());
   };
 
@@ -262,7 +266,7 @@ export function ProductionModuleV2() {
     finally { setIsSaving(false); }
   };
 
-  const canAdd = Boolean(displayResult);
+  const canAdd = Boolean(displayResult) && (!displayResult?.oversizedRotated || oversizedRotatedAccepted);
   const canSave = store.orderDraft.orderNumber.trim() !== '' &&
     store.itemsAProducir.length > 0 &&
     !store.cuttingGroups.some((g) => g.error);
@@ -684,8 +688,26 @@ export function ProductionModuleV2() {
             </div>
           </div>
 
-          {/* Orientación rotada alert */}
-          {displayResult?.orientationUsed === 'volteada' && (
+          {displayResult?.oversizedRotated ? (
+            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+                <div>
+                  <strong>Fabricación rotada requerida</strong>
+                  <p>Esta cortina supera los 3.00 m de ancho. Para fabricarla debe hacerse rotada, usando el ancho del rollo como alto disponible. Verifica que el alto más el extra de enrollo quepa dentro del rollo.</p>
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={oversizedRotatedAccepted}
+                  onChange={(e) => setOversizedRotatedAccepted(e.target.checked)}
+                  style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+                />
+                Confirmo fabricar esta cortina rotada
+              </label>
+            </div>
+          ) : displayResult?.orientationUsed === 'volteada' && (
             <div className="pv2-alert pv2-alert--info">
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>rotate_90_degrees_ccw</span>
               <div>
@@ -695,8 +717,19 @@ export function ProductionModuleV2() {
             </div>
           )}
 
+          {/* Edge Roll Fit alert */}
+          {displayResult?.edgeRollFit && (
+            <div className="pv2-alert pv2-alert--warning">
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>fit_screen</span>
+              <div>
+                <strong>Corte justo al rollo</strong>
+                <p>La medida final cabe en el rollo, pero el encuadre estándar excede el ancho disponible. Se permitirá fabricar sin encuadre lateral.</p>
+              </div>
+            </div>
+          )}
+
           {/* Tubo reforzado alert */}
-          {displayResult?.requiresReinforcedTube && (
+          {displayResult?.requiresReinforcedTube && !displayResult?.oversizedRotated && (
             <div className="pv2-alert pv2-alert--warning">
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
               <div>

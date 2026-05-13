@@ -1,227 +1,105 @@
-import { describe, it, expect, vi } from 'vitest';
-import { calculateIssueLines, IssueEngineInputLine, ReusableRemainder, generateId } from '../issueStrategies';
+import { describe, it, expect } from 'vitest';
+import { calculateIssueLines, IssueEngineInputLine, ReusableRemainder, determineIssueMode } from '../issueStrategies';
 
-describe('Issue Strategies - Sage Export Engine', () => {
-  it('Tubo requiere 5 FT sin sobrante -> Sage 19 FT, sobrante 14 FT', () => {
+describe('Issue Strategies - Catalog Based Engine', () => {
+  it('1. Tapaderas de bottomrail (0-151-RE-10500) -> EA / exact_each', () => {
     const lines: IssueEngineInputLine[] = [
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 5, unit: 'FT', orderId: 'O-1' }
+      { sku: '0-151-RE-10500', description: 'Tapaderas de bottomrail', quantity: 14, unit: 'EA' }
+    ];
+    const result = calculateIssueLines(lines, []);
+    expect(result.sageLines).toHaveLength(1);
+    expect(result.sageLines[0].itemCode).toBe('0-151-RE-10500');
+    expect(result.sageLines[0].quantity).toBe(14); // Exactamente 14 EA, sin cut plan
+    expect(result.cutPlans).toHaveLength(0);
+  });
+
+  it('2. Adaptador 50mm (0-154-AD-RA250) -> EA / exact_each', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-154-AD-RA250', description: 'Adaptador 50mm', quantity: 4, unit: 'EA' }
+    ];
+    const result = calculateIssueLines(lines, []);
+    expect(result.sageLines).toHaveLength(1);
+    expect(result.sageLines[0].itemCode).toBe('0-154-AD-RA250');
+    expect(result.sageLines[0].quantity).toBe(4); // Exactamente 4 EA, sin cut plan
+  });
+
+  it('3. Bottomrail real (0-151-AL-CLZ19) -> FT / full_piece_with_remainders', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 9.61, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 9.48, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.98, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 5.15, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 5.15, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.72, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.82, unit: 'FT' }
+    ];
+    const result = calculateIssueLines(lines, []);
+    expect(result.sageLines[0].itemCode).toBe('0-151-AL-CLZ19');
+    expect(result.sageLines[0].quantity).toBe(57); // 3 barras de 19 FT
+    expect(result.cutPlans[0].bars).toHaveLength(3);
+  });
+
+  it('4. Tubo real (0-154-TU-50001, 0-154-TU-38111) -> FT / full_piece_with_remainders', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-154-TU-50001', description: 'Tubo 50 mm', quantity: 10, unit: 'FT' },
+      { sku: '0-154-TU-50001', description: 'Tubo 50 mm', quantity: 9.09, unit: 'FT' }
+    ];
+    const result = calculateIssueLines(lines, []);
+    expect(result.sageLines[0].itemCode).toBe('0-154-TU-50001');
+    expect(result.sageLines[0].quantity).toBe(38); // 2 barras
+  });
+
+  it('5. Tela -> Y2 / exact_area', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-004-87-02518', description: 'Tela Screen', quantity: 17.5104, unit: 'Y2' }
+    ];
+    const result = calculateIssueLines(lines, []);
+    expect(result.sageLines[0].itemCode).toBe('0-004-87-02518');
+    expect(result.sageLines[0].quantity).toBe(17.5104);
+    expect(result.cutPlans).toHaveLength(0);
+  });
+
+  it('6. Cadena respetando catálogo', () => {
+    expect(determineIssueMode('0-151-CH-012H0', 'FT')).toBe('exact_linear');
+    // Para collectIssueEngineInputs se prueba en test e2e, pero aquí aseguramos el modo
+  });
+
+  it('7. SKU sin catálogo que usa fallback conservador y NO usa full_piece_with_remainders', () => {
+    // Falso positivo: "tubo de cartón" que se usa para empaque, debería ser EA, no full_piece_with_remainders
+    expect(determineIssueMode('SKU-UNKN-TUBO', 'EA')).toBe('exact_each');
+    expect(determineIssueMode('SKU-UNKN-BOTTOMRAIL', 'FT')).toBe('exact_linear');
+    expect(determineIssueMode('SKU-UNKN-TELA', 'Y2')).toBe('exact_area');
+  });
+
+  it('ORD-0225: Full Export Test', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-154-TU-50001', description: 'Tubo 50 mm', quantity: 10, unit: 'FT' },
+      { sku: '0-154-TU-50001', description: 'Tubo 50 mm', quantity: 9.09, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 9.61, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 9.48, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.98, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 5.15, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 5.15, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.72, unit: 'FT' },
+      { sku: '0-151-AL-CLZ19', description: 'Bottomrail', quantity: 4.82, unit: 'FT' },
+      { sku: '0-154-TU-38111', description: 'Tubo NEO 38 mm', quantity: 12.42, unit: 'FT' },
+      { sku: '0-154-TU-38111', description: 'Tubo NEO 38 mm', quantity: 12.42, unit: 'FT' },
+      { sku: '0-151-RE-10500', description: 'Tapaderas', quantity: 14, unit: 'EA' },
+      { sku: '0-154-AD-RA250', description: 'Adaptador', quantity: 4, unit: 'EA' },
+      { sku: '0-004-87-02518', description: 'Tela', quantity: 17.5104, unit: 'Y2' },
+      { sku: '0-004-87-02598', description: 'Tela 2', quantity: 23.25, unit: 'Y2' }
     ];
 
     const result = calculateIssueLines(lines, []);
-
-    // Debe pedir 19 FT a Sage
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('TUB-38');
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    // Debe dejar un sobrante de 14 FT
-    expect(result.updatedRemainders).toHaveLength(1);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(14);
-    expect(result.updatedRemainders[0].sku).toBe('TUB-38');
-    expect(result.updatedRemainders[0].consumedByOrderIds).toContain('O-1');
-  });
-
-  it('Tubo requiere 8 FT con sobrante 14 FT -> Sage 0 FT, sobrante 6 FT', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 8, unit: 'FT', orderId: 'O-2' }
-    ];
-
-    const existingRemainders: ReusableRemainder[] = [
-      {
-        id: 'R-1',
-        sku: 'TUB-38',
-        description: 'Tubo de 38mm',
-        originalLengthFt: 19,
-        remainingLengthFt: 14,
-        consumedByOrderIds: ['O-1'],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-      }
-    ];
-
-    const result = calculateIssueLines(lines, existingRemainders);
-
-    // No debe pedir a Sage porque el sobrante es suficiente
-    expect(result.sageLines).toHaveLength(0);
-
-    // Debe actualizar el sobrante a 6 FT
-    expect(result.updatedRemainders).toHaveLength(1);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(6);
-    expect(result.updatedRemainders[0].consumedByOrderIds).toContain('O-2');
-  });
-
-  it('Dos cortes de 5 FT y 8 FT en el mismo lote -> Sage solo 19 FT, sobrante 6 FT', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 5, unit: 'FT', orderId: 'O-1' },
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 8, unit: 'FT', orderId: 'O-2' }
-    ];
-
-    const result = calculateIssueLines(lines, []);
-
-    // Solo se debe pedir 1 barra de 19 FT a Sage
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    // El primer corte consume 5, dejando 14. El segundo consume 8 del sobrante, dejando 6.
-    expect(result.updatedRemainders).toHaveLength(1);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(6);
-    expect(result.updatedRemainders[0].consumedByOrderIds).toContain('O-1');
-    expect(result.updatedRemainders[0].consumedByOrderIds).toContain('O-2');
-  });
-
-  it('Dos cortes de 12 FT y 12 FT -> Sage 38 FT, dos barras de 19 FT', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 12, unit: 'FT' },
-      { sku: 'TUB-38', description: 'Tubo de 38mm', quantity: 12, unit: 'FT' }
-    ];
-
-    const result = calculateIssueLines(lines, []);
-
-    // Debe pedir 38 FT a Sage (19 + 19)
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].quantity).toBe(38);
-
-    // Debe generar 2 sobrantes de 7 FT cada uno
-    expect(result.updatedRemainders).toHaveLength(2);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(7);
-    expect(result.updatedRemainders[1].remainingLengthFt).toBe(7);
-  });
-
-  it('No debe consumir sobrante de SKU diferente', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'TUB-50', description: 'Tubo de 50mm', quantity: 5, unit: 'FT' }
-    ];
-
-    const existingRemainders: ReusableRemainder[] = [
-      {
-        id: 'R-1',
-        sku: 'TUB-38',
-        description: 'Tubo de 38mm',
-        originalLengthFt: 19,
-        remainingLengthFt: 14,
-        consumedByOrderIds: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-      }
-    ];
-
-    const result = calculateIssueLines(lines, existingRemainders);
-
-    // Debe pedir 19 FT del nuevo tubo TUB-50 a Sage
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('TUB-50');
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    // Debe mantener el sobrante anterior y agregar uno nuevo
-    expect(result.updatedRemainders).toHaveLength(2);
-  });
-
-  it('Tela se exporta en Y2 directo (exact_area)', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'TEL-01', description: 'Tela Screen', quantity: 2.55, unit: 'Y2' }
-    ];
-
-    const result = calculateIssueLines(lines, []);
-
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('TEL-01');
-    expect(result.sageLines[0].quantity).toBe(2.55); // Se exporta directo, la tela nunca pasa por pool de remainders
-    expect(result.updatedRemainders).toHaveLength(0);
-  });
-
-  it('Bottomrail requiere 5 FT sin sobrante -> Sage 19 FT, sobrante 14 FT', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'BOT-01', description: 'Bottomrail', quantity: 5, unit: 'FT', orderId: 'O-1' }
-    ];
-
-    const result = calculateIssueLines(lines, []);
-
-    // Bottomrail se descarga por barras de 19 FT
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('BOT-01');
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    expect(result.updatedRemainders).toHaveLength(1);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(14);
-    expect(result.updatedRemainders[0].sku).toBe('BOT-01');
-  });
-
-  it('Bottomrail requiere 8 FT con sobrante 14 FT -> Sage 0 FT, sobrante 6 FT', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'BOT-01', description: 'Bottomrail', quantity: 8, unit: 'FT', orderId: 'O-2' }
-    ];
-
-    const existingRemainders: ReusableRemainder[] = [
-      {
-        id: 'R-1',
-        sku: 'BOT-01',
-        description: 'Bottomrail',
-        originalLengthFt: 19,
-        remainingLengthFt: 14,
-        consumedByOrderIds: ['O-1'],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-      }
-    ];
-
-    const result = calculateIssueLines(lines, existingRemainders);
-
-    expect(result.sageLines).toHaveLength(0);
-    expect(result.updatedRemainders).toHaveLength(1);
-    expect(result.updatedRemainders[0].remainingLengthFt).toBe(6);
-  });
-
-  it('Bottomrail no consume sobrante de SKU distinto', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'BOT-02', description: 'Bottomrail Curve', quantity: 5, unit: 'FT' }
-    ];
-
-    const existingRemainders: ReusableRemainder[] = [
-      {
-        id: 'R-1',
-        sku: 'BOT-01',
-        description: 'Bottomrail Flat',
-        originalLengthFt: 19,
-        remainingLengthFt: 14,
-        consumedByOrderIds: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-      }
-    ];
-
-    const result = calculateIssueLines(lines, existingRemainders);
-
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('BOT-02');
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    expect(result.updatedRemainders).toHaveLength(2);
-  });
-
-  it('Tubo y Bottomrail no comparten sobrantes entre sí', () => {
-    const lines: IssueEngineInputLine[] = [
-      { sku: 'BOT-01', description: 'Bottomrail', quantity: 5, unit: 'FT' }
-    ];
-
-    const existingRemainders: ReusableRemainder[] = [
-      {
-        id: 'R-1',
-        sku: 'TUB-38',
-        description: 'Tubo de 38mm',
-        originalLengthFt: 19,
-        remainingLengthFt: 14,
-        consumedByOrderIds: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-      }
-    ];
-
-    const result = calculateIssueLines(lines, existingRemainders);
-
-    expect(result.sageLines).toHaveLength(1);
-    expect(result.sageLines[0].itemCode).toBe('BOT-01');
-    expect(result.sageLines[0].quantity).toBe(19);
-
-    expect(result.updatedRemainders).toHaveLength(2);
+    
+    const sageMap = new Map(result.sageLines.map(l => [l.itemCode, l.quantity]));
+    
+    expect(sageMap.get('0-154-TU-50001')).toBe(38);
+    expect(sageMap.get('0-151-AL-CLZ19')).toBe(57);
+    expect(sageMap.get('0-154-TU-38111')).toBe(38);
+    expect(sageMap.get('0-151-RE-10500')).toBe(14);
+    expect(sageMap.get('0-154-AD-RA250')).toBe(4);
+    expect(sageMap.get('0-004-87-02518')).toBe(17.5104);
+    expect(sageMap.get('0-004-87-02598')).toBe(23.25);
   });
 });

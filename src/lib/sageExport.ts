@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { SavedOrder } from '../domain/curtains/types';
 import type { SageMaterialLine } from '../domain/orders/materialReview';
 import { calculateIssueLines, IssueEngineInputLine, ReusableRemainder } from '../domain/orders/issueStrategies';
+import { componentCatalogBySku } from '../domain/inventory/componentCatalog';
 
 const SAGE_ORDUNIQ = 'PRODUC';
 const SAGE_CUSTOMER = 'PRODUC';
@@ -15,20 +16,18 @@ interface SageDetailLine {
 }
 
 export function getSageExportableLineCount(orders: SavedOrder[], remainders: ReusableRemainder[] = []) {
-  const lines = collectMaterialLines(orders);
-  const inputLines: IssueEngineInputLine[] = lines.map(l => ({ sku: l.sku, description: l.description, quantity: l.quantity, unit: l.unit }));
+  const inputLines = collectIssueEngineInputs(orders);
   const result = calculateIssueLines(inputLines, remainders);
   return result.sageLines.length;
 }
 
 export function downloadSageOrderEntry(orders: SavedOrder[], remainders: ReusableRemainder[] = []): ReusableRemainder[] {
-  const materialLines = collectMaterialLines(orders);
+  const inputLines = collectIssueEngineInputs(orders);
 
-  if (materialLines.length === 0) {
+  if (inputLines.length === 0) {
     throw new Error('No hay lineas de materiales resueltas para exportar a Sage.');
   }
 
-  const inputLines: IssueEngineInputLine[] = materialLines.map(l => ({ sku: l.sku, description: l.description, quantity: l.quantity, unit: l.unit }));
   const result = calculateIssueLines(inputLines, remainders);
   const detailLines = result.sageLines;
   const workbook = XLSX.utils.book_new();
@@ -116,38 +115,103 @@ export function downloadSageOrderEntry(orders: SavedOrder[], remainders: Reusabl
   return result.updatedRemainders;
 }
 
-function collectMaterialLines(orders: SavedOrder[]): SageMaterialLine[] {
-  return orders
-    .filter((order) => order.status !== 'sent_to_sage')
-    .flatMap((order) => {
-      const components = order.productionReview?.finalMaterialLines ?? [];
-      const fabrics = order.productionReview?.finalFabricLines ?? [];
-      return [...components, ...fabrics];
-    });
-}
+function collectIssueEngineInputs(orders: SavedOrder[]): IssueEngineInputLine[] {
+  const result: IssueEngineInputLine[] = [];
 
-function consolidateMaterialLines(lines: SageMaterialLine[]): SageDetailLine[] {
-  const totals = new Map<string, number>();
+  for (const order of orders) {
+    if (order.status === 'sent_to_sage') continue;
 
-  lines.forEach((line) => {
-    const itemCode = line.sku;
-
-    if (!itemCode || line.quantity <= 0) {
-      return;
+    // 1. Telas: salen directo de finalFabricLines
+    if (order.productionReview?.finalFabricLines) {
+      for (const line of order.productionReview.finalFabricLines) {
+        result.push({
+          sku: line.sku,
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          orderId: order.id
+        });
+      }
     }
-    let exportQuantity = line.quantity;
+
+    // 2. Componentes individuales de las cortinas
+    const adjustments = order.productionReview?.adjustments || [];
     
-    // Si es cadena operativa (0-151-CH-xxx) y viene en metros, se convierte a pies para el descargo en Sage
-    if (itemCode.includes('-CH-') && line.unit === 'm') {
-      exportQuantity = line.quantity * 3.28084;
+    // Mapeamos los ajustes por SKU original (calculatedSku)
+    const adjMap = new Map<string, any>();
+    for (const adj of adjustments) {
+      if (adj.calculatedSku && adj.action !== "added") {
+        adjMap.set(adj.calculatedSku, adj);
+      }
     }
 
-    totals.set(itemCode, (totals.get(itemCode) ?? 0) + exportQuantity);
-  });
+    for (const item of order.items) {
+      if (!item.materialLines) continue;
 
-  return [...totals.entries()]
-    .map(([itemCode, quantity]) => ({ itemCode, quantity }))
-    .sort((left, right) => left.itemCode.localeCompare(right.itemCode, 'es', { numeric: true }));
+      for (const mLine of item.materialLines) {
+        const originalSku = mLine.sageItemCode || mLine.itemCode;
+        const adjustment = adjMap.get(originalSku);
+
+        // Si fue removido en la revisión, se ignora
+        if (adjustment?.action === "removed") continue;
+
+        let finalSku = originalSku;
+        let finalQuantity = mLine.quantity;
+        let finalDescription = mLine.description;
+        let finalUnit = mLine.unit;
+
+        if (adjustment && adjustment.action === "substituted" && adjustment.actualSku) {
+          finalSku = adjustment.actualSku;
+          finalDescription = adjustment.actualDescription || finalDescription;
+        }
+
+        if (adjustment && adjustment.action === "quantity_adjusted" && adjustment.actualQuantity !== undefined) {
+          // Nota: Si hay múltiples cortes de este mismo SKU en la orden, 
+          // usar actualQuantity en cada uno no es ideal, pero quantity_adjusted 
+          // rara vez se usa en cortes, más en EA. Lo usamos de todos modos.
+          finalQuantity = adjustment.actualQuantity;
+        }
+
+        result.push({
+          sku: finalSku,
+          description: finalDescription,
+          quantity: finalQuantity,
+          unit: finalUnit,
+          orderId: order.id,
+          itemId: item.id,
+          curtainRef: item.title || item.id
+        });
+      }
+    }
+
+    // 3. Componentes agregados manualmente en la revisión
+    const addedAdjustments = adjustments.filter(adj => adj.action === "added" && adj.actualSku);
+    for (const add of addedAdjustments) {
+      result.push({
+        sku: add.actualSku!,
+        description: add.actualDescription || add.actualSku!,
+        quantity: add.actualQuantity || 1,
+        unit: add.actualUnit || 'EA',
+        orderId: order.id
+      });
+    }
+  }
+
+  // Convertir a la unidad requerida por Sage según el catálogo
+  for (const line of result) {
+    const catalogEntry = componentCatalogBySku[line.sku];
+    const targetUnit = catalogEntry?.sageUnit?.toUpperCase();
+    
+    if (targetUnit === 'FT' && line.unit.toLowerCase() === 'm') {
+      line.quantity = line.quantity * 3.28084;
+      line.unit = 'FT';
+    } else if (targetUnit === 'M' && line.unit.toLowerCase() === 'ft') {
+      line.quantity = line.quantity / 3.28084;
+      line.unit = 'M';
+    }
+  }
+
+  return result;
 }
 
 function appendEmptySheet(workbook: XLSX.WorkBook, name: string, headers: string[]) {

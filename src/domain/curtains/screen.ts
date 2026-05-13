@@ -142,12 +142,19 @@ function formatFixedComponent(component: ScreenFixedComponent) {
   return component;
 }
 
+const EDGE_ROLL_FIT_TOLERANCE_M = 0.10;
+
 interface ScreenCalculationOption {
   orientationUsed: 'normal' | 'volteada';
   recommendedRollWidthMeters: number;
   cutLengthMeters: number;
   cutWidthMeters: number;
   occupiedRollWidthMeters: number;
+  edgeRollFit?: boolean;
+  edgeRollFitReason?: string;
+  standardCutWidthMeters?: number;
+  oversizedRotated?: boolean;
+  rotatedReason?: string;
 }
 
 function buildCalculationOption(
@@ -158,23 +165,58 @@ function buildCalculationOption(
 ): ScreenCalculationOption {
   if (orientation === 'normal') {
     const cutWidthMeters = input.widthMeters + 0.10;
-    return {
-      orientationUsed: 'normal',
-      recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
-      cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
-      cutWidthMeters,
-      occupiedRollWidthMeters: cutWidthMeters,
-    };
+    try {
+      return {
+        orientationUsed: 'normal',
+        recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
+        cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
+        cutWidthMeters,
+        occupiedRollWidthMeters: cutWidthMeters,
+      };
+    } catch (error) {
+      const maxRoll = availableWidths.length > 0 ? Math.max(...availableWidths) : 3.0;
+      if (input.widthMeters <= maxRoll && cutWidthMeters > maxRoll && (cutWidthMeters - maxRoll) <= EDGE_ROLL_FIT_TOLERANCE_M) {
+        return {
+          orientationUsed: 'normal',
+          recommendedRollWidthMeters: maxRoll,
+          cutLengthMeters: input.heightMeters + config.cutHeightExtraMeters + 0.10,
+          cutWidthMeters: maxRoll,
+          occupiedRollWidthMeters: maxRoll,
+          edgeRollFit: true,
+          edgeRollFitReason: 'Corte justo al rollo por medida límite',
+          standardCutWidthMeters: cutWidthMeters,
+        };
+      }
+      throw error;
+    }
   } else {
     // Volteada: El alto (con extra) se acomoda al ancho del rollo
     const cutWidthMeters = input.heightMeters + config.cutHeightExtraMeters + 0.10;
-    return {
-      orientationUsed: 'volteada',
-      recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
-      cutLengthMeters: input.widthMeters + 0.10,
-      cutWidthMeters,
-      occupiedRollWidthMeters: cutWidthMeters,
-    };
+    try {
+      return {
+        orientationUsed: 'volteada',
+        recommendedRollWidthMeters: selectRollo(cutWidthMeters, availableWidths),
+        cutLengthMeters: input.widthMeters + 0.10,
+        cutWidthMeters,
+        occupiedRollWidthMeters: cutWidthMeters,
+      };
+    } catch (error) {
+      const maxRoll = availableWidths.length > 0 ? Math.max(...availableWidths) : 3.0;
+      const heightWithExtra = input.heightMeters + config.cutHeightExtraMeters;
+      if (heightWithExtra <= maxRoll && cutWidthMeters > maxRoll && (cutWidthMeters - maxRoll) <= EDGE_ROLL_FIT_TOLERANCE_M) {
+        return {
+          orientationUsed: 'volteada',
+          recommendedRollWidthMeters: maxRoll,
+          cutLengthMeters: input.widthMeters + 0.10,
+          cutWidthMeters: maxRoll,
+          occupiedRollWidthMeters: maxRoll,
+          edgeRollFit: true,
+          edgeRollFitReason: 'Corte justo al rollo por medida límite',
+          standardCutWidthMeters: cutWidthMeters,
+        };
+      }
+      throw error;
+    }
   }
 }
 
@@ -194,13 +236,9 @@ function pickBestOption(
 
   // Si ambas son validas
   if (normalOption && volteadaOption) {
-    // 1. Si Volteada permite un rollo mas pequeño, es mas eficiente en costo
-    if (volteadaOption.recommendedRollWidthMeters < normalOption.recommendedRollWidthMeters) {
-      return volteadaOption;
-    }
-    
-    // 2. Si usan el mismo rollo (o Normal usa uno menor, raro pero posible), 
-    // preferimos siempre Normal por el hilo de la tela.
+    // Preferimos siempre Normal por el hilo de la tela, incluso si Volteada usa un rollo menor.
+    // La rotacion solo se usara de forma obligatoria cuando normal no quepa (ej. anchos > 3.00)
+    // o si en el futuro se permite forzar rotacion manualmente.
     return normalOption;
   }
 
@@ -215,16 +253,25 @@ function getCalculationOptions(
 ): ScreenCalculationOption[] {
   const options: ScreenCalculationOption[] = [];
 
-  // Intenta Normal
-  try {
-    options.push(buildCalculationOption(input, config, availableWidths, 'normal'));
-  } catch {
-    // No cabe normal
+  const isOversized = input.widthMeters > 3.0;
+
+  if (!isOversized) {
+    // Intenta Normal
+    try {
+      options.push(buildCalculationOption(input, config, availableWidths, 'normal'));
+    } catch {
+      // No cabe normal
+    }
   }
 
   // Intenta Volteada
   try {
-    options.push(buildCalculationOption(input, config, availableWidths, 'volteada'));
+    const volteadaOption = buildCalculationOption(input, config, availableWidths, 'volteada');
+    if (isOversized) {
+      volteadaOption.oversizedRotated = true;
+      volteadaOption.rotatedReason = 'Ancho mayor a 3.00 m';
+    }
+    options.push(volteadaOption);
   } catch {
     // No cabe volteada
   }
@@ -372,6 +419,12 @@ export function calculateScreenMaterials(
     fixedComponents: config.fixedComponents.map(formatFixedComponent),
     requiresReinforcedTube,
     tubeRecommendation,
+    edgeRollFit: selectedOption.edgeRollFit,
+    edgeRollFitReason: selectedOption.edgeRollFitReason,
+    standardCutWidthMeters: selectedOption.standardCutWidthMeters,
+    oversizedRotated: selectedOption.oversizedRotated,
+    oversizedRotatedAccepted: input.oversizedRotatedAccepted,
+    rotatedReason: selectedOption.rotatedReason,
   };
 }
 
