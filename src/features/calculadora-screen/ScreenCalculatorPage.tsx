@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
+import { LuxiaIcon } from '../../components/LuxiaIcon';
 
 const ProductionModuleV2 = lazy(async () => {
   const module = await import('./components/ProductionModuleV2');
@@ -55,10 +56,12 @@ export function ScreenCalculatorPage() {
     <main className="page-shell">
       <section className="page-frame">
         <div className="view-switcher">
-          <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px', gap: '16px', flexShrink: 0 }}>
-            <span style={{ fontSize: '1.15rem', fontWeight: 900, letterSpacing: '-0.04em', textTransform: 'uppercase', color: 'var(--text)' }}>LUXIA</span>
-            <div style={{ width: '1px', height: '18px', background: 'var(--line-strong)' }}></div>
-            <img src="/vertilux-logo.png" alt="Vertilux" style={{ height: '14px', filter: theme === 'dark' ? 'invert(1) brightness(2)' : 'none', opacity: 0.9 }} />
+          <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px', gap: '12px', flexShrink: 0 }}>
+            <LuxiaIcon width={46} height={46} />
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '1.4rem', fontWeight: 900, letterSpacing: '0.04em', color: 'var(--text)', lineHeight: 1 }}>LUXIA</span>
+              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '0.65rem', fontWeight: 500, letterSpacing: '0.01em', color: 'var(--text-muted, #6E6E73)', marginTop: '2px' }}>Powered by Vertilux</span>
+            </div>
           </div>
           <button
             type="button"
