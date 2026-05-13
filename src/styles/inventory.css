@@ -110,8 +110,8 @@
   gap: 4px;
   padding: 12px;
   border-radius: 14px;
-  background: rgba(37, 33, 36, 0.94);
-  color: white;
+  background: var(--surface-strong);
+  color: var(--text);
 }
 
 .inventory-pricing__status span,

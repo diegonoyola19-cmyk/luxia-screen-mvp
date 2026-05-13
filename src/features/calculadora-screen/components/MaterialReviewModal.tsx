@@ -373,7 +373,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
 
   return (
     <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="modal-content" style={{ background: 'var(--bg-card, #fff)', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '1200px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div className="modal-content" style={{ background: 'var(--surface)', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '1200px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <h2 style={{ marginTop: 0 }}>Revisión de Materiales y Telas - Orden {order.orderNumber}</h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
           Confirma o ajusta los materiales reales consumidos. Sage utilizará la lista final combinada.

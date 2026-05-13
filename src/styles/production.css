@@ -142,7 +142,7 @@
 }
 
 .production-fabric-chip--active {
-  border-color: #c0392b;
+  border-color: var(--primary);
 }
 
 .production-fabric-chip__swatch {
@@ -411,7 +411,7 @@
   margin-top: 6px;
   font-size: 1.5rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text);
   letter-spacing: -0.02em;
 }
 
@@ -446,8 +446,8 @@
 }
 
 .production-roll-option {
-  border: 1px solid rgba(141, 22, 40, 0.14);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
   color: var(--text);
   border-radius: 999px;
   padding: 8px 12px;
@@ -456,8 +456,8 @@
 }
 
 .production-roll-option--active {
-  background: linear-gradient(135deg, var(--primary) 0%, #b32037 100%);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-on);
   border-color: transparent;
 }
 
@@ -607,9 +607,9 @@
   min-width: 126px;
   padding: 12px 14px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(35, 31, 33, 0.96) 0%, rgba(19, 17, 18, 0.96) 100%);
-  color: white;
-  box-shadow: 0 16px 30px rgba(24, 24, 27, 0.18);
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.18);
 }
 
 .production-order-dashboard__status span,
@@ -744,8 +744,8 @@
   border-radius: 7px !important;
   display: grid !important;
   place-items: center !important;
-  background: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
+  background: var(--surface-bright) !important;
+  color: var(--text) !important;
   font-size: 11px !important;
 }
 
@@ -882,7 +882,7 @@
 
 .waste-indicator--warning {
   background: rgba(185, 124, 24, 0.14);
-  color: #8f5c0f;
+  color: var(--warning);
 }
 
 .waste-indicator--critical {
@@ -1381,7 +1381,7 @@
     z-index: 40;
     border-top: 1px solid var(--color-border);
     box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
-    background: white;
+    background: var(--surface);
   }
 
   .production-order-dashboard__hero,
@@ -1511,9 +1511,9 @@
   gap: 10px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: #fffbeb;
-  border: 1px solid #f59e0b;
-  color: #92400e;
+  background: var(--badge-sage-bg);
+  border: 1px solid var(--warning);
+  color: var(--badge-sage-text);
   overflow: hidden;
   margin-bottom: 10px;
 }
@@ -1534,7 +1534,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #b45309;
+  color: var(--warning);
   font-weight: 700;
   font-size: 0.82rem;
   text-decoration: underline;
@@ -1544,7 +1544,7 @@
 }
 
 .waste-alert-banner__link:hover {
-  color: #92400e;
+  color: var(--warning);
 }
 
 /* Etiqueta visual para retazos generados en la sesión activa (aún no en bodega) */
