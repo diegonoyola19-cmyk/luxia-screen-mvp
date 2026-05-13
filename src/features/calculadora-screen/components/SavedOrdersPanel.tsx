@@ -1,7 +1,6 @@
 import { useDeferredValue, useMemo, useRef, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
-import { Card } from '../../../components/ui/Card';
 import type { SavedOrder } from '../../../domain/curtains/types';
 import { formatDate, formatNumber } from '../../../lib/format';
 import { summarizeOrdersProduction, summarizeProduction } from '../../../lib/production';
@@ -9,10 +8,13 @@ import { useCalculatorStore } from '../store/useCalculatorStore';
 import { downloadSavedOrders, importSavedOrdersFile } from '../../../lib/orderTransfer';
 import { downloadCsvReport } from '../../../lib/csvExport';
 import { downloadSageOrderEntry, getSageExportableLineCount } from '../../../lib/sageExport';
-import { generateRollerBOM, TONE_COLOR_MAP, type BOMItem } from '../../../logic/generateRollerBOM';
+import { generateRollerBOM, type BOMItem } from '../../../logic/generateRollerBOM';
 import { getHWDesc, type Tone } from '../../../logic/rollerEngineV3';
+import { MaterialReviewModal } from './MaterialReviewModal';
+import { validateOrderBeforeSage } from '../../../domain/orders/validateOrderBeforeSage';
+import { normalizeOrderStatus, SavedOrderStatus } from '../../../domain/orders/orderStatus';
 
-// ── BOM display helpers (compartidos con ProductionModuleV2) ──────────────
+// ── BOM display helpers ──────────────
 const M_TO_FT = 3.28084;
 
 function colorFromSKU(sku: string): string | null {
@@ -68,58 +70,30 @@ interface OrderReportRow {
   reusePercentage: number;
 }
 
-type WasteLevel = 'healthy' | 'warning' | 'critical';
 type OrderSortMode = 'recent' | 'waste' | 'cost' | 'curtains';
-type OrderStatusFilter = 'all' | 'pending' | 'sent_to_sage';
+type OrderStatusFilter = 'all' | SavedOrderStatus;
 type DateRange = 'all' | 'today' | 'week' | 'month';
 
 function getOrderStatus(order: SavedOrder) {
-  return order.status ?? 'pending';
+  return normalizeOrderStatus(order.status);
 }
 
 function getOrderStatusLabel(order: SavedOrder) {
-  return getOrderStatus(order) === 'sent_to_sage' ? 'Completada' : 'Pendiente';
-}
-
-function getWasteLevel(wastePercentage: number): WasteLevel {
-  if (wastePercentage > 50) return 'critical';
-  if (wastePercentage >= 35) return 'warning';
-  return 'healthy';
-}
-
-function getWasteLabel(level: WasteLevel) {
-  switch (level) {
-    case 'critical': return 'Critica';
-    case 'warning':  return 'Alta';
-    default:         return 'Sana';
-  }
-}
-
-function getReuseLevel(pct: number): WasteLevel {
-  if (pct > 20) return 'healthy';   // 🟢 mucho aprovechamiento
-  if (pct >= 10) return 'warning';  // 🟡 aceptable
-  return 'critical';                // 🔴 poco uso de retazos
-}
-
-function getReuseLabel(level: WasteLevel) {
-  switch (level) {
-    case 'healthy':  return 'Óptimo';
-    case 'warning':  return 'Moderado';
-    default:         return 'Bajo';
+  const st = getOrderStatus(order);
+  switch (st) {
+    case 'draft': return 'Borrador';
+    case 'ready_for_production': return 'Lista para producción';
+    case 'in_production': return 'En producción';
+    case 'materials_checked': return 'Materiales revisados';
+    case 'sent_to_sage': return 'Enviada a Sage';
+    case 'completed': return 'Completada';
+    case 'cancelled': return 'Cancelada';
+    default: return 'Pendiente';
   }
 }
 
 function getReusePercentage(reusedArea: number, curtainArea: number) {
   return curtainArea === 0 ? 0 : (reusedArea / curtainArea) * 100;
-}
-
-function getRealWastePercentage(
-  wasteArea: number,
-  downloadedArea: number,
-  reusedArea: number,
-) {
-  const totalMaterialUsed = downloadedArea + reusedArea;
-  return totalMaterialUsed === 0 ? 0 : (wasteArea / totalMaterialUsed) * 100;
 }
 
 function deriveAutoTone(fabricColor: string): Tone {
@@ -130,32 +104,6 @@ function deriveAutoTone(fabricColor: string): Tone {
   if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
       c.includes('gold') || c.includes('custard')) return 'bronze';
   return 'white';
-}
-
-function MetricInfo({
-  label,
-  message,
-}: {
-  label: string;
-  message: string;
-}) {
-  return (
-    <span className="metric-label-with-info">
-      <span>{label}</span>
-      <span className="metric-info">
-        <button
-          type="button"
-          className="metric-info__trigger"
-          aria-label={`Informacion sobre ${label}`}
-        >
-          i
-        </button>
-        <span className="metric-info__tooltip" role="tooltip">
-          {message}
-        </span>
-      </span>
-    </span>
-  );
 }
 
 function getOrderReportRow(order: SavedOrder): OrderReportRow {
@@ -192,21 +140,55 @@ function getRelativeDateLabel(value: string) {
   return formatDate(value);
 }
 
-function useIsMobile(breakpoint = 640) {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth <= breakpoint : false,
-  );
+// ── Nuevos Componentes Visuales ──────────────
 
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    setIsMobile(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [breakpoint]);
+function StatusBadge({ status }: { status: SavedOrderStatus | string }) {
+  let badgeClass = 'badge-status--draft';
+  switch (status) {
+    case 'draft': badgeClass = 'badge-status--draft'; break;
+    case 'ready_for_production': badgeClass = 'badge-status--ready'; break;
+    case 'in_production': badgeClass = 'badge-status--production'; break;
+    case 'materials_checked': badgeClass = 'badge-status--checked'; break;
+    case 'sent_to_sage': badgeClass = 'badge-status--sage'; break;
+    case 'completed': badgeClass = 'badge-status--completed'; break;
+    case 'cancelled': badgeClass = 'badge-status--cancelled'; break;
+  }
 
-  return isMobile;
+  let label = 'Pendiente';
+  switch (status) {
+    case 'draft': label = 'Borrador'; break;
+    case 'ready_for_production': label = 'Lista para prod.'; break;
+    case 'in_production': label = 'En producción'; break;
+    case 'materials_checked': label = 'Revisado'; break;
+    case 'sent_to_sage': label = 'Sage'; break;
+    case 'completed': label = 'Completada'; break;
+    case 'cancelled': label = 'Cancelada'; break;
+  }
+
+  return <span className={`badge-status ${badgeClass}`}>{label}</span>;
 }
+
+function OrderListItem({ row, isActive, onClick }: { row: OrderReportRow, isActive: boolean, onClick: () => void }) {
+  const status = getOrderStatus(row.order);
+  return (
+    <div className={`order-list-card ${isActive ? 'order-list-card--active' : ''}`} onClick={onClick}>
+      <div className="order-list-card__top">
+        <span className="order-list-card__title">{row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}</span>
+        <StatusBadge status={status} />
+      </div>
+      <div className="order-list-card__meta">
+        {getRelativeDateLabel(row.order.createdAt)} • {formatDate(row.order.createdAt)}
+      </div>
+      <div className="order-list-card__metrics">
+        <div><span className="val">{row.summary.curtains}</span> piezas</div>
+        <div><span className="val">{formatNumber(row.wastePercentage)}%</span> merma</div>
+        <div><span className="val">${formatNumber(row.summary.totalOrderCost)}</span></div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ──────────────
 
 export function SavedOrdersPanel() {
   const store = useCalculatorStore();
@@ -215,9 +197,14 @@ export function SavedOrdersPanel() {
   
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
-  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('all');
   const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null);
+  const reviewingOrder = useMemo(() => store.savedOrders.find(o => o.id === reviewingOrderId) ?? null, [store.savedOrders, reviewingOrderId]);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+
+  // Accordion states
+  const [accBOM, setAccBOM] = useState(true);
+  const [accPieces, setAccPieces] = useState(false);
 
   const filteredRows = useMemo(() => {
     const now = new Date();
@@ -231,10 +218,6 @@ export function SavedOrdersPanel() {
       if (dateRange === 'today' && orderDate < today) return false;
       if (dateRange === 'week' && orderDate < startOfWeek) return false;
       if (dateRange === 'month' && orderDate < startOfMonth) return false;
-
-      if (statusFilter !== 'all' && getOrderStatus(row.order) !== statusFilter) {
-        return false;
-      }
 
       if (!deferredQuery) {
         return true;
@@ -270,7 +253,7 @@ export function SavedOrdersPanel() {
           return new Date(right.order.createdAt).getTime() - new Date(left.order.createdAt).getTime();
       }
     });
-  }, [deferredQuery, reportRows, sortMode, statusFilter, dateRange]);
+  }, [deferredQuery, reportRows, sortMode, dateRange]);
 
   const filteredOrders = useMemo(() => filteredRows.map((r) => r.order), [filteredRows]);
   const globalSummary = useMemo(() => summarizeOrdersProduction(filteredOrders), [filteredOrders]);
@@ -279,30 +262,11 @@ export function SavedOrdersPanel() {
     () => filteredOrders.filter((order) => getSageExportableLineCount([order]) > 0),
     [filteredOrders],
   );
-  const sageLineCount = useMemo(
-    () => getSageExportableLineCount(filteredOrders),
-    [filteredOrders],
-  );
-  const totalLinealWaste = globalSummary.tube.wasteFeet + globalSummary.bottom.wasteFeet;
 
   const selectedRow =
     filteredRows.find((row) => row.order.id === store.selectedOrderId) ??
     filteredRows[0] ??
     null;
-  const selectedWasteLevel = selectedRow ? getWasteLevel(selectedRow.wastePercentage) : 'healthy';
-
-  const totalReusedArea = filteredOrders
-    .flatMap((order) => order.items)
-    .reduce((sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0), 0);
-  const grossWasteM2 = globalSummary.fabricWasteM2 + totalReusedArea;
-  const scrapRecoveryPercentage = grossWasteM2 === 0 ? 0 : (totalReusedArea / grossWasteM2) * 100;
-  const scrapRecoveryLevel = getReuseLevel(scrapRecoveryPercentage);
-
-  const [summaryExpanded, setSummaryExpanded] = useState(false);
-  const isMobile = useIsMobile(640);
-  const detailMotion = isMobile
-    ? { initial: { opacity: 0, y: 28 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 16 } }
-    : { initial: { opacity: 0, x: 28 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: 16 } };
 
   const orderBOM = useMemo((): BOMItem[] => {
     if (!selectedRow) return [];
@@ -337,7 +301,6 @@ export function SavedOrdersPanel() {
     }
 
     for (const item of selectedRow.order.items) {
-      // Usar el tono persistido en el input; si no existe (órdenes antiguas), derivar del color de tela
       const tone = item.input.hardwareTone ?? deriveAutoTone(item.input.fabricColor ?? '');
       const mounting = item.input.mountingSystem ?? 'standard';
       try {
@@ -358,520 +321,330 @@ export function SavedOrdersPanel() {
             aggregated.set(bomItem.skuFinal, { ...bomItem });
           }
         }
-      } catch { /* dimensiones inválidas, skip */ }
+      } catch { /* skip */ }
     }
     return Array.from(aggregated.values());
   }, [selectedRow]);
 
-  const reusedWasteArea = selectedRow
-    ? selectedRow.order.items.reduce(
-        (sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0),
-        0,
-      )
-    : 0;
-  const orderReusePercentage = selectedRow
-    ? getReusePercentage(reusedWasteArea, selectedRow.summary.curtainAreaM2)
-    : 0;
-  const orderReuseLevel = getReuseLevel(orderReusePercentage);
+  const onExportSage = () => {
+    const errors: string[] = [];
+    const exportedOrderIds: string[] = [];
+    const validOrders: SavedOrder[] = [];
 
-  const detailContent = selectedRow ? (
-    <motion.div
-      key={selectedRow.order.id}
-      className="orders-detail-panel__content"
-      initial={detailMotion.initial}
-      animate={detailMotion.animate}
-      exit={detailMotion.exit}
-      transition={{ duration: 0.24, ease: 'easeOut' }}
-    >
-      <div
-        className={[
-          'orders-detail-alert',
-          `orders-detail-alert--${selectedWasteLevel}`,
-        ].join(' ')}
-      >
-        <strong>{getOrderStatusLabel(selectedRow.order)}</strong>
-        <span>
-          {getOrderStatus(selectedRow.order) === 'sent_to_sage'
-            ? `Exportada a Sage${selectedRow.order.sageExportedAt ? ` el ${formatDate(selectedRow.order.sageExportedAt)}` : ''}. No se incluirá en futuros descargos.`
-            : `Esta orden registra ${formatNumber(selectedRow.wastePercentage)} % de merma de tela y está pendiente de descargo.`}
-        </span>
-      </div>
+    for (const order of exportableSageOrders) {
+      const validation = validateOrderBeforeSage(order);
+      if (validation.ok) {
+        validOrders.push(order);
+        exportedOrderIds.push(order.id);
+      } else {
+        errors.push(`Orden ${order.orderNumber}: ${validation.errors.map(e => e.message).join(', ')}`);
+      }
+    }
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-        <div>
-          <h2 style={{ margin: '0 0 6px 0', fontSize: '1.25rem' }}>
-            Orden {selectedRow.order.orderNumber || `#${selectedRow.order.id.slice(0, 6)}`}
-          </h2>
-          <span className={['order-status-pill', `order-status-pill--${getOrderStatus(selectedRow.order)}`].join(' ')}>
-            {getOrderStatus(selectedRow.order) === 'sent_to_sage' ? 'Enviada a Sage' : 'Pendiente de descargo'}
-          </span>
-        </div>
-        <div style={{ textAlign: 'right', color: 'var(--muted)', fontSize: '0.85rem' }}>
-          <strong>{getRelativeDateLabel(selectedRow.order.createdAt)}</strong>
-          <br />
-          {formatDate(selectedRow.order.createdAt)}
-        </div>
-      </div>
+    if (validOrders.length === 0) {
+      store.setErrors((prev) => ({
+        ...prev,
+        general: errors.length > 0 ? errors.join(' | ') : 'No hay órdenes válidas para enviar a Sage.'
+      }));
+      return;
+    }
 
-      <div className="orders-summary-top orders-summary-top--4col">
-        <article className="summary-card summary-card--accent">
-          <span>Producción</span>
-          <strong>{selectedRow.summary.curtains}</strong>
-          <small>{formatNumber(selectedRow.summary.curtainAreaM2)} m2 útiles</small>
-        </article>
-        <article className="summary-card">
-          <span>Costo</span>
-          <strong>${formatNumber(selectedRow.summary.totalOrderCost)}</strong>
-          <small>Total materiales</small>
-        </article>
-        <article className="summary-card">
-          <span>Merma</span>
-          <strong>{formatNumber(selectedRow.wastePercentage)} %</strong>
-          <small>Desperdicio tela</small>
-        </article>
-        <article className="summary-card summary-card--efficiency">
-          <span>Retazos</span>
-          <strong>{selectedRow.summary.reusedWasteCurtains}</strong>
-          <small>
-            {selectedRow.summary.fabricSavingsCost > 0
-              ? `Ahorro $${formatNumber(selectedRow.summary.fabricSavingsCost)}`
-              : 'Sin uso de retazo'}
-          </small>
-        </article>
-      </div>
+    try {
+      downloadSageOrderEntry(validOrders);
+      store.markOrdersSentToSage(exportedOrderIds);
+      if (errors.length > 0) {
+        store.setErrors((prev) => ({
+          ...prev,
+          general: `Se enviaron ${validOrders.length} órdenes, pero hubo errores: ` + errors.join(' | ')
+        }));
+      }
+    } catch (error: any) {
+      store.setErrors((prev) => ({
+        ...prev,
+        general: error.message || 'No se pudo generar el archivo para Sage.'
+      }));
+    }
+  };
 
-      <details className="project-detail-block" open>
-        <summary>Herrajes · BOM ({orderBOM.length} componentes)</summary>
-        {orderBOM.length > 0 ? (
-          <div style={{ marginTop: '8px', overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(0,0,0,0.12)' }}>
-                  {['Componente', 'SKU', 'Cant. Total'].map(h => (
-                    <th key={h} style={{ padding: '0.35rem 0.5rem', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {orderBOM.map((item, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid rgba(128,128,128,0.12)' }}>
-                    <td style={{ padding: '0.3rem 0.5rem' }}>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>
-                        {bomDisplayLabel(item.componente, item.skuFinal)}
-                      </div>
-                      <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '1px' }}>
-                        {getHWDesc(item.skuFinal) ?? item.componente}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.3rem 0.5rem', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.68rem' }}>{item.skuFinal}</td>
-                    <td style={{ padding: '0.3rem 0.5rem', fontWeight: 600, whiteSpace: 'nowrap', color: '#818cf8' }}>
-                      {item.unidad === 'm'
-                        ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft`
-                        : `${item.cantidadCalculada} EA`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '8px' }}>Sin datos — verifica que las cortinas tengan dimensiones válidas.</p>
-        )}
-      </details>
-
-      <details className="project-detail-block">
-        <summary>Piezas de la orden ({selectedRow.order.items.length})</summary>
-        <div className="project-list project-list--compact">
-          {selectedRow.order.items.map((item, index) => (
-            <article key={item.id} className="project-item">
-              <div className="project-item__main">
-                <strong>
-                  Cortina {index + 1} - {formatNumber(item.input.widthMeters)} x{' '}
-                  {formatNumber(item.input.heightMeters)} m
-                </strong>
-                <p>
-                  {item.result.selectedFabric
-                    ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
-                    : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
-                </p>
-                <div style={{ display: 'flex', gap: '8px', fontSize: '0.85rem', color: 'var(--muted)', flexWrap: 'wrap', marginTop: '4px' }}>
-                  <span>
-                    <strong>Merma:</strong> {formatNumber(item.result.wastePercentage)}%
-                  </span>
-                  <span>|</span>
-                  {item.reusedWastePiece ? (
-                    <span style={{ color: '#059669', fontWeight: 600 }}>
-                      ✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)
-                    </span>
-                  ) : (
-                    <span>
-                      <strong>Rollo:</strong> {formatNumber(item.result.recommendedRollWidthMeters)}m
-                    </span>
-                  )}
-                </div>
-
-              </div>
-            </article>
-          ))}
-        </div>
-      </details>
-
-      <div className="order-status-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <Button
-          type="button"
-          size="sm"
-          variant="primary"
-          onClick={async () => {
-            try {
-              const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
-              await generateOrderMaterialsPdf(selectedRow.order);
-            } catch (err: any) {
-              alert(err.message || 'Error al generar el PDF.');
-            }
-          }}
-        >
-          Generar PDF de materiales
-        </Button>
-
-        {getOrderStatus(selectedRow.order) === 'sent_to_sage' ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'pending')}
-          >
-            Volver a pendiente
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'sent_to_sage')}
-          >
-            Marcar pasada a Sage
-          </Button>
-        )}
-      </div>
-    </motion.div>
-  ) : (
-    <p className="history-panel__empty">
-      Selecciona una orden para ver su resumen y detalle.
-    </p>
-  );
+  const status = selectedRow ? getOrderStatus(selectedRow.order) : 'draft';
 
   return (
-    <section className="orders-report-layout orders-report-layout--phone">
-      <Card className="saved-orders-panel orders-report-panel orders-report-panel--phone">
-        <div className="results-header results-header--phone">
-          <div>
-            <span className="section-heading__eyebrow">Ordenes</span>
-            <h2>Reporte de Produccion</h2>
+    <section className="orders-layout-split">
+      
+      {/* ── LEFT PANEL ── */}
+      <div className="orders-panel-left">
+        <div className="orders-panel-left__header">
+          <h1>Órdenes de Producción</h1>
+          <p>Gestiona, revisa y exporta órdenes a producción o Sage.</p>
+
+          <div className="orders-global-actions">
+            <button onClick={async () => {
+              try {
+                const { generateSubstitutionPdf } = await import('../../../lib/pdf/generateSubstitutionPdf');
+                await generateSubstitutionPdf();
+              } catch (err: any) {
+                alert(err.message || 'Error al generar la hoja de sustituciones.');
+              }
+            }}>
+              <span>📄</span> Hoja Sustituciones
+            </button>
+            <button onClick={() => downloadCsvReport(filteredOrders)} disabled={filteredOrders.length === 0}>
+              <span>📊</span> CSV
+            </button>
+            <button onClick={onExportSage} disabled={exportableSageOrders.length === 0}>
+              <span>📦</span> Sage ({exportableSageOrders.length})
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}>
+              <span>📥</span> Importar
+            </button>
+            <button onClick={() => downloadSavedOrders(store.savedOrders)} disabled={store.savedOrders.length === 0}>
+              <span>💾</span> Backup
+            </button>
           </div>
-          <div className="saved-orders-actions saved-orders-actions--phone">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={async () => {
-                try {
-                  const { generateSubstitutionPdf } = await import('../../../lib/pdf/generateSubstitutionPdf');
-                  await generateSubstitutionPdf();
-                } catch (err: any) {
-                  alert(err.message || 'Error al generar la hoja de sustituciones.');
-                }
-              }}
-            >
-              Hoja Sustituciones
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => downloadCsvReport(filteredOrders)}
-              disabled={filteredOrders.length === 0}
-            >
-              Exportar CSV
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                try {
-                  const exportedOrderIds = exportableSageOrders.map((order) => order.id);
-                  downloadSageOrderEntry(filteredOrders);
-                  store.markOrdersSentToSage(exportedOrderIds);
-                } catch (error) {
-                  store.setErrors((prev) => ({
-                    ...prev,
-                    general:
-                      error instanceof Error
-                        ? error.message
-                        : 'No se pudo generar el archivo para Sage.',
-                  }));
-                }
-              }}
-              disabled={filteredOrders.length === 0 || sageLineCount === 0}
-            >
-              Sage ({exportableSageOrders.length})
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => fileInputRef.current?.click()}>
-              Importar JSON
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => downloadSavedOrders(store.savedOrders)}
-              disabled={store.savedOrders.length === 0}
-            >
-              Backup
-            </Button>
+
+          <div className="orders-global-filters">
+            <div className="filter-row">
+              <input 
+                type="text" 
+                placeholder="Buscar por # de orden..." 
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}
+              />
+            </div>
+            <div className="filter-row">
+              <select value={dateRange} onChange={e => setDateRange(e.target.value as DateRange)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}>
+                <option value="all">Cualquier Fecha</option>
+                <option value="today">Hoy</option>
+                <option value="week">Esta semana</option>
+                <option value="month">Este mes</option>
+              </select>
+              <select value={sortMode} onChange={e => setSortMode(e.target.value as OrderSortMode)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}>
+                <option value="recent">Más recientes</option>
+                <option value="waste">Mayor Merma</option>
+                <option value="cost">Mayor Costo</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          className="visually-hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              importSavedOrdersFile(file)
-                .then((imported) => store.importOrders(imported))
-                .catch(() =>
-                  store.setErrors((prev) => ({
-                    ...prev,
-                    general: 'No se pudo importar el archivo de ordenes.',
-                  })),
-                );
-              event.target.value = '';
-            }
-          }}
-        />
+        <div className="orders-global-kpis">
+          <div className="kpi-col">
+            <span>Órdenes</span>
+            <span>{filteredOrders.length}</span>
+          </div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-col">
+            <span>Piezas Totales</span>
+            <span>{globalSummary.curtains}</span>
+          </div>
+          <div className="kpi-divider"></div>
+          <div className="kpi-col">
+            <span>Costo Total</span>
+            <span>${formatNumber(globalSummary.totalOrderCost)}</span>
+          </div>
+        </div>
 
-        {store.savedOrders.length === 0 ? (
-          <p className="history-panel__empty">
-            Aun no hay ordenes guardadas. Guarda una orden desde produccion.
-          </p>
-        ) : (
-          <div className="orders-report-panel__scroll">
-            <div className="orders-toolbar">
-              <label className="field">
-                <span>Buscar</span>
-                <input
-                  type="text"
-                  placeholder="Orden, tela o cantidad"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <label className="field">
-                <span>Periodo</span>
-                <select
-                  value={dateRange}
-                  onChange={(event) => setDateRange(event.target.value as DateRange)}
-                >
-                  <option value="all">Historico (Todo)</option>
-                  <option value="today">Hoy</option>
-                  <option value="week">Esta semana</option>
-                  <option value="month">Este mes</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Ordenar</span>
-                <select
-                  value={sortMode}
-                  onChange={(event) => setSortMode(event.target.value as OrderSortMode)}
-                >
-                  <option value="recent">Mas recientes</option>
-                  <option value="waste">Mayor merma</option>
-                  <option value="cost">Mayor costo</option>
-                  <option value="curtains">Mas cortinas</option>
-                </select>
-              </label>
-            </div>
+        <div className="orders-list-scroll">
+          {filteredRows.length === 0 ? (
+            <p style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '32px' }}>No hay órdenes que coincidan con los filtros.</p>
+          ) : (
+            filteredRows.map((row) => (
+              <OrderListItem 
+                key={row.order.id} 
+                row={row} 
+                isActive={selectedRow?.order.id === row.order.id} 
+                onClick={() => store.setSelectedOrderId(row.order.id)} 
+              />
+            ))
+          )}
+        </div>
+      </div>
 
-            <div className="orders-summary-top orders-summary-top--4col">
-              <article className="summary-card summary-card--accent">
-                <MetricInfo
-                  label="Cortinas"
-                  message="Total de piezas terminadas en el periodo seleccionado."
-                />
-                <strong>{globalSummary.curtains}</strong>
-                <small>En {filteredRows.length} ordenes</small>
-              </article>
-              <article className="summary-card">
-                <MetricInfo
-                  label="Costo"
-                  message="Inversion total en materiales de las ordenes visibles."
-                />
-                <strong>${formatNumber(globalSummary.totalOrderCost)}</strong>
-                <small>Prom. ${globalSummary.curtains === 0 ? 0 : formatNumber(globalSummary.totalOrderCost / globalSummary.curtains)}/cortina</small>
-              </article>
-              <article className="summary-card">
-                <MetricInfo
-                  label="% Uso"
-                  message="Porcentaje de la merma total generada que logró ser rescatada y reutilizada. Formula: Area Reutilizada / (Merma Final + Area Reutilizada)."
-                />
-                <strong>{formatNumber(scrapRecoveryPercentage)} %</strong>
-                <small
-                  className={['waste-indicator', `waste-indicator--${scrapRecoveryLevel}`].join(' ')}
-                >
-                  {getReuseLabel(scrapRecoveryLevel)}
-                </small>
-              </article>
-              <article className="summary-card">
-                <MetricInfo
-                  label="Área m²"
-                  message="Area total de cortinas terminadas (no incluye merma)."
-                />
-                <strong>{formatNumber(globalSummary.curtainAreaM2)} m2</strong>
-                <small>Superficie util</small>
-              </article>
-            </div>
-
-            <button
-              type="button"
-              className="orders-summary-toggle"
-              onClick={() => setSummaryExpanded((prev) => !prev)}
-            >
-              {summaryExpanded ? 'Ocultar detalles tecnicos ▲' : 'Ver detalles tecnicos ▼'}
-            </button>
-
-            <AnimatePresence initial={false}>
-              {summaryExpanded && (
-                <motion.div
-                  key="summary-details"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.22, ease: 'easeOut' }}
-                  style={{ overflow: 'hidden' }}
-                >
-                  <div className="orders-summary-details">
-                    <article className="summary-card">
-                      <span>Tela nueva</span>
-                      <strong>{formatNumber(globalSummary.fabricDownloadedM2)} m2</strong>
-                    </article>
-                    <article className="summary-card">
-                      <span>Merma tela</span>
-                      <strong>{formatNumber(globalSummary.fabricWasteM2)} m2</strong>
-                      <small>{formatNumber(globalSummary.fabricWastePercentage)} % corte</small>
-                    </article>
-                    <article className="summary-card">
-                      <span>Merma lineal</span>
-                      <strong>{formatNumber(totalLinealWaste)} pies</strong>
-                      <small>
-                        Tubo {formatNumber(globalSummary.tube.wasteFeet)} / Bottom{' '}
-                        {formatNumber(globalSummary.bottom.wasteFeet)}
-                      </small>
-                    </article>
-                    <article className="summary-card">
-                      <span>Costo tela</span>
-                      <strong>${formatNumber(globalSummary.fabricDownloadedCost)}</strong>
-                    </article>
-                    <article className="summary-card">
-                      <span>Componentes</span>
-                      <strong>${formatNumber(globalSummary.fixedComponentsCost)}</strong>
-                    </article>
-                    <article className="summary-card">
-                      <span>Lineas Sage</span>
-                      <strong>{sageLineCount}</strong>
-                    </article>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {filteredRows.length === 0 ? (
-              <p className="history-panel__empty">
-                No encontramos ordenes con ese criterio.
-              </p>
-            ) : (
-              <div className="orders-card-list">
-                {filteredRows.map((row) => {
-                  const wasteLevel = getWasteLevel(row.wastePercentage);
-                  return (
-                    <button
-                      key={row.order.id}
-                      type="button"
-                      className={[
-                        'orders-card',
-                        selectedRow?.order.id === row.order.id ? 'orders-card--active' : '',
-                        `orders-card--${wasteLevel}`,
-                      ].join(' ')}
-                      onClick={() => store.setSelectedOrderId(row.order.id)}
-                    >
-                      <div className="orders-card__top">
-                        <div>
-                          <strong>{row.order.orderNumber}</strong>
-                          <span>{getRelativeDateLabel(row.order.createdAt)}</span>
-                        </div>
-                        <span
-                          className={[
-                            'order-status-pill',
-                            `order-status-pill--${getOrderStatus(row.order)}`,
-                          ].join(' ')}
-                        >
-                          {getOrderStatus(row.order) === 'sent_to_sage' ? 'Completada' : 'Pendiente'}
-                        </span>
-                      </div>
-
-                      <div className="orders-card__metrics">
-                        <article>
-                          <span>Cortinas</span>
-                          <strong>{row.summary.curtains}</strong>
-                        </article>
-                        <article>
-                          <span>Costo</span>
-                          <strong>${formatNumber(row.summary.totalOrderCost)}</strong>
-                        </article>
-                        <article>
-                          <span>Merma</span>
-                          <strong>{formatNumber(row.wastePercentage)} %</strong>
-                        </article>
-                        <article>
-                          <span>Retazos</span>
-                          <strong>{row.summary.reusedWasteCurtains}</strong>
-                        </article>
-                      </div>
-
-                      <div className="orders-card__bottom">
-                        <span>{formatNumber(row.summary.curtainAreaM2)} m2 terminados</span>
-                        <span>{formatNumber(row.reusePercentage)} % reutilizado</span>
-                      </div>
-                    </button>
-                  );
-                })}
+      {/* ── RIGHT PANEL ── */}
+      <div className="orders-panel-right">
+        {selectedRow ? (
+          <>
+            <div className="orders-detail-header">
+              <div className="orders-detail-header__title">
+                <h2>{selectedRow.order.orderNumber || `#${selectedRow.order.id.slice(0, 6)}`}</h2>
+                <StatusBadge status={status} />
               </div>
-            )}
+            </div>
+
+            <div className="orders-detail-scroll">
+              {status === 'sent_to_sage' && (
+                <div className="sage-alert">
+                  <span className="icon">✓</span>
+                  <div>
+                    <p>Ya enviada a Sage</p>
+                    <p className="sub">Esta orden ya fue exportada para facturación. Si necesitas re-exportar, regresa su estado.</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="order-kpi-row">
+                <div className="order-kpi-card">
+                  <span className="label">Piezas</span>
+                  <span className="val">{selectedRow.summary.curtains}</span>
+                </div>
+                <div className="order-kpi-card">
+                  <span className="label">Costo Mat.</span>
+                  <span className="val">${formatNumber(selectedRow.summary.totalOrderCost)}</span>
+                </div>
+                <div className={`order-kpi-card ${selectedRow.wastePercentage > 40 ? 'order-kpi-card--critical' : ''}`}>
+                  <span className="label">Merma <span className="icon">✂️</span></span>
+                  <span className="val">{formatNumber(selectedRow.wastePercentage)}%</span>
+                </div>
+                <div className="order-kpi-card">
+                  <span className="label">Retazos</span>
+                  <span className="val">{selectedRow.summary.reusedWasteCurtains}</span>
+                </div>
+              </div>
+
+              <div className="order-accordions">
+                <button className="order-accordion-btn" onClick={() => setAccBOM(!accBOM)}>
+                  <div className="order-accordion-btn__left">
+                    <span>🔩</span> Herrajes / BOM
+                  </div>
+                  <div className="order-accordion-btn__right">
+                    <span className="accordion-badge">{orderBOM.length}</span>
+                    <span>{accBOM ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                <AnimatePresence initial={false}>
+                  {accBOM && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
+                      <div>
+                        {orderBOM.length > 0 ? (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                              <tr>
+                                <th style={{ padding: '16px 12px 8px 24px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>Componente</th>
+                                <th style={{ padding: '16px 12px 8px 12px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>SKU</th>
+                                <th style={{ padding: '16px 24px 8px 12px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>Cant.</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {orderBOM.map((item, i) => (
+                                <tr key={i} style={{ borderTop: '1px solid var(--line)' }}>
+                                  <td style={{ padding: '8px 12px 8px 24px' }}>
+                                    <div style={{ fontWeight: 600 }}>{bomDisplayLabel(item.componente, item.skuFinal)}</div>
+                                  </td>
+                                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{item.skuFinal}</td>
+                                  <td style={{ padding: '8px 24px 8px 12px', textAlign: 'right', fontWeight: 600 }}>
+                                    {item.unidad === 'm' ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft` : `${item.cantidadCalculada} EA`}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p style={{ color: 'var(--muted)', padding: '16px 24px' }}>No hay componentes calculados.</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button className="order-accordion-btn" onClick={() => setAccPieces(!accPieces)}>
+                  <div className="order-accordion-btn__left">
+                    <span>📏</span> Dimensiones de Piezas
+                  </div>
+                  <div className="order-accordion-btn__right">
+                    <span className="accordion-badge">{selectedRow.order.items.length}</span>
+                    <span>{accPieces ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                <AnimatePresence initial={false}>
+                  {accPieces && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
+                      <div style={{ padding: '16px 24px', display: 'grid', gap: '12px' }}>
+                        {selectedRow.order.items.map((item, index) => (
+                          <div key={item.id} style={{ border: '1px solid var(--line)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+                            <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                              Cortina {index + 1} - {formatNumber(item.input.widthMeters)} x {formatNumber(item.input.heightMeters)} m
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                              {item.result.selectedFabric ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.color}` : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
+                            </div>
+                            <div style={{ marginTop: '8px', fontSize: '0.85rem' }}>
+                              {item.reusedWastePiece ? (
+                                <span style={{ color: '#059669', fontWeight: 600 }}>✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)</span>
+                              ) : (
+                                <span>Rollo: {formatNumber(item.result.recommendedRollWidthMeters)}m | Merma: {formatNumber(item.result.wastePercentage)}%</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="orders-bottom-bar">
+              <Button type="button" variant="secondary" onClick={async () => {
+                try {
+                  const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+                  await generateOrderMaterialsPdf(selectedRow.order);
+                } catch (err: any) { alert(err.message); }
+              }}>
+                📄 PDF
+              </Button>
+
+              {status === 'ready_for_production' && (
+                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'in_production')}>
+                  Pasar a Producción
+                </Button>
+              )}
+
+              {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(status) && (
+                <Button type="button" variant="secondary" onClick={() => setReviewingOrderId(selectedRow.order.id)}>
+                  👀 Materiales
+                </Button>
+              )}
+
+              {status === 'sent_to_sage' && (
+                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')}>
+                  🔙 Revertir a Revisado
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)' }}>
+            Selecciona una orden para ver detalles
           </div>
         )}
-      </Card>
+      </div>
 
-      <Card className="saved-order-detail orders-detail-panel orders-detail-panel--phone">
-        <div className="results-header">
-          <div>
-            <span className="section-heading__eyebrow">Detalle</span>
-            <h2>{selectedRow?.order.orderNumber || 'Selecciona una orden'}</h2>
-          </div>
-          {selectedRow ? (
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => store.deleteSavedOrder(selectedRow.order.id)}
-            >
-              Eliminar
-            </Button>
-          ) : null}
-        </div>
-        <AnimatePresence mode="wait">
-          {detailContent}
-        </AnimatePresence>
-      </Card>
+      {reviewingOrder && (
+        <MaterialReviewModal order={reviewingOrder} onClose={() => setReviewingOrderId(null)} />
+      )}
+      
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="visually-hidden"
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            importSavedOrdersFile(file)
+              .then((imported) => store.importOrders(imported))
+              .catch(() =>
+                store.setErrors((prev) => ({
+                  ...prev,
+                  general: 'No se pudo importar el archivo de ordenes.',
+                })),
+              );
+            event.target.value = '';
+          }
+        }}
+      />
     </section>
   );
 }

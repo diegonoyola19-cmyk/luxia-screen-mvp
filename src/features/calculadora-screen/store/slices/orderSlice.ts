@@ -10,6 +10,7 @@ import { generateRollerBOM, TONE_COLOR_MAP } from '../../../../logic/generateRol
 import { resolveGroupBom } from '../../../../logic/doubleBracketBom';
 import type { CurtainOrderLine } from '../../../../domain/curtains/roller-bom-rules.types';
 import rollerBomRulesConfig from '../../../../data/roller-bom-rules-v2.json';
+import { normalizeOrderStatus } from '../../../../domain/orders/orderStatus';
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
 
@@ -64,6 +65,9 @@ export const createOrderSlice: StateCreator<
   },
   savedOrders: [],
   selectedOrderId: null,
+  remainders: [],
+
+  setRemainders: (remainders) => set({ remainders }),
 
   setOrderDraft: (updater) => set((state) => ({ orderDraft: typeof updater === 'function' ? updater(state.orderDraft) : updater })),
   
@@ -465,7 +469,7 @@ export const createOrderSlice: StateCreator<
       createdAt: new Date().toISOString(),
       orderNumber: trimmedOrderNumber,
       items: orderItems,
-      status: 'pending',
+      status: 'ready_for_production',
       sageExportedAt: null,
     };
 
@@ -501,13 +505,25 @@ export const createOrderSlice: StateCreator<
       order.id === id
         ? {
             ...order,
-            status: status ?? 'pending',
+            status: status,
             sageExportedAt: status === 'sent_to_sage'
               ? order.sageExportedAt ?? new Date().toISOString()
               : null,
           }
         : order,
     ),
+  })),
+
+  saveProductionReview: (orderId, review) => set((state) => ({
+    savedOrders: state.savedOrders.map((order) =>
+      order.id === orderId
+        ? {
+            ...order,
+            productionReview: review,
+            status: review.status === 'completed' ? 'materials_checked' : order.status
+          }
+        : order
+    )
   })),
 
   markOrdersSentToSage: (ids) => set((state) => {
@@ -538,7 +554,7 @@ export const createOrderSlice: StateCreator<
       if (!exists) {
         mergedOrders.push({
           ...order,
-          status: order.status ?? 'pending',
+          status: normalizeOrderStatus(order.status),
           sageExportedAt: order.sageExportedAt ?? null,
         });
       }

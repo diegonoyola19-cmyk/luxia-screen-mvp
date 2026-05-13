@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { SavedOrder } from '../../domain/curtains/types';
 import { formatNumber, formatDate } from '../format';
+import { componentCatalogBySku } from '../../domain/inventory/componentCatalog';
 
 async function loadLogo(): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -89,8 +90,8 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
   // Header Title
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  // Se alinea a la derecha del logo
-  doc.text('SOLICITUD DE MATERIALES DE PRODUCCIÓN', 70, currentY + 10, { align: 'left' });
+  // Se alinea a la derecha del logo y se centra verticalmente (Logo Y=10, Height=15 -> Centro Y=17.5)
+  doc.text('SOLICITUD DE MATERIALES DE PRODUCCIÓN', 70, 17.5, { align: 'left', baseline: 'middle' });
   currentY += 15;
 
   // Metadata Block
@@ -144,55 +145,88 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Cortina', 'Medida', 'Sistema', 'Tela', 'Descripción', 'Origen', 'Rollo / Retazo', 'Consumo', 'Merma']],
-    body: order.items.map((item, idx) => {
-      const isReused = item.reusedWastePiece != null;
-      const sku = item.result.selectedFabric?.itemCode || '—';
-      const desc = item.result.selectedFabric 
-        ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.color}`
-        : '—';
-      const medida = `${formatNumber(item.input.widthMeters)}x${formatNumber(item.input.heightMeters)}m`;
+    head: [['Tela / Código', 'Origen', 'Rollo / Retazo', 'Cortinas incluidas', 'Total Y2']],
+    body: (() => {
+      const fabricGroups = new Map<string, any>();
+      
+      order.items.forEach((item, idx) => {
+        let sku = item.result.selectedFabric?.itemCode || '—';
+        let desc = item.result.selectedFabric 
+          ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.color}`
+          : '—';
+        let rollWidthM = item.result.recommendedRollWidthMeters;
+        let remnant = item.reusedWastePiece;
+        let isReused = remnant != null;
+        let origen = isReused ? 'Retazo' : 'Rollo';
+        let rolloRetazo = isReused ? `${formatNumber(remnant!.widthMeters)}x${formatNumber(remnant!.heightMeters)}m` : (rollWidthM ? `${formatNumber(rollWidthM)}m` : '—');
+        
+        let areaY2: number | undefined = undefined;
+        const res = item.result as any;
+        
+        if (isReused && remnant) {
+          areaY2 = remnant.widthMeters * remnant.heightMeters * 1.19599;
+        } else if (res) {
+          if (res.fabricDownloadedYd2 && res.fabricDownloadedYd2 > 0) {
+            areaY2 = res.fabricDownloadedYd2;
+          } else if (res.recommendedRollWidthMeters && res.cutLengthMeters) {
+            areaY2 = res.recommendedRollWidthMeters * res.cutLengthMeters * 1.19599;
+          }
+        }
+        
+        const adj = order.productionReview?.fabricAdjustments?.find(a => a.curtainId === item.id);
+        if (adj && adj.action !== 'removed') {
+           sku = adj.actualFabricSku || adj.calculatedFabricSku || sku;
+           desc = adj.actualFabricDescription || adj.calculatedFabricDescription || desc;
+           origen = adj.actualSource === 'remnant' ? 'Retazo' : 'Rollo';
+           if (origen === 'Retazo') {
+             rolloRetazo = adj.actualRemnantSize || adj.calculatedRemnantSize || rolloRetazo;
+           } else {
+             rolloRetazo = adj.actualRollWidthM ? `${formatNumber(adj.actualRollWidthM)}m` : (adj.calculatedRollWidthM ? `${formatNumber(adj.calculatedRollWidthM)}m` : '—');
+           }
+           areaY2 = adj.actualAreaY2 || adj.calculatedAreaY2 || areaY2;
+        }
 
-      let sistema = 'Normal';
-      if (item.input.mountingSystem === 'pin_endplug') sistema = 'Pin EndPlug';
-      if (item.input.mountingSystem === 'double_bracket') sistema = 'Bracket Doble';
+        if (adj && adj.action === 'removed') return;
 
-      let origen = '—';
-      let rolloRetazo = '—';
-      let consumo = '—';
-      let merma = '—';
+        const groupKey = origen === 'Retazo' ? `remnant_${sku}_${rolloRetazo}` : `roll_${sku}_${rolloRetazo}`;
+        
+        if (!fabricGroups.has(groupKey)) {
+           fabricGroups.set(groupKey, {
+              sku, desc, origen, rolloRetazo, 
+              totalY2: 0,
+              items: []
+           });
+        }
+        
+        const group = fabricGroups.get(groupKey)!;
+        group.totalY2 += (areaY2 || 0);
+        group.items.push({
+           label: `#${idx + 1}`,
+           medida: `${formatNumber(item.input.widthMeters)}x${formatNumber(item.input.heightMeters)}`,
+           y2: areaY2
+        });
+      });
 
-      if (isReused) {
-        origen = 'Retazo';
-        rolloRetazo = `${formatNumber(item.reusedWastePiece!.widthMeters)}x${formatNumber(item.reusedWastePiece!.heightMeters)}m`;
-        const m2 = item.reusedWastePiece!.widthMeters * item.reusedWastePiece!.heightMeters;
-        consumo = `${(m2 * 1.19599).toFixed(2)} Yd²`;
-        merma = '—';
-      } else {
-        origen = 'Rollo';
-        rolloRetazo = item.result.recommendedRollWidthMeters ? `${formatNumber(item.result.recommendedRollWidthMeters)}m` : '—';
-        consumo = item.result.fabricDownloadedYd2 ? `${item.result.fabricDownloadedYd2.toFixed(2)} Yd²` : '—';
-        merma = `${formatNumber(item.result.wastePercentage)}%`;
-      }
-
-      return [
-        `#${idx + 1}`,
-        medida,
-        sistema,
-        sku,
-        desc,
-        origen,
-        rolloRetazo,
-        consumo,
-        merma
-      ];
-    }),
+      return Array.from(fabricGroups.values()).map(group => {
+         const telaCodigoStr = `${group.sku}\n${group.desc}`;
+         const cortinasStr = group.items.map((i: any) => `${i.label} ${i.medida} — ${i.y2 ? i.y2.toFixed(2) : '—'} Y2`).join('\n');
+         
+         return [
+           telaCodigoStr,
+           group.origen,
+           group.rolloRetazo,
+           cortinasStr,
+           `${group.totalY2.toFixed(2)} Y2`
+         ];
+      });
+    })(),
     theme: 'grid',
     styles: {
       fontSize: 8,
       cellPadding: 2,
       lineColor: [200, 200, 200],
-      lineWidth: 0.1
+      lineWidth: 0.1,
+      valign: 'middle'
     },
     headStyles: {
       fillColor: [175, 25, 35], // Rojo vino corporativo Vertilux
@@ -220,21 +254,40 @@ export async function generateOrderMaterialsPdf(order: SavedOrder): Promise<void
       currentY = 20;
     }
     
+    const catalogEntry = componentCatalogBySku[mat.itemCode];
+    const marketName = catalogEntry?.marketName;
+    const nameStr = marketName ? `${mat.description} / ${marketName}` : mat.description;
+
     // Draw checkbox
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.3);
     doc.rect(14, currentY - 3, 4, 4);
 
-    // Text: SKU | Desc | Qty
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    
+    const qtyText = `${mat.quantity} ${mat.unit}`;
+    doc.text(qtyText, 21, currentY);
+    doc.text('|', 36, currentY);
+    
     doc.setFont('helvetica', 'bold');
-    doc.text(`${mat.itemCode}`, 21, currentY);
+    doc.text(`${mat.itemCode}`, 39, currentY);
     
     doc.setFont('helvetica', 'normal');
-    const splitDesc = doc.splitTextToSize(mat.description, 100);
-    doc.text(splitDesc[0], 65, currentY);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${mat.quantity} ${mat.unit}`, 170, currentY);
+    doc.text('|', 73, currentY);
+    
+    const availableWidth = pageWidth - 76 - 14; 
+    let finalName = nameStr;
+    const splitName = doc.splitTextToSize(finalName, availableWidth);
+    if (splitName.length > 1) {
+       const firstLine = splitName[0];
+       finalName = firstLine.length > 3 ? firstLine.substring(0, firstLine.length - 3) + '...' : firstLine;
+    } else {
+       finalName = splitName[0];
+    }
+    
+    doc.text(finalName, 76, currentY);
     
     currentY += 7;
   }

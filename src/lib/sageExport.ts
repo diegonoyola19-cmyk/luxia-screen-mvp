@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx';
-import type { ResolvedMaterialLine, SavedOrder } from '../domain/curtains/types';
+import type { SavedOrder } from '../domain/curtains/types';
+import type { SageMaterialLine } from '../domain/orders/materialReview';
+import { calculateIssueLines, IssueEngineInputLine, ReusableRemainder } from '../domain/orders/issueStrategies';
 
 const SAGE_ORDUNIQ = 'PRODUC';
 const SAGE_CUSTOMER = 'PRODUC';
@@ -12,18 +14,23 @@ interface SageDetailLine {
   quantity: number;
 }
 
-export function getSageExportableLineCount(orders: SavedOrder[]) {
-  return collectMaterialLines(orders).length;
+export function getSageExportableLineCount(orders: SavedOrder[], remainders: ReusableRemainder[] = []) {
+  const lines = collectMaterialLines(orders);
+  const inputLines: IssueEngineInputLine[] = lines.map(l => ({ sku: l.sku, description: l.description, quantity: l.quantity, unit: l.unit }));
+  const result = calculateIssueLines(inputLines, remainders);
+  return result.sageLines.length;
 }
 
-export function downloadSageOrderEntry(orders: SavedOrder[]) {
+export function downloadSageOrderEntry(orders: SavedOrder[], remainders: ReusableRemainder[] = []): ReusableRemainder[] {
   const materialLines = collectMaterialLines(orders);
 
   if (materialLines.length === 0) {
     throw new Error('No hay lineas de materiales resueltas para exportar a Sage.');
   }
 
-  const detailLines = consolidateMaterialLines(materialLines);
+  const inputLines: IssueEngineInputLine[] = materialLines.map(l => ({ sku: l.sku, description: l.description, quantity: l.quantity, unit: l.unit }));
+  const result = calculateIssueLines(inputLines, remainders);
+  const detailLines = result.sageLines;
   const workbook = XLSX.utils.book_new();
   const today = new Date();
   const dateTag = formatDateTag(today);
@@ -106,27 +113,36 @@ export function downloadSageOrderEntry(orders: SavedOrder[]) {
   ]);
 
   XLSX.writeFile(workbook, `OrderEntrySAGE_LUXIA_${dateTag}.xlsx`);
+  return result.updatedRemainders;
 }
 
-function collectMaterialLines(orders: SavedOrder[]): ResolvedMaterialLine[] {
+function collectMaterialLines(orders: SavedOrder[]): SageMaterialLine[] {
   return orders
     .filter((order) => order.status !== 'sent_to_sage')
-    .flatMap((order) =>
-      order.items.flatMap((item) => item.result.materialLines ?? item.materialLines ?? []),
-    );
+    .flatMap((order) => {
+      const components = order.productionReview?.finalMaterialLines ?? [];
+      const fabrics = order.productionReview?.finalFabricLines ?? [];
+      return [...components, ...fabrics];
+    });
 }
 
-function consolidateMaterialLines(lines: ResolvedMaterialLine[]): SageDetailLine[] {
+function consolidateMaterialLines(lines: SageMaterialLine[]): SageDetailLine[] {
   const totals = new Map<string, number>();
 
   lines.forEach((line) => {
-    const itemCode = line.sageItemCode || line.itemCode;
+    const itemCode = line.sku;
 
     if (!itemCode || line.quantity <= 0) {
       return;
     }
+    let exportQuantity = line.quantity;
+    
+    // Si es cadena operativa (0-151-CH-xxx) y viene en metros, se convierte a pies para el descargo en Sage
+    if (itemCode.includes('-CH-') && line.unit === 'm') {
+      exportQuantity = line.quantity * 3.28084;
+    }
 
-    totals.set(itemCode, (totals.get(itemCode) ?? 0) + line.quantity);
+    totals.set(itemCode, (totals.get(itemCode) ?? 0) + exportQuantity);
   });
 
   return [...totals.entries()]

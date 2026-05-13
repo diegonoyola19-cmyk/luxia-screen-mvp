@@ -4,15 +4,17 @@ import type { SavedOrder } from '../../domain/curtains/types';
 
 // Mock jsPDF and autoTable to avoid actual PDF generation in tests
 vi.mock('jspdf', () => {
+  const mockTextFn = vi.fn();
   return {
-    default: class {
+    default: class MockJsPDF {
+      static textMock = mockTextFn;
       internal = {
         pageSize: { getWidth: () => 210, getHeight: () => 297 },
         getCurrentPageInfo: () => ({ pageNumber: 1 })
       };
       setFontSize = vi.fn();
       setFont = vi.fn();
-      text = vi.fn();
+      text = mockTextFn;
       setFillColor = vi.fn();
       rect = vi.fn();
       setTextColor = vi.fn();
@@ -24,6 +26,7 @@ vi.mock('jspdf', () => {
       line = vi.fn();
       addImage = vi.fn();
       splitTextToSize = vi.fn().mockImplementation((text) => [text]);
+      getTextWidth = vi.fn().mockReturnValue(10);
       getNumberOfPages = vi.fn().mockReturnValue(1);
       setPage = vi.fn();
       lastAutoTable = { finalY: 100 };
@@ -145,12 +148,11 @@ describe('generateOrderMaterialsPdf', () => {
     const mockBody = tableCall[1].body;
     
     // Verificamos que la fila de la tabla contenga los valores de rollo correctos
-    // [Cortina, Medida, Sistema, Tela, Descripción, Origen, Rollo/Retazo, Consumo, Merma]
+    // ['Tela / Código', 'Origen', 'Rollo / Retazo', 'Cortinas incluidas', 'Total Y2']
     const row = mockBody[0];
-    expect(row[5]).toBe('Rollo');
-    expect(row[6]).toBe('3.00m');
-    expect(row[7]).toBe('—');
-    expect(row[8]).toBe('15.00%');
+    expect(row[1]).toBe('Rollo');
+    expect(row[2]).toBe('3.00m');
+    expect(row[4]).toBe('0.00 Y2');
   });
 
   it('procesa correctamente una orden usando un retazo', async () => {
@@ -174,9 +176,70 @@ describe('generateOrderMaterialsPdf', () => {
     const mockBody = tableCall[1].body;
     
     const row = mockBody[0];
-    expect(row[5]).toBe('Retazo');
-    expect(row[6]).toBe('1.50x1.50m');
-    expect(row[7]).toBe('2.69 Yd²');
-    expect(row[8]).toBe('—');
+    expect(row[1]).toBe('Retazo');
+    expect(row[2]).toBe('1.50x1.50m');
+    expect(row[4]).toBe('2.69 Y2');
+  });
+
+  it('usa el consumo descargable Y2 basado en altura de corte y ancho de rollo', async () => {
+    const customOrder = createMockOrder([
+      {
+        id: 'c3',
+        input: { widthMeters: 1.25, heightMeters: 1.48 },
+        result: { 
+          recommendedRollWidthMeters: 2.50, 
+          cutLengthMeters: 1.88,
+          selectedFabric: { itemCode: 'FAB-CUSTOM' } 
+        },
+        materialLines: [{ sageItemCode: 'ITEM-1', description: 'Test', quantity: 1, unit: 'EA' }]
+      }
+    ]);
+
+    await generateOrderMaterialsPdf(customOrder);
+    
+    const { default: autoTableMock } = await import('jspdf-autotable');
+    const calls = [...(autoTableMock as any).mock.calls].reverse();
+    const tableCall = calls.find((c: any) => c[1].head && c[1].head[0] && c[1].head[0].includes('Origen'));
+    const mockBody = tableCall[1].body;
+    
+    const row = mockBody[0];
+    expect(row[1]).toBe('Rollo');
+    expect(row[4]).toBe('5.62 Y2');
+  });
+
+  it('imprime nombres comerciales en el checklist de componentes', async () => {
+    const customOrder = createMockOrder([
+      {
+        id: 'c4',
+        input: { widthMeters: 1, heightMeters: 1 },
+        result: { selectedFabric: null },
+        materialLines: [
+          { sageItemCode: '0-154-TU-38111', description: 'Tubo NEO', quantity: 1, unit: 'EA' },
+          { sageItemCode: 'UNKNOWN-SKU', description: 'Internal Desc', quantity: 2, unit: 'EA' }
+        ]
+      }
+    ]);
+
+    await generateOrderMaterialsPdf(customOrder);
+    
+    const jsPDFModule = await import('jspdf');
+    const textCalls = (jsPDFModule.default as any).textMock.mock.calls;
+    
+    // Validar que se llamó a doc.text con el nombre comercial del tubo NEO
+    
+    const commercialNameCall = textCalls.find((call: any) => 
+      typeof call[0] === 'string' && call[0].includes('Tubo NEO') && call[0].includes("1½\" (38mm) Alu. NEO Tube") && call[0].includes("/")
+    ) || textCalls.find((call: any) => 
+      Array.isArray(call[0]) && call[0][0] && call[0][0].includes('Tubo NEO') && call[0][0].includes("1½\" (38mm) Alu. NEO Tube") && call[0][0].includes("/")
+    );
+    expect(commercialNameCall).toBeDefined();
+
+    // Validar que el fallback para el unknown SKU NO muestra " / " ni "—"
+    const fallbackCall = textCalls.find((call: any) => 
+      typeof call[0] === 'string' && call[0].includes('Internal Desc') && !call[0].includes('/') && !call[0].includes('—')
+    ) || textCalls.find((call: any) => 
+      Array.isArray(call[0]) && call[0][0] && call[0][0].includes('Internal Desc') && !call[0][0].includes('/') && !call[0][0].includes('—')
+    );
+    expect(fallbackCall).toBeDefined();
   });
 });

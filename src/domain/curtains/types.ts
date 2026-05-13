@@ -263,11 +263,15 @@ export interface OrderDraft {
 
 export type OrderProductionStatus = 'pending' | 'sent_to_sage';
 
+import type { SavedOrderStatus } from '../orders/orderStatus';
+import type { ProductionMaterialReview } from '../orders/materialReview';
+
 export interface SavedOrder extends OrderDraft {
   id: string;
   createdAt: string;
-  status?: OrderProductionStatus;
+  status?: SavedOrderStatus | OrderProductionStatus;
   sageExportedAt?: string | null;
+  productionReview?: ProductionMaterialReview;
 }
 
 export interface ScreenValidationErrors {

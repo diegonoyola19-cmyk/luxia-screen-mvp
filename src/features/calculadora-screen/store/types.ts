@@ -1,4 +1,5 @@
-﻿import type {
+import type { ReusableRemainder } from '../../../domain/orders/issueStrategies';
+import type {
   CalculationFormValues,
   CalculationInput,
   CalculationResult,
@@ -25,6 +26,8 @@
   MountingSystem,
   HardwareTone,
 } from '../../../domain/curtains/types';
+import type { SavedOrderStatus } from '../../../domain/orders/orderStatus';
+import type { ProductionMaterialReview } from '../../../domain/orders/materialReview';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
 /** Extensión local del WastePiece para marcar retazos generados en la sesión activa. */
@@ -85,6 +88,7 @@ export interface OrderSlice {
   orderDraft: OrderDraft;
   savedOrders: SavedOrder[];
   selectedOrderId: string | null;
+  remainders: ReusableRemainder[];
 
   setOrderDraft: (updater: (current: OrderDraft) => OrderDraft) => void;
   addToOrder: (displayResult: CalculationResult, parsedFormValues: CalculationInput, selectedWasteMatch: WasteReuseMatch | null) => void;
@@ -94,11 +98,13 @@ export interface OrderSlice {
   clearOrder: () => void;
   saveOrder: () => void;
   deleteSavedOrder: (id: string) => void;
-  updateSavedOrderStatus: (id: string, status: SavedOrder['status']) => void;
+  updateSavedOrderStatus: (id: string, status: SavedOrderStatus) => void;
+  saveProductionReview: (orderId: string, review: ProductionMaterialReview) => void;
   markOrdersSentToSage: (ids: string[]) => void;
   setSelectedOrderId: (id: string | null) => void;
   setSavedOrders: (updater: (current: SavedOrder[]) => SavedOrder[] | SavedOrder[]) => void;
   importOrders: (importedOrders: SavedOrder[]) => void;
+  setRemainders: (remainders: ReusableRemainder[]) => void;
 }
 
 export interface WasteSlice {
