@@ -100,7 +100,7 @@ describe('Screen Calculator Domain', () => {
       };
       expect(() => {
         calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [3.0]);
-      }).toThrowError(/No hay una orientacion valida/);
+      }).toThrowError(/No se puede fabricar esta cortina/);
     });
   });
 
@@ -150,7 +150,7 @@ describe('Screen Calculator Domain', () => {
       };
       expect(() => {
         calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [3.0]);
-      }).toThrowError(/No hay una orientacion valida/);
+      }).toThrowError(/No se puede fabricar esta cortina/);
     });
 
     it('4. widthM = 3.01, heightM = 2.00: debe ir rotada, no edgeRollFit', () => {
@@ -185,4 +185,67 @@ describe('Screen Calculator Domain', () => {
       expect(result.recommendedRollWidthMeters).toBe(3.0);
     });
   });
+
+  describe('Forced Rotation By Roll Limit (Pinpointe case)', () => {
+    it('1. Pinpointe 2.75 x 1.50, max roll 2.50: normal no cabe, rotada cabe', () => {
+      const input = {
+        curtainType: 'screen' as const,
+        fabricFamily: 'Pinpointe',
+        fabricOpenness: '5%',
+        fabricColor: 'Smoke',
+        widthMeters: 2.75,
+        heightMeters: 1.50,
+      };
+      const result = calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [2.5]);
+      expect(result.orientationUsed).toBe('volteada');
+      expect(result.forcedRotatedByRollLimit).toBe(true);
+      expect(result.maxAvailableRollWidthM).toBe(2.50);
+      // requiredWidthM is height (1.50) + 0.30 (extra) + 0.10 (encuadre) = 1.90
+      expect(result.rotatedRequiredWidthM).toBeCloseTo(1.90);
+    });
+
+    it('2. Pinpointe 2.75 x 2.30, max roll 2.50: normal no cabe, rotada no cabe, bloquear', () => {
+      const input = {
+        curtainType: 'screen' as const,
+        fabricFamily: 'Pinpointe',
+        fabricOpenness: '5%',
+        fabricColor: 'Smoke',
+        widthMeters: 2.75,
+        heightMeters: 2.30,
+      };
+      // rotada ocuparia: 2.30 + 0.30 + 0.10 = 2.70. 2.70 > 2.50.
+      expect(() => {
+        calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [2.5]);
+      }).toThrowError(/No se puede fabricar esta cortina/);
+    });
+
+    it('3. Pinpointe 2.20 x 1.50, max roll 2.50: normal cabe', () => {
+      const input = {
+        curtainType: 'screen' as const,
+        fabricFamily: 'Pinpointe',
+        fabricOpenness: '5%',
+        fabricColor: 'Smoke',
+        widthMeters: 2.20,
+        heightMeters: 1.50,
+      };
+      const result = calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [2.5]);
+      expect(result.orientationUsed).toBe('normal');
+      expect(result.forcedRotatedByRollLimit).toBeFalsy();
+    });
+
+    it('4. Tela con rollo 3.00 y widthM 2.75: normal', () => {
+      const input = {
+        curtainType: 'screen' as const,
+        fabricFamily: 'AURA',
+        fabricOpenness: '5%',
+        fabricColor: 'White',
+        widthMeters: 2.75,
+        heightMeters: 1.50,
+      };
+      const result = calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, [3.0]);
+      expect(result.orientationUsed).toBe('normal');
+      expect(result.forcedRotatedByRollLimit).toBeFalsy();
+    });
+  });
 });
+

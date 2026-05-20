@@ -21,7 +21,10 @@ export function getSageExportableLineCount(orders: SavedOrder[], remainders: Reu
   return result.sageLines.length;
 }
 
-export function downloadSageOrderEntry(orders: SavedOrder[], remainders: ReusableRemainder[] = []): ReusableRemainder[] {
+export function downloadSageOrderEntry(
+  orders: SavedOrder[], 
+  remainders: ReusableRemainder[] = []
+): { updatedRemainders: ReusableRemainder[], orderSnapshots: Record<string, import('../domain/orders/materialReview').ProductionIssueSnapshot> } {
   const inputLines = collectIssueEngineInputs(orders);
 
   if (inputLines.length === 0) {
@@ -112,7 +115,41 @@ export function downloadSageOrderEntry(orders: SavedOrder[], remainders: Reusabl
   ]);
 
   XLSX.writeFile(workbook, `OrderEntrySAGE_LUXIA_${dateTag}.xlsx`);
-  return result.updatedRemainders;
+  
+  if (import.meta.env.DEV) {
+    console.log("[SageExport] updatedRemainders", result.updatedRemainders);
+  }
+
+  const orderSnapshots: Record<string, import('../domain/orders/materialReview').ProductionIssueSnapshot> = {};
+  for (const order of orders) {
+    const cutsFromRemainders = result.cutsFromRemainders.filter(c => c.sourceOrderId === order.id);
+    
+    const cutPlans = result.cutPlans.map(cp => {
+      const bars = cp.bars.map(bar => {
+        const cuts = bar.cuts.filter(cut => cut.sourceOrderId === order.id);
+        if (cuts.length > 0) {
+          return { ...bar, cuts };
+        }
+        return null;
+      }).filter(Boolean) as import('../domain/orders/issueStrategies').CutPlanBar[];
+      if (bars.length > 0) {
+        return { ...cp, bars };
+      }
+      return null;
+    }).filter(Boolean) as import('../domain/orders/issueStrategies').CutPlan[];
+
+    orderSnapshots[order.id] = {
+      generatedAt: new Date().toISOString(),
+      snapshotStatus: 'final',
+      issueLines: [], // The PDF only needs the cuts and cutPlans to determine bar usage
+      cutPlans,
+      cutsFromRemainders,
+      createdRemainders: result.createdRemainders.filter(r => r.createdFromOrderId === order.id),
+      discardedLinearRemainders: result.discardedLinearRemainders.filter(r => r.sourceOrderId === order.id)
+    };
+  }
+
+  return { updatedRemainders: result.updatedRemainders, orderSnapshots };
 }
 
 function collectIssueEngineInputs(orders: SavedOrder[]): IssueEngineInputLine[] {

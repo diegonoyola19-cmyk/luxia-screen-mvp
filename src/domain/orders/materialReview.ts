@@ -38,6 +38,27 @@ export type ProductionMaterialAdjustment = {
   notes?: string;
 };
 
+export type DiscardedLinearRemainder = {
+  sku: string;
+  materialKind?: "tube" | "bottomrail" | "other";
+  lengthFt: number;
+  lengthM: number;
+  reason: "Menor a 1.00 m";
+  barIndex?: number;
+  sourceOrderId?: string;
+  sourceOrderNumber?: string;
+};
+
+export type ProductionIssueSnapshot = {
+  generatedAt: string;
+  snapshotStatus: 'preview' | 'final';
+  issueLines: SageMaterialLine[];
+  cutPlans: any[]; // Avoid circular deps, will use actual type in components or import it if needed. Let's import CutPlan and CutFromRemainder
+  cutsFromRemainders: any[];
+  createdRemainders: any[];
+  discardedLinearRemainders?: DiscardedLinearRemainder[];
+};
+
 export type ProductionMaterialReview = {
   reviewedAt: string;
   reviewedBy?: string;
@@ -46,6 +67,7 @@ export type ProductionMaterialReview = {
   finalMaterialLines: SageMaterialLine[];
   fabricAdjustments?: ProductionFabricAdjustment[];
   finalFabricLines?: SageMaterialLine[];
+  issueSnapshot?: ProductionIssueSnapshot;
 };
 
 export type ProductionFabricAdjustmentAction =

@@ -1,0 +1,119 @@
+﻿Unused files (30)
+fix_modal.cjs                 
+patch_fabric.cjs              
+patch_sage.cjs                
+patch_test.cjs                
+patch_val_test.cjs            
+patch_validate.cjs            
+scratch/build_bom_rules.js    
+scratch/build_v3_catalog.js   
+scratch/build_v3_fabrics.js   
+scratch/extract_rules.js      
+scratch/find_orphans_graph.cjs
+scratch/find_orphans.js       
+scratch/inspect_fabrics.js    
+scratch/inspect_margins.js    
+scratch/inspect_projects.js   
+scratch/orphans.cjs           
+scratch/read_excel_details.mjs
+scratch/read_excel.js         
+scratch/read_excel.mjs        
+scratch/read_margenes.js      
+scratch/split_css.mjs         
+scripts/migrate-catalog.mjs   
+scripts/test-supabase.mjs     
+scripts/upload-catalog.mjs    
+src/lib/itemCatalog.ts        
+src/lib/rulesParser.ts        
+src/lib/supabase.ts           
+src/lib/supabaseRepository.ts 
+src/store/recipeStore.ts      
+src/types/rules.ts            
+Unused dependencies (1)
+@supabase/supabase-js  package.json:15:6
+Unused devDependencies (2)
+@testing-library/dom    package.json:26:6
+@testing-library/react  package.json:28:6
+Unused exports (48)
+CURTAIN_OPTIONS                         src/domain/curtains/constants.ts:20:14       
+SCREEN_FIXED_COMPONENTS                 src/domain/curtains/constants.ts:34:14       
+TONE_GROUP_OPTIONS                      src/domain/curtains/constants.ts:45:14       
+COMPONENT_CATEGORY_OPTIONS              src/domain/curtains/constants.ts:52:14       
+calculateBatchMaterials       function  src/domain/curtains/screen.ts:297:17         
+generateId                    function  src/domain/orders/issueStrategies.ts:93:17   
+MIN_WIDTH_METERS                        src/features/calculadora-screen/utils.ts:4:14
+MAX_WIDTH_METERS                        src/features/calculadora-screen/utils.ts:5:14
+MIN_HEIGHT_METERS                       src/features/calculadora-screen/utils.ts:6:14
+MAX_HEIGHT_METERS                       src/features/calculadora-screen/utils.ts:7:14
+parseDecimalValue             function  src/features/calculadora-screen/utils.ts:9:17
+getStockBarMeters             function  src/lib/inventory.ts:82:17                   
+getMinLinearOffcutMeters      function  src/lib/inventory.ts:86:17                   
+loadProductionInventory       function  src/lib/inventory.ts:171:17                  
+saveProductionInventory       function  src/lib/inventory.ts:201:17                  
+loadInventoryMovements        function  src/lib/inventory.ts:212:17                  
+saveInventoryMovements        function  src/lib/inventory.ts:230:17                  
+getSuggestedScreenRollCosts   function  src/lib/priceCatalog.ts:180:17               
+STOCK_BAR_FEET                          src/lib/production.ts:3:14                   
+loadHistory                   function  src/lib/storage.ts:18:17                     
+saveHistory                   function  src/lib/storage.ts:19:17                     
+loadFormDraft                 function  src/lib/storage.ts:21:17                     
+saveFormDraft                 function  src/lib/storage.ts:22:17                     
+loadProjectDraft              function  src/lib/storage.ts:27:17                     
+saveProjectDraft              function  src/lib/storage.ts:28:17                     
+loadSavedOrders               function  src/lib/storage.ts:30:17                     
+saveSavedOrders               function  src/lib/storage.ts:31:17                     
+loadProductionInventory       function  src/lib/storage.ts:33:17                     
+saveProductionInventory       function  src/lib/storage.ts:34:17                     
+loadInventoryMovements        function  src/lib/storage.ts:36:17                     
+saveInventoryMovements        function  src/lib/storage.ts:37:17                     
+loadItemCatalogOverrides      function  src/lib/storage.ts:39:17                     
+saveItemCatalogOverrides      function  src/lib/storage.ts:40:17                     
+loadFabricToneRules           function  src/lib/storage.ts:42:17                     
+saveFabricToneRules           function  src/lib/storage.ts:43:17                     
+loadScreenRecipe              function  src/lib/storage.ts:45:17                     
+saveScreenRecipe              function  src/lib/storage.ts:46:17                     
+resolveOrderBom               function  src/logic/doubleBracketBom.ts:467:17         
+COLOR_WHITE                             src/logic/generateRollerBOM.ts:239:14        
+COLOR_IVORY                             src/logic/generateRollerBOM.ts:241:14        
+COLOR_GREY                              src/logic/generateRollerBOM.ts:243:14        
+COLOR_BRONZE                            src/logic/generateRollerBOM.ts:245:14        
+ALL_FABRICS                             src/logic/rollerEngineV3.ts:66:14            
+resolveHardwareRecipe         function  src/logic/rollerEngineV3.ts:208:17           
+calcFabricCut                 function  src/logic/rollerEngineV3.ts:303:17           
+getFabricLine                 function  src/logic/rollerEngineV3.ts:324:17           
+resolveHardwareRecipeFromBOM  function  src/logic/rollerEngineV3.ts:351:17           
+calcTotalCost                 function  src/logic/rollerEngineV3.ts:410:17           
+Unused exported types (33)
+WidthMinusCalculation          interface  src/domain/curtains/roller-bom-rules.types.ts:11:18                      
+FixedQuantityCalculation       interface  src/domain/curtains/roller-bom-rules.types.ts:21:18                      
+HeightMultiplierCalculation    interface  src/domain/curtains/roller-bom-rules.types.ts:28:18                      
+UnknownCalculation             interface  src/domain/curtains/roller-bom-rules.types.ts:36:18                      
+BomComponentScope              type       src/domain/curtains/roller-bom-rules.types.ts:62:13                      
+ColorMapKey                    type       src/domain/curtains/roller-bom-rules.types.ts:67:13                      
+ColorMap                       type       src/domain/curtains/roller-bom-rules.types.ts:79:13                      
+ColorMaps                      type       src/domain/curtains/roller-bom-rules.types.ts:82:13                      
+RecipeCondition                type       src/domain/curtains/types.ts:54:13                                       
+RecipeQuantityMode             type       src/domain/curtains/types.ts:56:13                                       
+DriveType                      type       src/domain/curtains/types.ts:93:13                                       
+SelectedFabric                 interface  src/domain/curtains/types.ts:126:18                                      
+ProjectDraft                   interface  src/domain/curtains/types.ts:262:18                                      
+OrderProductionStatus          type       src/domain/curtains/types.ts:272:13                                      
+ScreenFixedComponentFormValue  interface  src/domain/curtains/types.ts:307:18                                      
+InventoryStatus                type       src/domain/curtains/types.ts:378:13                                      
+InventoryMovementCategory      type       src/domain/curtains/types.ts:425:13                                      
+DescargoRetazoResult           interface  src/domain/curtains/types.ts:453:18                                      
+SageDetailLine                 interface  src/domain/orders/issueStrategies.ts:22:18                               
+CutPlanCut                     type       src/domain/orders/issueStrategies.ts:39:13                               
+CutPlanBar                     type       src/domain/orders/issueStrategies.ts:47:13                               
+CutPlan                        type       src/domain/orders/issueStrategies.ts:54:13                               
+SageValidationIssue            type       src/domain/orders/validateOrderBeforeSage.ts:4:13                        
+ApprovalState                  type       src/features/calculadora-screen/hooks/useDoubleBracketWidthGuard.ts:17:13
+ScreenRollCostSuggestion       interface  src/lib/priceCatalog.ts:41:18                                            
+LinearMaterialSummary          interface  src/lib/production.ts:5:18                                               
+FixedComponentSummary          interface  src/lib/production.ts:14:18                                              
+ColorResolutionError           type       src/logic/doubleBracketBom.ts:107:13                                     
+StockStatus                    type       src/logic/rollerEngineV3.ts:19:13                                        
+RecipeLine                     interface  src/logic/rollerEngineV3.ts:21:18                                        
+FabricItem                     interface  src/logic/rollerEngineV3.ts:34:18                                        
+FabricCut                      interface  src/logic/rollerEngineV3.ts:47:18                                        
+HardwareItem                   type       src/logic/rollerEngineV3.ts:414:15                                       

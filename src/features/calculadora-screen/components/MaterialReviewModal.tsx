@@ -16,6 +16,10 @@ import {
 } from '../../../domain/orders/materialReview';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { BOMItem, generateRollerBOM } from '../../../logic/generateRollerBOM';
+import { normalizeOrderStatus } from '../../../domain/orders/orderStatus';
+import { componentCatalogBySku } from '../../../domain/inventory/componentCatalog';
+import { calculateIssueLines } from '../../../domain/orders/issueStrategies';
+import './MaterialReviewModal.css';
 
 interface Props {
   order: SavedOrder;
@@ -103,7 +107,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
         if (res.fabricDownloadedYd2 && res.fabricDownloadedYd2 > 0) {
           calculatedAreaY2 = res.fabricDownloadedYd2;
         } else if (res.recommendedRollWidthMeters && res.cutLengthMeters) {
-          calculatedAreaY2 = res.recommendedRollWidthMeters * res.cutLengthMeters * 1.19599;
+          calculatedAreaY2 = res.recommendedRollWidthMeters * res.cutLengthMeters * 1.2;
         }
       }
 
@@ -358,129 +362,290 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   const handleComplete = () => {
     if (!validate()) return;
 
-    const review: ProductionMaterialReview = {
+    // Build the final lines
+    const finalMaterialLines = generateFinalMaterialLines(adjustments);
+    const finalFabricLines = generateFinalFabricLines(fabricAdjustments);
+
+    // Create a temporary review to extract inputs
+    const tempReview: ProductionMaterialReview = {
       reviewedAt: new Date().toISOString(),
       status: "completed",
       adjustments,
       fabricAdjustments,
-      finalMaterialLines: generateFinalMaterialLines(adjustments),
-      finalFabricLines: generateFinalFabricLines(fabricAdjustments)
+      finalMaterialLines,
+      finalFabricLines
+    };
+
+    // We simulate Sage Export input collection for this order
+    // But since collectIssueEngineInputs is in sageExport, let's just collect it here
+    const inputs: import('../../../domain/orders/issueStrategies').IssueEngineInputLine[] = [];
+    for (const line of finalFabricLines) {
+      inputs.push({ sku: line.sku, description: line.description, quantity: line.quantity, unit: line.unit, orderId: order.id });
+    }
+    
+    const adjMap = new Map<string, any>();
+    for (const adj of adjustments) {
+      if (adj.calculatedSku && adj.action !== "added") {
+        adjMap.set(adj.calculatedSku, adj);
+      }
+    }
+
+    for (const item of order.items) {
+      if (!item.materialLines) continue;
+      for (const mLine of item.materialLines) {
+        const originalSku = mLine.sageItemCode || mLine.itemCode;
+        const adjustment = adjMap.get(originalSku);
+        if (adjustment?.action === "removed") continue;
+
+        let finalSku = originalSku;
+        let finalQuantity = mLine.quantity;
+        let finalDescription = mLine.description;
+        let finalUnit = mLine.unit;
+
+        if (adjustment && adjustment.action === "substituted" && adjustment.actualSku) {
+          finalSku = adjustment.actualSku;
+          finalDescription = adjustment.actualDescription || finalDescription;
+        }
+        if (adjustment && adjustment.action === "quantity_adjusted" && adjustment.actualQuantity !== undefined) {
+          finalQuantity = adjustment.actualQuantity;
+        }
+
+        inputs.push({
+          sku: finalSku,
+          description: finalDescription,
+          quantity: finalQuantity,
+          unit: finalUnit,
+          orderId: order.id,
+          itemId: item.id,
+          curtainRef: item.title || item.id
+        });
+      }
+    }
+
+    const addedAdjustments = adjustments.filter(adj => adj.action === "added" && adj.actualSku);
+    for (const add of addedAdjustments) {
+      inputs.push({
+        sku: add.actualSku!,
+        description: add.actualDescription || add.actualSku!,
+        quantity: add.actualQuantity || 1,
+        unit: add.actualUnit || 'EA',
+        orderId: order.id
+      });
+    }
+
+    // Convert to Sage units (similar to collectIssueEngineInputs)
+    for (const line of inputs) {
+      const catalogEntry = componentCatalogBySku[line.sku];
+      const targetUnit = catalogEntry?.sageUnit?.toUpperCase();
+      if (targetUnit === 'FT' && line.unit.toLowerCase() === 'm') {
+        line.quantity = line.quantity * 3.28084;
+        line.unit = 'FT';
+      } else if (targetUnit === 'M' && line.unit.toLowerCase() === 'ft') {
+        line.quantity = line.quantity / 3.28084;
+        line.unit = 'M';
+      }
+    }
+
+    const result = calculateIssueLines(inputs, store.remainders || []);
+
+    const review: ProductionMaterialReview = {
+      ...tempReview,
+      issueSnapshot: {
+        generatedAt: new Date().toISOString(),
+        snapshotStatus: 'preview',
+        issueLines: result.issueLines.map((l: any) => ({ sku: l.itemCode, description: l.itemCode, quantity: l.quantity, unit: l.unit || 'EA' })),
+        cutPlans: result.cutPlans,
+        cutsFromRemainders: result.cutsFromRemainders,
+        createdRemainders: result.createdRemainders
+      }
     };
 
     store.saveProductionReview(order.id, review);
     onClose();
   };
 
+  const getStatusBadgeClass = () => {
+    const status = normalizeOrderStatus(order.status);
+    if (status === 'materials_checked' || status === 'sent_to_sage') return 'mrm-status-badge--completed';
+    if (order.productionReview?.status === 'draft') return 'mrm-status-badge--pending';
+    return 'mrm-status-badge--draft';
+  };
+
+  const getStatusBadgeLabel = () => {
+    const status = normalizeOrderStatus(order.status);
+    if (status === 'sent_to_sage') return 'Completado y en Sage';
+    if (status === 'materials_checked') return 'Revisión Completa';
+    if (order.productionReview?.status === 'draft') return 'Borrador';
+    return 'Pendiente de Revisión';
+  };
+
+  // KPIs
+  const changedComponents = adjustments.filter(a => a.action !== 'confirmed').length;
+  const changedFabrics = fabricAdjustments.filter(a => a.action !== 'confirmed').length;
+  const totalChanges = changedComponents + changedFabrics;
+
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="modal-content" style={{ background: 'var(--surface)', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '1200px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <h2 style={{ marginTop: 0 }}>Revisión de Materiales y Telas - Orden {order.orderNumber}</h2>
-        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-          Confirma o ajusta los materiales reales consumidos. Sage utilizará la lista final combinada.
-        </p>
-
-        {errors.length > 0 && (
-          <div style={{ padding: '12px', background: '#fee2e2', color: '#991b1b', borderRadius: '6px', marginBottom: '16px' }}>
-            <ul style={{ margin: 0, paddingLeft: '20px' }}>
-              {errors.map((e, i) => <li key={i}>{e}</li>)}
-            </ul>
+    <div className="material-review-modal-overlay" role="dialog" aria-modal="true">
+      <div className="material-review-modal-content">
+        
+        {/* HEADER */}
+        <div className="mrm-header">
+          <div className="mrm-header__top">
+            <div className="mrm-header__title-group">
+              <h2>Revisión de Materiales y Telas</h2>
+              <p className="mrm-header__subtitle">Orden {order.orderNumber} · Sage utilizará la lista final aprobada.</p>
+            </div>
+            <button className="mrm-header__close" onClick={onClose} aria-label="Cerrar modal">×</button>
           </div>
-        )}
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid #ddd', paddingBottom: '8px' }}>
-          <Button variant={activeTab === 'components' ? 'primary' : 'ghost'} onClick={() => setActiveTab('components')}>
-            Componentes / Herrajes
-          </Button>
-          <Button variant={activeTab === 'fabrics' ? 'primary' : 'ghost'} onClick={() => setActiveTab('fabrics')}>
-            Telas / Paños
-          </Button>
+          <div className="mrm-summary-bar">
+            <div className="mrm-summary-item">
+              <span className="label">Componentes</span>
+              <span className="val">{adjustments.length}</span>
+            </div>
+            <div className="mrm-summary-item">
+              <span className="label">Telas</span>
+              <span className="val">{fabricAdjustments.length}</span>
+            </div>
+            <div className="mrm-summary-item">
+              <span className="label">Cambios</span>
+              <span className="val">{totalChanges}</span>
+            </div>
+            <div className={`mrm-summary-item ${errors.length > 0 ? 'alert' : ''}`}>
+              <span className="label">Alertas</span>
+              <span className="val">{errors.length}</span>
+            </div>
+            <div className="mrm-summary-item" style={{ marginLeft: 'auto', borderRight: 'none' }}>
+              <span className="label">Estado</span>
+              <span className={`mrm-status-badge ${getStatusBadgeClass()}`}>
+                {getStatusBadgeLabel()}
+              </span>
+            </div>
+          </div>
+
+          <div className="mrm-tabs">
+            <button 
+              className={`mrm-tab ${activeTab === 'components' ? 'active' : ''}`}
+              onClick={() => setActiveTab('components')}
+            >
+              Componentes / Herrajes
+            </button>
+            <button 
+              className={`mrm-tab ${activeTab === 'fabrics' ? 'active' : ''}`}
+              onClick={() => setActiveTab('fabrics')}
+            >
+              Telas / Paños
+            </button>
+          </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* BODY */}
+        <div className="mrm-body">
+          {errors.length > 0 && (
+            <div className="mrm-global-errors">
+              <ul>
+                {errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+
           {activeTab === 'components' && (
             <>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                 <Button variant="secondary" size="sm" onClick={handleAddMaterial}>+ Agregar Material Extra</Button>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(0,0,0,0.05)' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Componente Calculado</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Acción</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Ajuste Real (SKU / Cant.)</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Motivo / Notas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adjustments.map((adj, index) => (
-                    <tr key={adj.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                      <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                        {adj.action === "added" ? (
-                          <span style={{ color: '#059669', fontWeight: 'bold' }}>Extra / Nuevo</span>
+
+              {adjustments.length === 0 ? (
+                <div className="mrm-empty-state">No hay componentes para revisar.</div>
+              ) : (
+                adjustments.map((adj, index) => {
+                  const isConfirmed = adj.action === 'confirmed';
+                  const isAdded = adj.action === 'added';
+                  const isRemoved = adj.action === 'removed';
+                  const isSubstituted = adj.action === 'substituted';
+                  
+                  let cardClass = 'mrm-review-card--modified';
+                  if (isConfirmed) cardClass = 'mrm-review-card--confirmed';
+                  if (isAdded) cardClass = 'mrm-review-card--added';
+                  if (isRemoved) cardClass = 'mrm-review-card--removed';
+                  if (isSubstituted) cardClass = 'mrm-review-card--substituted';
+
+                  return (
+                    <div key={adj.id} className={`mrm-review-card ${cardClass}`}>
+                      {/* Identity */}
+                      <div className="mrm-card-zone mrm-card-zone--identity">
+                        {isAdded ? (
+                          <div className="mrm-pill mrm-pill--success">Material Extra / Nuevo</div>
                         ) : (
                           <>
-                            <div style={{ fontWeight: 600 }}>{adj.calculatedDescription}</div>
-                            <div style={{ fontFamily: 'monospace', color: 'var(--muted)' }}>{adj.calculatedSku}</div>
-                            <div>{adj.calculatedQuantity} {adj.calculatedUnit}</div>
+                            <div className="title">{adj.calculatedDescription}</div>
+                            <div className="sku">{adj.calculatedSku}</div>
+                            <div className="mrm-pill">Calc: {adj.calculatedQuantity} {adj.calculatedUnit}</div>
                           </>
                         )}
-                      </td>
-                      <td style={{ padding: '8px', verticalAlign: 'top' }}>
+                      </div>
+
+                      {/* Action */}
+                      <div className="mrm-card-zone">
                         <select 
+                          className="mrm-select"
                           value={adj.action} 
                           onChange={e => handleUpdateAdjustment(index, { action: e.target.value as ProductionMaterialAdjustmentAction })}
-                          style={{ width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }}
                         >
-                          {adj.calculatedSku && <option value="confirmed">Confirmar</option>}
+                          {adj.calculatedSku && <option value="confirmed">Confirmar calc.</option>}
                           {adj.calculatedSku && <option value="substituted">Sustituir SKU</option>}
-                          {adj.calculatedSku && <option value="quantity_adjusted">Ajustar Cantidad</option>}
-                          {adj.calculatedSku && <option value="removed">No usado</option>}
+                          {adj.calculatedSku && <option value="quantity_adjusted">Ajustar Cant.</option>}
+                          {adj.calculatedSku && <option value="removed">Remover / No usar</option>}
                           {adj.action === "added" && <option value="added">Agregado extra</option>}
                         </select>
-                      </td>
-                      <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                        {adj.action === "confirmed" ? (
-                          <span style={{ color: 'var(--muted)' }}>Igual a calculado</span>
-                        ) : adj.action === "removed" ? (
-                          <span style={{ color: '#dc2626' }}>Eliminado del final</span>
+                      </div>
+
+                      {/* Adjustment */}
+                      <div className="mrm-card-zone">
+                        {isConfirmed ? (
+                          <div className="mrm-card-status-text">Igual a calculado</div>
+                        ) : isRemoved ? (
+                          <div className="mrm-card-status-text" style={{ color: '#dc2626' }}>No se descontará de Sage</div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <>
                             <input 
                               type="text" 
-                              placeholder="Nuevo SKU" 
+                              className="mrm-input"
+                              placeholder="SKU Real" 
                               value={adj.actualSku || ''} 
                               onChange={e => handleUpdateAdjustment(index, { actualSku: e.target.value })}
-                              style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
                             />
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div className="mrm-input-group">
                               <input 
                                 type="number" 
                                 step="0.001"
+                                className="mrm-input"
                                 placeholder="Cant." 
                                 value={adj.actualQuantity ?? ''} 
                                 onChange={e => handleUpdateAdjustment(index, { actualQuantity: parseFloat(e.target.value) })}
-                                style={{ width: '80px', padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
                               />
                               <input 
                                 type="text" 
-                                placeholder="Unidad" 
+                                className="mrm-input"
+                                placeholder="Unid." 
                                 value={adj.actualUnit || ''} 
                                 onChange={e => handleUpdateAdjustment(index, { actualUnit: e.target.value })}
-                                style={{ width: '60px', padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
                               />
                             </div>
-                          </div>
+                          </>
                         )}
-                      </td>
-                      <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                        {adj.action !== "confirmed" && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="mrm-card-zone">
+                        {isConfirmed ? null : (
+                          <>
                             <select 
+                              className="mrm-select"
                               value={adj.reason || ''} 
                               onChange={e => handleUpdateAdjustment(index, { reason: e.target.value as ProductionMaterialAdjustmentReason })}
-                              style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
                             >
-                              <option value="" disabled>Seleccione motivo...</option>
+                              <option value="" disabled>Motivo (Req)...</option>
                               <option value="out_of_stock">Falta stock (Sustituido)</option>
                               <option value="authorized_substitution">Sustitucion autorizada</option>
                               <option value="bom_error">Error de calculo BOM</option>
@@ -490,155 +655,171 @@ export function MaterialReviewModal({ order, onClose }: Props) {
                             </select>
                             <input 
                               type="text" 
+                              className="mrm-input"
                               placeholder="Notas adicionales..." 
                               value={adj.notes || ''} 
                               onChange={e => handleUpdateAdjustment(index, { notes: e.target.value })}
-                              style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
                             />
-                          </div>
+                          </>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </>
           )}
 
           {activeTab === 'fabrics' && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ background: 'rgba(0,0,0,0.05)' }}>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>Cortina</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>Tela Calculada</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>Acción</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>Ajuste Real</th>
-                  <th style={{ padding: '8px', textAlign: 'left' }}>Motivo / Notas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fabricAdjustments.map((adj, index) => (
-                  <tr key={adj.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: 600 }}>{adj.curtainLabel}</div>
-                      <div style={{ color: 'var(--muted)' }}>{adj.calculatedWidthM} x {adj.calculatedHeightM}m</div>
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      <div style={{ fontFamily: 'monospace', color: 'var(--muted)' }}>{adj.calculatedFabricSku}</div>
-                      <div>{adj.calculatedFabricDescription}</div>
-                      <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#059669' }}>
-                        {adj.calculatedSource === 'roll' ? `Rollo (${adj.calculatedRollWidthM}m)` : `Retazo (${adj.calculatedRemnantSize})`}
-                      </div>
-                      <div style={{ marginTop: '2px', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                        Consumo calculado: {adj.calculatedAreaY2 ? adj.calculatedAreaY2.toFixed(2) : '—'} Y2
-                      </div>
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      <select 
-                        value={adj.action} 
-                        onChange={e => handleUpdateFabricAdjustment(index, { action: e.target.value as ProductionFabricAdjustmentAction })}
-                        style={{ width: '100%', padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }}
-                      >
-                        <option value="confirmed">Confirmar</option>
-                        <option value="fabric_substituted">Sustituir Tela</option>
-                        <option value="roll_width_changed">Cambiar Ancho de Rollo</option>
-                        <option value="remnant_changed">Usar Retazo Diferente</option>
-                        <option value="consumption_adjusted">Ajustar Área Final (Y2)</option>
-                        <option value="removed">No usar</option>
-                      </select>
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      {adj.action === "confirmed" ? (
-                        <div style={{ color: 'var(--muted)' }}>
-                           Consumo final: <strong>{adj.actualAreaY2 ? adj.actualAreaY2.toFixed(2) : '—'} Y2</strong><br />
-                           <span style={{ fontSize: '0.8em' }}>(Igual a calculado)</span>
+            <>
+              {fabricAdjustments.length === 0 ? (
+                <div className="mrm-empty-state">No hay telas para revisar.</div>
+              ) : (
+                fabricAdjustments.map((adj, index) => {
+                  const isConfirmed = adj.action === 'confirmed';
+                  const isRemoved = adj.action === 'removed';
+                  const isSubstituted = adj.action === 'fabric_substituted';
+                  
+                  let cardClass = 'mrm-review-card--modified';
+                  if (isConfirmed) cardClass = 'mrm-review-card--confirmed';
+                  if (isRemoved) cardClass = 'mrm-review-card--removed';
+                  if (isSubstituted) cardClass = 'mrm-review-card--substituted';
+
+                  return (
+                    <div key={adj.id} className={`mrm-review-card ${cardClass}`}>
+                      {/* Identity */}
+                      <div className="mrm-card-zone mrm-card-zone--identity">
+                        <div className="title">{adj.curtainLabel}</div>
+                        <div className="sku">{adj.calculatedFabricSku}</div>
+                        
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                          <div className="mrm-pill">{adj.calculatedWidthM} x {adj.calculatedHeightM}m</div>
+                          <div className="mrm-pill mrm-pill--accent">
+                            {adj.calculatedSource === 'roll' ? `Rollo ${adj.calculatedRollWidthM}m` : `Retazo ${adj.calculatedRemnantSize}`}
+                          </div>
                         </div>
-                      ) : adj.action === "removed" ? (
-                        <span style={{ color: '#dc2626' }}>Eliminado del final</span>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <input 
-                            type="text" 
-                            placeholder="SKU Tela" 
-                            value={adj.actualFabricSku || ''} 
-                            onChange={e => handleUpdateFabricAdjustment(index, { actualFabricSku: e.target.value })}
-                            style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-                          />
-                          {(adj.action === 'roll_width_changed' || adj.action === 'fabric_substituted') && (
-                            <input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="Ancho rollo (m)" 
-                              value={adj.actualRollWidthM || ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { actualRollWidthM: parseFloat(e.target.value) })}
-                              style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-                            />
-                          )}
-                          {adj.action === 'remnant_changed' && (
+                        <div className="sku" style={{ marginTop: '4px' }}>Calc: {adj.calculatedAreaY2 ? adj.calculatedAreaY2.toFixed(2) : '—'} Y2</div>
+                      </div>
+
+                      {/* Action */}
+                      <div className="mrm-card-zone">
+                        <select 
+                          className="mrm-select"
+                          value={adj.action} 
+                          onChange={e => handleUpdateFabricAdjustment(index, { action: e.target.value as ProductionFabricAdjustmentAction })}
+                        >
+                          <option value="confirmed">Confirmar calc.</option>
+                          <option value="fabric_substituted">Sustituir Tela</option>
+                          <option value="roll_width_changed">Cambiar Ancho Rollo</option>
+                          <option value="remnant_changed">Usar Retazo</option>
+                          <option value="consumption_adjusted">Ajustar Área (Y2)</option>
+                          <option value="removed">Remover / No usar</option>
+                        </select>
+                      </div>
+
+                      {/* Adjustment */}
+                      <div className="mrm-card-zone">
+                        {isConfirmed ? (
+                          <div className="mrm-card-status-text">
+                            Final: {adj.actualAreaY2 ? adj.actualAreaY2.toFixed(2) : '—'} Y2
+                          </div>
+                        ) : isRemoved ? (
+                          <div className="mrm-card-status-text" style={{ color: '#dc2626' }}>No se descontará de Sage</div>
+                        ) : (
+                          <>
                             <input 
                               type="text" 
-                              placeholder="Medida Retazo (ej 1x1)" 
-                              value={adj.actualRemnantSize || ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { actualRemnantSize: e.target.value })}
-                              style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
+                              className="mrm-input"
+                              placeholder="SKU Tela Final" 
+                              value={adj.actualFabricSku || ''} 
+                              onChange={e => handleUpdateFabricAdjustment(index, { actualFabricSku: e.target.value })}
                             />
-                          )}
-                          <input 
-                            type="number" 
-                            step="0.001"
-                            placeholder="Área Final para Sage (Y2)" 
-                            value={adj.actualAreaY2 ?? ''} 
-                            onChange={e => handleUpdateFabricAdjustment(index, { actualAreaY2: parseFloat(e.target.value) })}
-                            style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-                            title="Deja vacío si deseas que el sistema intente recalcular el área automáticamente desde la medida de la cortina."
-                          />
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      {adj.action !== "confirmed" && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <select 
-                            value={adj.reason || ''} 
-                            onChange={e => handleUpdateFabricAdjustment(index, { reason: e.target.value as ProductionFabricAdjustmentReason })}
-                            style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-                          >
-                            <option value="" disabled>Seleccione motivo...</option>
-                            <option value="out_of_stock">Falta stock de tela/rollo</option>
-                            <option value="authorized_substitution">Sustitucion autorizada</option>
-                            <option value="fabric_error">Error en tela calculada</option>
-                            <option value="roll_width_change">Cambio de ancho para optimizar</option>
-                            <option value="remnant_decision">Uso de retazo por producción</option>
-                            <option value="production_decision">Decision general de piso</option>
-                            <option value="other">Otro</option>
-                          </select>
-                          <input 
-                            type="text" 
-                            placeholder="Notas adicionales..." 
-                            value={adj.notes || ''} 
-                            onChange={e => handleUpdateFabricAdjustment(index, { notes: e.target.value })}
-                            style={{ padding: '4px', border: '1px solid #ccc', borderRadius: '4px' }}
-                          />
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            
+                            {(adj.action === 'roll_width_changed' || adj.action === 'fabric_substituted') && (
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                className="mrm-input"
+                                placeholder="Ancho rollo real (m)" 
+                                value={adj.actualRollWidthM || ''} 
+                                onChange={e => handleUpdateFabricAdjustment(index, { actualRollWidthM: parseFloat(e.target.value) })}
+                              />
+                            )}
+                            
+                            {adj.action === 'remnant_changed' && (
+                              <input 
+                                type="text" 
+                                className="mrm-input"
+                                placeholder="Medida Retazo (ej 1x1)" 
+                                value={adj.actualRemnantSize || ''} 
+                                onChange={e => handleUpdateFabricAdjustment(index, { actualRemnantSize: e.target.value })}
+                              />
+                            )}
+
+                            <input 
+                              type="number" 
+                              step="0.001"
+                              className="mrm-input"
+                              placeholder="Área Final Sage (Y2)" 
+                              value={adj.actualAreaY2 ?? ''} 
+                              onChange={e => handleUpdateFabricAdjustment(index, { actualAreaY2: parseFloat(e.target.value) })}
+                            />
+                          </>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      <div className="mrm-card-zone">
+                        {isConfirmed ? null : (
+                          <>
+                            <select 
+                              className="mrm-select"
+                              value={adj.reason || ''} 
+                              onChange={e => handleUpdateFabricAdjustment(index, { reason: e.target.value as ProductionFabricAdjustmentReason })}
+                            >
+                              <option value="" disabled>Motivo (Req)...</option>
+                              <option value="out_of_stock">Falta stock tela/rollo</option>
+                              <option value="authorized_substitution">Sustitucion autorizada</option>
+                              <option value="fabric_error">Error en tela calculada</option>
+                              <option value="roll_width_change">Cambio ancho optimizar</option>
+                              <option value="remnant_decision">Uso de retazo (piso)</option>
+                              <option value="production_decision">Decision general piso</option>
+                              <option value="other">Otro</option>
+                            </select>
+                            <input 
+                              type="text" 
+                              className="mrm-input"
+                              placeholder="Notas adicionales..." 
+                              value={adj.notes || ''} 
+                              onChange={e => handleUpdateFabricAdjustment(index, { notes: e.target.value })}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </>
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', borderTop: '1px solid #ddd', paddingTop: '16px' }}>
-          <div>
-            <Button variant="secondary" onClick={handleConfirmAll}>Confirmar TODO sin cambios</Button>
+        {/* FOOTER */}
+        <div className="mrm-footer">
+          <div className="mrm-footer__left">
+            <Button variant="secondary" onClick={handleConfirmAll} className="mrm-btn-action">
+              ✓ Confirmar todo sin cambios
+            </Button>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button variant="secondary" onClick={handleSaveDraft}>Guardar Borrador</Button>
-            <Button variant="primary" onClick={handleComplete}>Completar Revisión</Button>
+          <div className="mrm-footer__right">
+            <Button variant="ghost" onClick={onClose} className="mrm-btn-action">Cancelar</Button>
+            <Button variant="secondary" onClick={handleSaveDraft} className="mrm-btn-action">Guardar Borrador</Button>
+            <Button variant="primary" onClick={handleComplete} className="mrm-btn-action" style={{ backgroundColor: 'var(--primary-dark)', borderColor: 'var(--primary-dark)', boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.3)' }}>
+              Completar Revisión
+            </Button>
           </div>
         </div>
+
       </div>
     </div>
   );

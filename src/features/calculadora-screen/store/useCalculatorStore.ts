@@ -29,6 +29,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
         productionInventory: state.productionInventory,
         inventoryMovements: state.inventoryMovements,
         ruleConfig: state.ruleConfig,
+        remainders: state.remainders,
       }),
     }
   )

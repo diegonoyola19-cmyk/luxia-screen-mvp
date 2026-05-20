@@ -16,6 +16,15 @@ export const createInventorySlice: StateCreator<
     inventoryMovements: typeof movements === 'function' ? movements(state.inventoryMovements) : movements
   })),
 
+  addFabricScrap: (item) => {
+    set((state) => ({
+      productionInventory: {
+        ...state.productionInventory,
+        fabrics: [item, ...state.productionInventory.fabrics],
+      }
+    }));
+  },
+
   saveRollCosts: (costsByWidth) => {
     set((state) => ({
       productionInventory: {

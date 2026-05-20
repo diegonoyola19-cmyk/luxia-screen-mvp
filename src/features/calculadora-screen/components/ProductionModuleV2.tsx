@@ -16,6 +16,7 @@ import type { Tone } from '../../../logic/rollerEngineV3';
 import { getHWDesc } from '../../../logic/rollerEngineV3';
 import { useDoubleBracketWidthGuard } from '../hooks/useDoubleBracketWidthGuard';
 import { DoubleBracketWidthAlert } from './DoubleBracketWidthAlert';
+import { resolveHardwareToneFromFabricColor, extractFabricColorName } from '../../../domain/curtains/hardwareToneRules';
 import './ProductionModuleV2.css';
 
 // ── BOM display helpers ───────────────────────────────────────────────────────
@@ -146,22 +147,8 @@ export function ProductionModuleV2() {
   const [useManualRetazo, setUseManualRetazo] = useState(false);
   const [manualRetazoSqYd, setManualRetazoSqYd] = useState('');
   const [oversizedRotatedAccepted, setOversizedRotatedAccepted] = useState(false);
-
-  // -- Tono de herrajes: conectado al store para persistir en saveOrder ----------
-  const toneOverride = store.hardwareTone as Tone | null;
-  const setToneOverride = (t: Tone | null) => store.setHardwareTone(t);
-  const autoTone = useMemo((): Tone => {
-    const c = (store.formValues.fabricColor ?? '').toLowerCase();
-    if (c.includes('grey') || c.includes('gray') || c.includes('stone') || c.includes('smoke') || c.includes('slate') || c.includes('graphite')) return 'grey';
-    if (c.includes('ivory') || c.includes('beige') || c.includes('sand') || c.includes('linen') ||
-        c.includes('bisque') || c.includes('taupe') || c.includes('off white') || c.includes('fawn')) return 'ivory';
-    if (c.includes('bronze') || c.includes('brown') || c.includes('ebony') || c.includes('chocolate') ||
-        c.includes('gold') || c.includes('custard') || c.includes('black') || c.includes('charcoal') || c.includes('dark') || c.includes('onyx')) return 'bronze';
-    return 'white';
-  }, [store.formValues.fabricColor]);
-
-  // Si el usuario elige manualmente el mismo que auto, lo reseteamos a auto
-  const activeTone: Tone = toneOverride ?? autoTone;
+  const [forcedRotatedAccepted, setForcedRotatedAccepted] = useState(false);
+  const [cantidadInput, setCantidadInput] = useState<string>('1');
 
   const {
     fabricFamilies,
@@ -176,6 +163,19 @@ export function ProductionModuleV2() {
     hasValidDimensions,
     displayErrors,
   } = useCalculatorDerivedState(false);
+
+  // -- Tono de herrajes: conectado al store para persistir en saveOrder ----------
+  const toneOverride = store.hardwareTone as Tone | null;
+  const setToneOverride = (t: Tone | null) => store.setHardwareTone(t);
+  
+  const autoTone = useMemo(() => {
+    const extractedColor = extractFabricColorName(selectedFabricPreview || store.formValues.fabricColor);
+    return resolveHardwareToneFromFabricColor(extractedColor);
+  }, [store.formValues.fabricColor, selectedFabricPreview]);
+
+  const selectedTone = toneOverride ?? autoTone;
+  // Fallback a white solo para no romper cálculos si es null
+  const activeTone: Tone = selectedTone ?? 'white';
 
   const typedMatches = colorWasteMatches as WasteReuseMatch[];
   const hasRetazos = typedMatches.length > 0 && hasValidDimensions;
@@ -226,6 +226,8 @@ export function ProductionModuleV2() {
     };
   }, [store.cuttingGroups, store.itemsAProducir]);
 
+  const parsedQty = Math.max(1, parseInt(cantidadInput, 10) || 1);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleAddToBatch = () => {
     if (
@@ -236,25 +238,30 @@ export function ProductionModuleV2() {
       !parsedFormValues.fabricColor
     ) return;
 
-    const item: ProductionBatchItem = {
-      id: generateId(),
-      input: {
-        ...(parsedFormValues as CalculationInput),
-        mountingSystem: store.mountingSystem,
-        hardwareTone: activeTone,
-        oversizedRotatedAccepted,
-        // Persisit specialFabrication metadata when applicable
-        ...(widthGuard.specialFabricationMeta ?? {}),
-      },
-      result: displayResult,
-      reusedWastePiece: (selectedWasteMatch as WasteReuseMatch | null)?.wastePiece ?? null,
-    };
-    store.addProductionItem(item);
+    for (let i = 0; i < parsedQty; i++) {
+      const item: ProductionBatchItem = {
+        id: generateId(),
+        input: {
+          ...(parsedFormValues as CalculationInput),
+          mountingSystem: store.mountingSystem,
+          hardwareTone: activeTone,
+          oversizedRotatedAccepted,
+          forcedRotatedAccepted,
+          // Persisit specialFabrication metadata when applicable
+          ...(widthGuard.specialFabricationMeta ?? {}),
+        },
+        result: displayResult,
+        reusedWastePiece: (selectedWasteMatch as WasteReuseMatch | null)?.wastePiece ?? null,
+      };
+      store.addProductionItem(item);
+    }
     // Resetear selección de retazo y dimensiones tras agregar
     store.setSelectedWastePieceId(null);
     store.setFormValue('widthMeters', '');
     store.setFormValue('heightMeters', '');
     setOversizedRotatedAccepted(false);
+    setForcedRotatedAccepted(false);
+    setCantidadInput('1');
     window.requestAnimationFrame(() => widthRef.current?.focus());
   };
 
@@ -266,7 +273,9 @@ export function ProductionModuleV2() {
     finally { setIsSaving(false); }
   };
 
-  const canAdd = Boolean(displayResult) && (!displayResult?.oversizedRotated || oversizedRotatedAccepted);
+  const canAdd = Boolean(displayResult) && 
+    (!displayResult?.oversizedRotated || oversizedRotatedAccepted) &&
+    (!displayResult?.forcedRotatedByRollLimit || forcedRotatedAccepted);
   const canSave = store.orderDraft.orderNumber.trim() !== '' &&
     store.itemsAProducir.length > 0 &&
     !store.cuttingGroups.some((g) => g.error);
@@ -330,7 +339,7 @@ export function ProductionModuleV2() {
             </div>
 
             {/* Dimensions row */}
-            <div className="pv2-grid-2">
+            <div className="pv2-grid-3">
               <div className="pv2-field">
                 <label className="pv2-label">Ancho (m)</label>
                 <input
@@ -365,6 +374,18 @@ export function ProductionModuleV2() {
                     {displayErrors.heightMeters}
                   </div>
                 )}
+              </div>
+              <div className="pv2-field">
+                <label className="pv2-label" htmlFor="input-cantidad">Cantidad</label>
+                <input
+                  id="input-cantidad"
+                  className="pv2-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={cantidadInput}
+                  onChange={(e) => setCantidadInput(e.target.value)}
+                />
               </div>
             </div>
 
@@ -548,10 +569,10 @@ export function ProductionModuleV2() {
                 className="pv2-btn-primary pv2-btn-grow"
                 onClick={handleAddToBatch}
                 disabled={!canAdd}
-                title={displayErrors.general || 'Agregar a Lote'}
+                title={displayErrors.general || `Agregar ${parsedQty > 1 ? parsedQty : ''} a Lote`}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_box</span>
-                Agregar a Lote
+                {parsedQty > 1 ? `Agregar ${parsedQty} a Lote` : 'Agregar a Lote'}
               </button>
               <button
                 className="pv2-btn-ghost pv2-btn-icon"
@@ -702,6 +723,25 @@ export function ProductionModuleV2() {
                   type="checkbox"
                   checked={oversizedRotatedAccepted}
                   onChange={(e) => setOversizedRotatedAccepted(e.target.checked)}
+                  style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+                />
+                Confirmo fabricar esta cortina rotada
+              </label>
+            </div>
+          ) : displayResult?.forcedRotatedByRollLimit ? (
+            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+                <div>
+                  <strong>Fabricación rotada por ancho de rollo</strong>
+                  <p>Esta tela no tiene un ancho de rollo suficiente para fabricar la cortina en orientación normal. Se fabricará rotada, usando el ancho del rollo como alto disponible. Verifica que el alto más el extra de enrollo quepa dentro del rollo.</p>
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={forcedRotatedAccepted}
+                  onChange={(e) => setForcedRotatedAccepted(e.target.checked)}
                   style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
                 />
                 Confirmo fabricar esta cortina rotada
@@ -865,10 +905,11 @@ export function ProductionModuleV2() {
                   { val: 'bronze', label: 'Bronze', dot: '#a07840' },
                 ] as const).map(({ val, label, dot }) => {
                   const isAuto = val === autoTone && toneOverride === null;
+                  const isActive = selectedTone === val;
                   return (
                     <button
                       key={val}
-                      className={`pv2-sys-toggle ${activeTone === val ? 'pv2-sys-toggle--active' : ''}`}
+                      className={`pv2-sys-toggle ${isActive ? 'pv2-sys-toggle--active' : ''}`}
                       onClick={() => setToneOverride(val)}
                       title={isAuto ? 'Auto-detectado del color de tela' : ''}
                     >
@@ -879,6 +920,12 @@ export function ProductionModuleV2() {
                   );
                 })}
               </div>
+              {selectedTone === null && (
+                <div style={{ marginTop: '0.5rem', color: '#fca5a5', fontSize: '0.72rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+                  <span>No hay tono automático configurado para este color. Selecciona el tono manualmente.</span>
+                </div>
+              )}
             </div>
 
             {/* BOM Table — SKU + cantidad, sin inventario */}

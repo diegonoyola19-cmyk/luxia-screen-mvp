@@ -1,4 +1,7 @@
 import { componentCatalogBySku } from '../inventory/componentCatalog';
+import { DiscardedLinearRemainder } from './materialReview';
+
+const MIN_REUSABLE_LINEAR_REMAINDER_FT = 3.28084;
 
 export type IssueMode = 
   | 'exact_area'
@@ -16,7 +19,7 @@ export interface ReusableRemainder {
   createdFromBatchId?: string;
   consumedByOrderIds: string[];
   createdAt: string;
-  status: 'available' | 'reserved' | 'consumed';
+  status: 'available' | 'reserved' | 'consumed' | 'discarded';
 }
 
 export interface SageDetailLine {
@@ -58,10 +61,23 @@ export type CutPlan = {
   bars: CutPlanBar[];
 };
 
+export type CutFromRemainder = {
+  usedRemainderId: string;
+  usedRemainderLengthFt: number;
+  curtainRef?: string;
+  sku: string;
+  sourceOrderId: string;
+  sourceItemId?: string;
+};
+
 export interface IssueEngineResult {
   sageLines: SageDetailLine[];
+  issueLines: SageDetailLine[];
   updatedRemainders: ReusableRemainder[];
+  createdRemainders: ReusableRemainder[];
   cutPlans: CutPlan[];
+  cutsFromRemainders: CutFromRemainder[];
+  discardedLinearRemainders: DiscardedLinearRemainder[];
 }
 
 export function determineIssueMode(sku: string, unit: string): IssueMode {
@@ -104,6 +120,9 @@ export function calculateIssueLines(
   const sageExportMap = new Map<string, number>();
   const remainders = [...availableRemainders.map(r => ({...r, consumedByOrderIds: [...r.consumedByOrderIds]}))];
   const cutPlans: CutPlan[] = [];
+  const cutsFromRemainders: CutFromRemainder[] = [];
+  const createdRemainders: ReusableRemainder[] = [];
+  const discardedLinearRemainders: DiscardedLinearRemainder[] = [];
 
   // Agrupar líneas por SKU
   const groupedLines = new Map<string, { sku: string, description: string, mode: IssueMode, lines: IssueEngineInputLine[] }>();
@@ -176,6 +195,15 @@ export function calculateIssueLines(
            if (suitableRemainder.remainingLengthFt < 0.1) {
              suitableRemainder.status = 'consumed';
            }
+           
+           cutsFromRemainders.push({
+             usedRemainderId: suitableRemainder.id,
+             usedRemainderLengthFt: cut.lengthFt,
+             curtainRef: cut.curtainRef,
+             sku: suitableRemainder.sku,
+             sourceOrderId: cut.sourceOrderId,
+             sourceItemId: cut.sourceItemId
+           });
            continue; // Resuelto con sobrante
         }
 
@@ -223,22 +251,50 @@ export function calculateIssueLines(
            bars
          });
 
+         const catalogEntry = componentCatalogBySku[sku];
          const current = sageExportMap.get(sku) || 0;
          sageExportMap.set(sku, current + (bars.length * FULL_PIECE_FT));
 
          for (const bar of bars) {
             if (bar.remainingFt > 0) {
               const allOrderIds = Array.from(new Set(bar.cuts.map(c => c.sourceOrderId).filter(Boolean)));
-              remainders.push({
-                id: generateId(),
+              const primaryOrderId = allOrderIds[0];
+              const stableId = `rem-${primaryOrderId || 'batch'}-${sku}-${bar.barIndex}`;
+              
+              const existingIdx = remainders.findIndex(r => r.id === stableId);
+              const newRemainder = {
+                id: stableId,
                 sku: sku,
                 description: description,
                 originalLengthFt: FULL_PIECE_FT,
                 remainingLengthFt: bar.remainingFt,
                 consumedByOrderIds: allOrderIds,
+                createdFromOrderId: primaryOrderId,
                 createdAt: new Date().toISOString(),
-                status: 'available'
-              });
+                status: 'available' as const
+              };
+
+              if (existingIdx >= 0) {
+                // If the remainder exists and is still available, update its remaining length
+                if (remainders[existingIdx].status === 'available') {
+                  remainders[existingIdx] = { ...remainders[existingIdx], remainingLengthFt: bar.remainingFt };
+                }
+              } else {
+                if (bar.remainingFt >= MIN_REUSABLE_LINEAR_REMAINDER_FT) {
+                  remainders.push(newRemainder);
+                  createdRemainders.push(newRemainder);
+                } else {
+                  discardedLinearRemainders.push({
+                    sku: sku,
+                    materialKind: catalogEntry?.materialKind as "tube" | "bottomrail" | "other",
+                    lengthFt: bar.remainingFt,
+                    lengthM: bar.remainingFt / 3.28084,
+                    reason: "Menor a 1.00 m",
+                    barIndex: bar.barIndex,
+                    sourceOrderId: primaryOrderId
+                  });
+                }
+              }
             }
          }
       }
@@ -253,9 +309,17 @@ export function calculateIssueLines(
     });
   });
 
+  if (import.meta.env.DEV) {
+    console.log("[IssueEngine] createdRemainders", createdRemainders);
+  }
+
   return {
     sageLines,
+    issueLines: sageLines,
     updatedRemainders: remainders,
-    cutPlans
+    createdRemainders,
+    discardedLinearRemainders,
+    cutPlans,
+    cutsFromRemainders
   };
 }

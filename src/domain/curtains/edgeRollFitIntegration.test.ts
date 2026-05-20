@@ -55,6 +55,6 @@ describe('Flujo completo de Edge Roll Fit', () => {
     const rollWidths = [2.5, 3.0];
     
     expect(() => calculateScreenMaterials(input, DEFAULT_SCREEN_RULE_CONFIG, rollWidths))
-      .toThrowError(/No hay una orientacion valida/);
+      .toThrowError(/No se puede fabricar esta cortina/);
   });
 });

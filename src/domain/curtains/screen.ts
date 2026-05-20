@@ -154,6 +154,10 @@ interface ScreenCalculationOption {
   edgeRollFitReason?: string;
   standardCutWidthMeters?: number;
   oversizedRotated?: boolean;
+  forcedRotatedByRollLimit?: boolean;
+  maxAvailableRollWidthM?: number;
+  rotatedRequiredWidthM?: number;
+  rotatedCutLengthM?: number;
   rotatedReason?: string;
 }
 
@@ -228,7 +232,7 @@ function pickBestOption(
   const options = getCalculationOptions(input, config, availableWidths);
 
   if (options.length === 0) {
-    throw new Error('No hay una orientacion valida para estas medidas.');
+    throw new Error('No se puede fabricar esta cortina con la tela seleccionada. No cabe normal en el ancho de rollo disponible y rotada excede el alto permitido.');
   }
 
   const normalOption = options.find(o => o.orientationUsed === 'normal');
@@ -254,11 +258,13 @@ function getCalculationOptions(
   const options: ScreenCalculationOption[] = [];
 
   const isOversized = input.widthMeters > 3.0;
+  let normalOption: ScreenCalculationOption | undefined;
 
   if (!isOversized) {
     // Intenta Normal
     try {
-      options.push(buildCalculationOption(input, config, availableWidths, 'normal'));
+      normalOption = buildCalculationOption(input, config, availableWidths, 'normal');
+      options.push(normalOption);
     } catch {
       // No cabe normal
     }
@@ -270,8 +276,15 @@ function getCalculationOptions(
     if (isOversized) {
       volteadaOption.oversizedRotated = true;
       volteadaOption.rotatedReason = 'Ancho mayor a 3.00 m';
+      options.push(volteadaOption);
+    } else if (!normalOption) {
+      volteadaOption.forcedRotatedByRollLimit = true;
+      volteadaOption.rotatedReason = 'La tela no tiene ancho de rollo suficiente para fabricación normal';
+      volteadaOption.maxAvailableRollWidthM = availableWidths.length > 0 ? Math.max(...availableWidths) : 3.0;
+      volteadaOption.rotatedRequiredWidthM = volteadaOption.occupiedRollWidthMeters;
+      volteadaOption.rotatedCutLengthM = volteadaOption.cutLengthMeters;
+      options.push(volteadaOption);
     }
-    options.push(volteadaOption);
   } catch {
     // No cabe volteada
   }
@@ -424,6 +437,11 @@ export function calculateScreenMaterials(
     standardCutWidthMeters: selectedOption.standardCutWidthMeters,
     oversizedRotated: selectedOption.oversizedRotated,
     oversizedRotatedAccepted: input.oversizedRotatedAccepted,
+    forcedRotatedByRollLimit: selectedOption.forcedRotatedByRollLimit,
+    forcedRotatedAccepted: input.forcedRotatedAccepted,
+    rotatedRequiredWidthM: selectedOption.rotatedRequiredWidthM,
+    rotatedCutLengthM: selectedOption.rotatedCutLengthM,
+    maxAvailableRollWidthM: selectedOption.maxAvailableRollWidthM,
     rotatedReason: selectedOption.rotatedReason,
   };
 }

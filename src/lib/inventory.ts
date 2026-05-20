@@ -51,8 +51,8 @@ function getNextCodeNumber(items: Array<{ code: string }>, prefix: string) {
 }
 
 
-function buildFabricScrapCode(inventory: ProductionInventory, color: string, openness: string) {
-  const prefix = `RET-${slugCodePart(color)}-${slugCodePart(openness)}`;
+function buildFabricScrapCode(inventory: ProductionInventory, color: string, openness: string, orderNumber?: string) {
+  const prefix = orderNumber ? `RET-${orderNumber}` : `RET-${slugCodePart(color)}-${slugCodePart(openness)}`;
   const nextNumber = getNextCodeNumber(inventory.fabrics, prefix);
   return `${prefix}-${String(nextNumber).padStart(3, '0')}`;
 }
@@ -498,7 +498,7 @@ export function applyOrderToInventory(
           item.result.selectedFabric?.color ?? candidate?.color ?? item.input.fabricColor;
         const scrapOpenness =
           item.result.selectedFabric?.openness ?? candidate?.openness ?? item.input.fabricOpenness;
-        const scrapCode = buildFabricScrapCode(nextInventory, scrapColor, scrapOpenness);
+        const scrapCode = buildFabricScrapCode(nextInventory, scrapColor, scrapOpenness, order.orderNumber);
         const scrapAreaM2 =
           item.result.wastePieceWidthMeters * item.result.wastePieceHeightMeters;
 
@@ -515,6 +515,12 @@ export function applyOrderToInventory(
           kind: 'scrap',
           createdAt: new Date().toISOString(),
           status: 'available',
+          orderNumber: order.orderNumber,
+          createdFromOrderId: order.id,
+          createdFromOrderNumber: order.orderNumber,
+          source: 'production_cut',
+          fabricSku: item.result.selectedFabric?.itemCode,
+          areaMeters: scrapAreaM2
         });
 
         movements.push({

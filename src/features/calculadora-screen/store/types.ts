@@ -25,6 +25,7 @@ import type {
   RecipeComponentRule,
   MountingSystem,
   HardwareTone,
+  FabricInventoryItem,
 } from '../../../domain/curtains/types';
 import type { SavedOrderStatus } from '../../../domain/orders/orderStatus';
 import type { ProductionMaterialReview } from '../../../domain/orders/materialReview';
@@ -82,6 +83,7 @@ export interface InventorySlice {
   setInventoryMovements: (movements: InventoryMovement[] | ((current: InventoryMovement[]) => InventoryMovement[])) => void;
   saveRollCosts: (costsByWidth: Record<string, number>) => void;
   discardInventoryItem: (id: string, category: 'fabric' | 'tube' | 'bottom') => void;
+  addFabricScrap: (item: FabricInventoryItem) => void;
 }
 
 export interface OrderSlice {
@@ -100,7 +102,7 @@ export interface OrderSlice {
   deleteSavedOrder: (id: string) => void;
   updateSavedOrderStatus: (id: string, status: SavedOrderStatus, metadata?: Partial<SavedOrder>) => void;
   saveProductionReview: (orderId: string, review: ProductionMaterialReview) => void;
-  markOrdersSentToSage: (ids: string[]) => void;
+  markOrdersSentToSage: (ids: string[], orderSnapshots?: Record<string, import('../../../domain/orders/materialReview').ProductionIssueSnapshot>) => void;
   setSelectedOrderId: (id: string | null) => void;
   setSavedOrders: (updater: (current: SavedOrder[]) => SavedOrder[] | SavedOrder[]) => void;
   importOrders: (importedOrders: SavedOrder[]) => void;

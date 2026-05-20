@@ -102,4 +102,26 @@ describe('Issue Strategies - Catalog Based Engine', () => {
     expect(sageMap.get('0-004-87-02518')).toBe(17.5104);
     expect(sageMap.get('0-004-87-02598')).toBe(23.25);
   });
+
+  it('8. calculateIssueLines devuelve createdRemainders y previene duplicados (actualiza si existe)', () => {
+    const lines: IssueEngineInputLine[] = [
+      { sku: '0-154-TU-50001', description: 'Tubo 50 mm', quantity: 10, unit: 'FT', orderId: 'test-order' },
+    ];
+    
+    // First run
+    const result1 = calculateIssueLines(lines, []);
+    expect(result1.updatedRemainders).toHaveLength(1);
+    const r1 = result1.updatedRemainders[0];
+    expect(r1.status).toBe('available');
+    expect(r1.remainingLengthFt).toBe(9); // 19 - 10
+    expect(r1.createdFromOrderId).toBe('test-order');
+
+    // Second run with identical input, but providing the previously generated remainder
+    // The engine should NOT duplicate it, it should update it in place.
+    const result2 = calculateIssueLines(lines, result1.updatedRemainders);
+    expect(result2.updatedRemainders).toHaveLength(1);
+    const r2 = result2.updatedRemainders[0];
+    expect(r2.id).toBe(r1.id); // Same stable ID
+    expect(r2.remainingLengthFt).toBe(9);
+  });
 });

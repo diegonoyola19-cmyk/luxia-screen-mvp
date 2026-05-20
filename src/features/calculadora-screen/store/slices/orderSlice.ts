@@ -67,7 +67,12 @@ export const createOrderSlice: StateCreator<
   selectedOrderId: null,
   remainders: [],
 
-  setRemainders: (remainders) => set({ remainders }),
+  setRemainders: (remainders) => {
+    if (import.meta.env.DEV) {
+      console.log("[Store] setRemainders", remainders);
+    }
+    set({ remainders });
+  },
 
   setOrderDraft: (updater) => set((state) => ({ orderDraft: typeof updater === 'function' ? updater(state.orderDraft) : updater })),
   
@@ -527,16 +532,28 @@ export const createOrderSlice: StateCreator<
     )
   })),
 
-  markOrdersSentToSage: (ids) => set((state) => {
+    markOrdersSentToSage: (ids, orderSnapshots) => set((state) => {
     const idSet = new Set(ids);
     const exportedAt = new Date().toISOString();
 
     return {
-      savedOrders: state.savedOrders.map((order) =>
-        idSet.has(order.id)
-          ? { ...order, status: 'sent_to_sage', sageExportedAt: exportedAt }
-          : order,
-      ),
+      savedOrders: state.savedOrders.map((order) => {
+        if (!idSet.has(order.id)) return order;
+        const snapshot = orderSnapshots?.[order.id];
+        return { 
+          ...order, 
+          status: 'sent_to_sage', 
+          sageExportedAt: exportedAt,
+          productionReview: snapshot ? {
+            ...order.productionReview,
+            status: 'completed',
+            reviewedAt: order.productionReview?.reviewedAt || exportedAt,
+            adjustments: order.productionReview?.adjustments || [],
+            finalMaterialLines: order.productionReview?.finalMaterialLines || [],
+            issueSnapshot: snapshot
+          } : order.productionReview
+        };
+      }),
     };
   }),
 
@@ -569,6 +586,7 @@ export const createOrderSlice: StateCreator<
     };
   })
 });
+
 
 
 

@@ -109,6 +109,7 @@ export interface CalculationInput {
   specialFabricationReason?: string;
   riskAcceptedByCustomer?: boolean;
   oversizedRotatedAccepted?: boolean;
+  forcedRotatedAccepted?: boolean;
 }
 
 export interface CalculationFormValues {
@@ -194,6 +195,11 @@ export interface CalculationResult {
   standardCutWidthMeters?: number;
   oversizedRotated?: boolean;
   oversizedRotatedAccepted?: boolean;
+  forcedRotatedByRollLimit?: boolean;
+  forcedRotatedAccepted?: boolean;
+  rotatedRequiredWidthM?: number;
+  rotatedCutLengthM?: number;
+  maxAvailableRollWidthM?: number;
   rotatedReason?: string;
 }
 
@@ -395,6 +401,13 @@ export interface FabricInventoryItem {
   kind: 'roll' | 'scrap';
   createdAt: string;
   status: InventoryStatus;
+  source?: "production_cut" | "manual" | string;
+  notes?: string;
+  orderNumber?: string;
+  createdFromOrderId?: string;
+  createdFromOrderNumber?: string;
+  fabricSku?: string;
+  areaMeters?: number;
 }
 
 export interface LinearInventoryItem {

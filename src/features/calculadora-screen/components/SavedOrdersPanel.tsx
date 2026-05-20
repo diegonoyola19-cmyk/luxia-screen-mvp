@@ -199,8 +199,18 @@ export function SavedOrdersPanel() {
   const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const reviewingOrder = useMemo(() => store.savedOrders.find(o => o.id === reviewingOrderId) ?? null, [store.savedOrders, reviewingOrderId]);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+
+  useEffect(() => {
+    if (!deletingOrderId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDeletingOrderId(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [deletingOrderId]);
 
   // Accordion states
   const [accBOM, setAccBOM] = useState(true);
@@ -350,8 +360,20 @@ export function SavedOrdersPanel() {
     }
 
     try {
-      downloadSageOrderEntry(validOrders);
-      store.markOrdersSentToSage(exportedOrderIds);
+      const currentRemainders = store.remainders || [];
+      if (import.meta.env.DEV) {
+        console.log("[SavedOrdersPanel] currentRemainders before", currentRemainders);
+      }
+      
+      const { updatedRemainders, orderSnapshots } = downloadSageOrderEntry(validOrders, currentRemainders);
+      
+      if (import.meta.env.DEV) {
+        console.log("[SavedOrdersPanel] updatedRemainders received", updatedRemainders);
+      }
+      
+      store.setRemainders(updatedRemainders);
+      
+      store.markOrdersSentToSage(exportedOrderIds, orderSnapshots);
       if (errors.length > 0) {
         store.setErrors((prev) => ({
           ...prev,
@@ -588,7 +610,7 @@ export function SavedOrdersPanel() {
               <Button type="button" variant="secondary" onClick={async () => {
                 try {
                   const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
-                  await generateOrderMaterialsPdf(selectedRow.order);
+                  await generateOrderMaterialsPdf(selectedRow.order, store.productionInventory, store.inventoryMovements);
                   
                   let newStatus = status;
                   if (status === 'ready_for_production') {
@@ -630,6 +652,15 @@ export function SavedOrdersPanel() {
                   🔙 Revertir a Revisado
                 </Button>
               )}
+
+              <Button 
+                type="button" 
+                variant="danger" 
+                style={{ color: '#ef4444', borderColor: '#ef4444' }} 
+                onClick={() => setDeletingOrderId(selectedRow.order.id)}
+              >
+                🗑️ Eliminar orden
+              </Button>
             </div>
           </>
         ) : (
@@ -641,6 +672,63 @@ export function SavedOrdersPanel() {
 
       {reviewingOrder && (
         <MaterialReviewModal order={reviewingOrder} onClose={() => setReviewingOrderId(null)} />
+      )}
+      
+      {deletingOrderId && (
+        <div 
+          className="orders-delete-modal-overlay" 
+          role="dialog" 
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeletingOrderId(null);
+          }}
+        >
+          <div className="orders-delete-modal">
+            <div className="orders-delete-modal__header">
+              <div className="orders-delete-modal__title-area">
+                <div className="orders-delete-modal__icon">
+                  🗑️
+                </div>
+                <div className="orders-delete-modal__texts">
+                  <h3>¿Eliminar orden {store.savedOrders.find(o => o.id === deletingOrderId)?.orderNumber}?</h3>
+                  <p>Esta acción eliminará la orden del historial local.</p>
+                </div>
+              </div>
+              <button className="orders-delete-modal__close" onClick={() => setDeletingOrderId(null)}>×</button>
+            </div>
+            
+            <div className="orders-delete-modal__body">
+              <p>No modificará Sage ni los archivos ya exportados.</p>
+              
+              {store.savedOrders.find(o => o.id === deletingOrderId)?.status === 'sent_to_sage' && (
+                <div className="orders-delete-modal__warning">
+                  <span className="icon">⚠️</span>
+                  <div className="orders-delete-modal__warning-texts">
+                    <p>Orden ya enviada a Sage</p>
+                    <p className="sub">Eliminarla de Luxia no revierte el descargo en Sage.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="orders-delete-modal__footer">
+              <Button type="button" variant="secondary" onClick={() => setDeletingOrderId(null)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="button" 
+                variant="danger" 
+                style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
+                onClick={() => {
+                  store.deleteSavedOrder(deletingOrderId);
+                  setDeletingOrderId(null);
+                }}
+              >
+                Eliminar orden
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
       
       <input
