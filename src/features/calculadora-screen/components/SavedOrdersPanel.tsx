@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useRef, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
+import { useAuthStore } from '../../../store/useAuthStore';
 import type { SavedOrder } from '../../../domain/curtains/types';
 import { formatDate, formatNumber } from '../../../lib/format';
 import { summarizeOrdersProduction, summarizeProduction } from '../../../lib/production';
@@ -194,6 +195,9 @@ export function SavedOrdersPanel() {
   const store = useCalculatorStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reportRows = useMemo(() => store.savedOrders.map(getOrderReportRow), [store.savedOrders]);
+  
+  const { role } = useAuthStore();
+  const isReadOnly = role === 'consulta';
   
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
@@ -399,6 +403,12 @@ export function SavedOrdersPanel() {
           <h1>Órdenes de Producción</h1>
           <p>Gestiona, revisa y exporta órdenes a producción o Sage.</p>
 
+          {isReadOnly && (
+            <div className="alert alert--neutral" style={{ padding: '8px 12px', marginTop: '10px', marginBottom: '10px', fontSize: '0.82rem' }}>
+              🔒 <strong>Solo Lectura:</strong> Las acciones de modificación y exportación están deshabilitadas.
+            </div>
+          )}
+
           <div className="orders-global-actions">
             <button onClick={async () => {
               try {
@@ -413,10 +423,10 @@ export function SavedOrdersPanel() {
             <button onClick={() => downloadCsvReport(filteredOrders)} disabled={filteredOrders.length === 0}>
               <span>📊</span> CSV
             </button>
-            <button onClick={onExportSage} disabled={exportableSageOrders.length === 0}>
+            <button onClick={onExportSage} disabled={isReadOnly || exportableSageOrders.length === 0}>
               <span>📦</span> Sage ({exportableSageOrders.length})
             </button>
-            <button onClick={() => fileInputRef.current?.click()}>
+            <button onClick={() => fileInputRef.current?.click()} disabled={isReadOnly}>
               <span>📥</span> Importar
             </button>
             <button onClick={() => downloadSavedOrders(store.savedOrders)} disabled={store.savedOrders.length === 0}>
@@ -612,6 +622,8 @@ export function SavedOrdersPanel() {
                   const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
                   await generateOrderMaterialsPdf(selectedRow.order, store.productionInventory, store.inventoryMovements);
                   
+                  if (isReadOnly) return;
+
                   let newStatus = status;
                   if (status === 'ready_for_production') {
                     newStatus = 'in_production';
@@ -636,7 +648,7 @@ export function SavedOrdersPanel() {
               </Button>
 
               {status === 'ready_for_production' && (
-                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'in_production')}>
+                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'in_production')} disabled={isReadOnly}>
                   Pasar a Producción
                 </Button>
               )}
@@ -648,7 +660,7 @@ export function SavedOrdersPanel() {
               )}
 
               {status === 'sent_to_sage' && (
-                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')}>
+                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')} disabled={isReadOnly}>
                   🔙 Revertir a Revisado
                 </Button>
               )}
@@ -658,6 +670,7 @@ export function SavedOrdersPanel() {
                 variant="danger" 
                 style={{ color: '#ef4444', borderColor: '#ef4444' }} 
                 onClick={() => setDeletingOrderId(selectedRow.order.id)}
+                disabled={isReadOnly}
               >
                 🗑️ Eliminar orden
               </Button>
@@ -723,6 +736,7 @@ export function SavedOrdersPanel() {
                   store.deleteSavedOrder(deletingOrderId);
                   setDeletingOrderId(null);
                 }}
+                disabled={isReadOnly}
               >
                 Eliminar orden
               </Button>

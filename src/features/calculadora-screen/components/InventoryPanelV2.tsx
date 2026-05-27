@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { animate } from 'framer-motion';
 import { toast } from 'sonner';
 import { useCalculatorStore } from '../store/useCalculatorStore';
+import { useAuthStore } from '../../../store/useAuthStore';
 import { formatNumber, formatDate } from '../../../lib/format';
 import { YARD2_PER_M2 } from '../utils';
 import { componentCatalogBySku } from '../../../domain/inventory/componentCatalog';
@@ -61,6 +62,8 @@ function AnimatedNumber({ value }: { value: number }) {
 
 export function InventoryPanelV2() {
   const inventory = useCalculatorStore((state) => state.productionInventory);
+  const { role } = useAuthStore();
+  const isReadOnly = role === 'consulta';
   const discardInventoryItem = useCalculatorStore((state) => state.discardInventoryItem);
   const remainders = useCalculatorStore((state) => state.remainders || []);
   const savedOrders = useCalculatorStore((state) => state.savedOrders || []);
@@ -275,7 +278,7 @@ export function InventoryPanelV2() {
           <p>Consulta retazos de tela y sobrantes lineales disponibles para reutilizar en producción.</p>
         </div>
         <div className="iv2-header-actions">
-          <button className="iv2-btn-secondary" onClick={() => setIsManualModalOpen(true)}>
+          <button className="iv2-btn-secondary" onClick={() => setIsManualModalOpen(true)} disabled={isReadOnly}>
             + Registrar retazo manual
           </button>
           <button className="iv2-btn-secondary" onClick={handleExport}>
@@ -549,10 +552,11 @@ export function InventoryPanelV2() {
               <div className="iv2-details-actions">
                 <button 
                   className="iv2-btn-danger" 
-                  style={{width: '100%', justifyContent: 'center'}}
+                  style={{width: '100%', justifyContent: 'center', opacity: isReadOnly ? 0.5 : 1}}
                   onClick={() => setDiscardingItem(selectedItem)}
+                  disabled={isReadOnly}
                 >
-                  Dar de baja
+                  {isReadOnly ? 'Dar de baja (🔒)' : 'Dar de baja'}
                 </button>
               </div>
             </>
@@ -634,6 +638,7 @@ export function InventoryPanelV2() {
                 type="button" 
                 className="iv2-btn-danger"
                 onClick={() => handleDiscard(discardingItem.id, discardingItem.itemType === 'Tela' ? 'fabric' : (discardingItem.itemType === 'Tubo' ? 'tube' : 'bottom'))}
+                disabled={isReadOnly}
               >
                 Dar de baja
               </button>
@@ -804,13 +809,13 @@ export function InventoryPanelV2() {
                     type="submit" 
                     className="iv2-btn-secondary" 
                     style={{ 
-                      background: (!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--line-strong)' : 'var(--color-primary)', 
-                      color: (!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--muted)' : 'white', 
+                      background: isReadOnly ? 'var(--line-strong)' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--line-strong)' : 'var(--color-primary)'), 
+                      color: isReadOnly ? 'var(--muted)' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--muted)' : 'white'), 
                       border: 'none',
-                      cursor: (!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'not-allowed' : 'pointer'
+                      cursor: isReadOnly ? 'not-allowed' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'not-allowed' : 'pointer')
                     }}
-                    disabled={!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0}
-                    title={(!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? "Faltan campos obligatorios" : ""}
+                    disabled={isReadOnly || !manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0}
+                    title={isReadOnly ? "No tienes permisos de escritura" : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? "Faltan campos obligatorios" : "")}
                   >
                     Guardar retazo
                   </button>

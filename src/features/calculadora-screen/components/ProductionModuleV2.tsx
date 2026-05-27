@@ -17,6 +17,7 @@ import { getHWDesc } from '../../../logic/rollerEngineV3';
 import { useDoubleBracketWidthGuard } from '../hooks/useDoubleBracketWidthGuard';
 import { DoubleBracketWidthAlert } from './DoubleBracketWidthAlert';
 import { resolveHardwareToneFromFabricColor, extractFabricColorName } from '../../../domain/curtains/hardwareToneRules';
+import { useAuthStore } from '../../../store/useAuthStore';
 import './ProductionModuleV2.css';
 
 // ── BOM display helpers ───────────────────────────────────────────────────────
@@ -141,6 +142,8 @@ function getEfficiencyColor(pct: number): string {
 // ── Component ────────────────────────────────────────────────────────────────
 export function ProductionModuleV2() {
   const store = useCalculatorStore();
+  const { role } = useAuthStore();
+  const isReadOnly = role === 'consulta';
   const widthRef = useRef<HTMLInputElement | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [scrapsOpen, setScrapsOpen] = useState(false);
@@ -305,10 +308,16 @@ export function ProductionModuleV2() {
         <section className="pv2-left">
           <div className="pv2-glass pv2-config-panel">
             {/* Header */}
-            <div className="pv2-config-header">
+            <div className="pv2-config-header" style={{ marginBottom: isReadOnly ? '10px' : '20px' }}>
               <span className="material-symbols-outlined pv2-icon-red">tune</span>
               <h2 className="pv2-headline">Configuración de Tela</h2>
             </div>
+
+            {isReadOnly && (
+              <div style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '14px', padding: '8px 12px', backgroundColor: 'var(--primary-glow)', borderRadius: '4px', border: '1px solid rgba(192,37,58,0.2)' }}>
+                🔒 <strong>Solo Lectura:</strong> Acciones de modificación deshabilitadas.
+              </div>
+            )}
 
             {/* Selects row */}
             <div className="pv2-grid-2">
@@ -398,6 +407,7 @@ export function ProductionModuleV2() {
                 placeholder="ORD-001"
                 value={store.orderDraft.orderNumber}
                 onChange={(e) => store.setOrderNumber(e.target.value)}
+                disabled={isReadOnly}
               />
             </div>
 
@@ -568,8 +578,8 @@ export function ProductionModuleV2() {
               <button
                 className="pv2-btn-primary pv2-btn-grow"
                 onClick={handleAddToBatch}
-                disabled={!canAdd}
-                title={displayErrors.general || `Agregar ${parsedQty > 1 ? parsedQty : ''} a Lote`}
+                disabled={isReadOnly || !canAdd}
+                title={isReadOnly ? "No tienes permisos de escritura" : (displayErrors.general || `Agregar ${parsedQty > 1 ? parsedQty : ''} a Lote`)}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_box</span>
                 {parsedQty > 1 ? `Agregar ${parsedQty} a Lote` : 'Agregar a Lote'}
@@ -578,6 +588,7 @@ export function ProductionModuleV2() {
                 className="pv2-btn-ghost pv2-btn-icon"
                 onClick={() => store.handleNewCurtain()}
                 title="Limpiar"
+                disabled={isReadOnly}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>restart_alt</span>
               </button>
@@ -593,9 +604,9 @@ export function ProductionModuleV2() {
 
           {/* Save order dashed button */}
           <button
-            className={`pv2-glass pv2-new-curtain-btn ${!canSave ? 'pv2-disabled' : ''}`}
+            className={`pv2-glass pv2-new-curtain-btn ${isReadOnly || !canSave ? 'pv2-disabled' : ''}`}
             onClick={handleSaveOrder}
-            disabled={!canSave || isSaving}
+            disabled={isReadOnly || !canSave || isSaving}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
             <span className="pv2-label">{isSaving ? 'Guardando…' : 'Guardar Orden'}</span>
@@ -692,10 +703,12 @@ export function ProductionModuleV2() {
                             <button
                               className="pv2-row-action"
                               onClick={() => {
+                                if (isReadOnly) return;
                                 // Remove all items from this group
                                 group.items.forEach((item: any) => store.removeProductionItem(item.id));
                               }}
-                              title="Eliminar fila"
+                              disabled={isReadOnly}
+                              title={isReadOnly ? "No tienes permisos" : "Eliminar fila"}
                             >
                               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
                             </button>
