@@ -1,9 +1,10 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
 import { LuxiaIcon } from '../../components/LuxiaIcon';
 import { useAuthStore } from '../../store/useAuthStore';
+import { PermissionGate } from '../../components/PermissionGate';
 
 const ProductionModuleV2 = lazy(async () => {
   const module = await import('./components/ProductionModuleV2');
@@ -47,12 +48,23 @@ function DeferredPanel({ children }: { children: ReactNode }) {
   );
 }
 
-const ALLOWED_TABS_BY_ROLE: Record<string, string[]> = {
-  admin: ['production-v2', 'inventory', 'orders', 'settings', 'users'],
-  produccion: ['production-v2', 'orders'],
-  bodega: ['inventory'],
-  consulta: ['production-v2', 'inventory', 'orders'],
-};
+const VIEW_PERMISSIONS = {
+  'production-v2': 'production.view',
+  inventory: 'inventory.view',
+  orders: 'orders.view',
+  settings: 'settings.view',
+  users: 'users.view',
+} as const;
+
+type ProtectedView = keyof typeof VIEW_PERMISSIONS;
+
+const NAV_ITEMS: Array<{ view: ProtectedView; label: string }> = [
+  { view: 'production-v2', label: 'Producción' },
+  { view: 'inventory', label: 'Bodega' },
+  { view: 'orders', label: 'Ordenes' },
+  { view: 'settings', label: 'Configuracion' },
+  { view: 'users', label: 'Usuarios' },
+];
 
 export function ScreenCalculatorPage() {
   const activeView = useCalculatorStore((state) => state.activeView);
@@ -60,8 +72,11 @@ export function ScreenCalculatorPage() {
   const theme = useCalculatorStore((state) => state.theme);
   const setTheme = useCalculatorStore((state) => state.setTheme);
 
-  const { user, role, signOut } = useAuthStore();
-  const allowedTabs = ALLOWED_TABS_BY_ROLE[role || 'consulta'] || [];
+  const { user, role, signOut, hasPermission, permissions } = useAuthStore();
+  const allowedTabs = useMemo(
+    () => NAV_ITEMS.filter((item) => hasPermission(VIEW_PERMISSIONS[item.view])).map((item) => item.view),
+    [hasPermission, permissions, role]
+  );
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -69,10 +84,10 @@ export function ScreenCalculatorPage() {
 
   // Redirection guard: if current view is not allowed for the user's role, auto-redirect to first allowed
   useEffect(() => {
-    if (allowedTabs.length > 0 && !allowedTabs.includes(activeView)) {
-      setActiveView(allowedTabs[0] as any);
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeView as ProtectedView)) {
+      setActiveView(allowedTabs[0]);
     }
-  }, [role, allowedTabs, activeView, setActiveView]);
+  }, [allowedTabs, activeView, setActiveView]);
 
   return (
     <main className="page-shell">
@@ -86,75 +101,20 @@ export function ScreenCalculatorPage() {
             </div>
           </div>
 
-          {allowedTabs.includes('production-v2') && (
+          {NAV_ITEMS.filter((item) => allowedTabs.includes(item.view)).map((item) => (
             <button
+              key={item.view}
               type="button"
               className={[
                 'view-switcher__tab',
-                activeView === 'production-v2' ? 'view-switcher__tab--active' : '',
+                activeView === item.view ? 'view-switcher__tab--active' : '',
               ].join(' ')}
-              aria-pressed={activeView === 'production-v2'}
-              onClick={() => setActiveView('production-v2')}
+              aria-pressed={activeView === item.view}
+              onClick={() => setActiveView(item.view)}
             >
-              Producción
+              {item.label}
             </button>
-          )}
-
-          {allowedTabs.includes('inventory') && (
-            <button
-              type="button"
-              className={[
-                'view-switcher__tab',
-                activeView === 'inventory' ? 'view-switcher__tab--active' : '',
-              ].join(' ')}
-              aria-pressed={activeView === 'inventory'}
-              onClick={() => setActiveView('inventory')}
-            >
-              Bodega
-            </button>
-          )}
-
-          {allowedTabs.includes('orders') && (
-            <button
-              type="button"
-              className={[
-                'view-switcher__tab',
-                activeView === 'orders' ? 'view-switcher__tab--active' : '',
-              ].join(' ')}
-              aria-pressed={activeView === 'orders'}
-              onClick={() => setActiveView('orders')}
-            >
-              Ordenes
-            </button>
-          )}
-
-          {allowedTabs.includes('settings') && (
-            <button
-              type="button"
-              className={[
-                'view-switcher__tab',
-                activeView === 'settings' ? 'view-switcher__tab--active' : '',
-              ].join(' ')}
-              aria-pressed={activeView === 'settings'}
-              onClick={() => setActiveView('settings')}
-            >
-              Configuracion
-            </button>
-          )}
-
-          {allowedTabs.includes('users') && (
-            <button
-              type="button"
-              className={[
-                'view-switcher__tab',
-                activeView === 'users' ? 'view-switcher__tab--active' : '',
-              ].join(' ')}
-              aria-pressed={activeView === 'users'}
-              onClick={() => setActiveView('users')}
-            >
-              Usuarios
-            </button>
-          )}
+          ))}
 
           {/* User profile info & buttons aligned to the right */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
@@ -201,6 +161,17 @@ export function ScreenCalculatorPage() {
         </div>
 
         <div className={`page-content${activeView === 'production-v2' ? ' page-content--fullwidth' : ''}`}>
+          {allowedTabs.length === 0 ? (
+            <section className="content-grid">
+              <div className="card">
+                <span className="section-heading__eyebrow">Acceso restringido</span>
+                <h2>Sin permisos asignados</h2>
+                <p className="rules-panel__copy">
+                  Tu usuario no tiene vistas disponibles. Contacta al administrador para revisar tus permisos.
+                </p>
+              </div>
+            </section>
+          ) : (
           <AnimatePresence mode="wait">
             {activeView === 'production-v2' && allowedTabs.includes('production-v2') && (
               <motion.div
@@ -211,9 +182,11 @@ export function ScreenCalculatorPage() {
                 transition={{ duration: 0.15 }}
                 className="view-content"
               >
-                <DeferredPanel>
-                  <ProductionModuleV2 />
-                </DeferredPanel>
+                <PermissionGate permission={VIEW_PERMISSIONS['production-v2']}>
+                  <DeferredPanel>
+                    <ProductionModuleV2 />
+                  </DeferredPanel>
+                </PermissionGate>
               </motion.div>
             )}
 
@@ -226,9 +199,11 @@ export function ScreenCalculatorPage() {
                 transition={{ duration: 0.15 }}
                 className="view-content"
               >
-                <DeferredPanel>
-                  <InventoryPanelV2 />
-                </DeferredPanel>
+                <PermissionGate permission={VIEW_PERMISSIONS.inventory}>
+                  <DeferredPanel>
+                    <InventoryPanelV2 />
+                  </DeferredPanel>
+                </PermissionGate>
               </motion.div>
             )}
 
@@ -241,9 +216,11 @@ export function ScreenCalculatorPage() {
                 transition={{ duration: 0.15 }}
                 className="view-content"
               >
-                <DeferredPanel>
-                  <SavedOrdersPanel />
-                </DeferredPanel>
+                <PermissionGate permission={VIEW_PERMISSIONS.orders}>
+                  <DeferredPanel>
+                    <SavedOrdersPanel />
+                  </DeferredPanel>
+                </PermissionGate>
               </motion.div>
             )}
 
@@ -256,11 +233,13 @@ export function ScreenCalculatorPage() {
                 transition={{ duration: 0.15 }}
                 className="view-content"
               >
-                <DeferredPanel>
-                  <section className="content-grid content-grid--rules">
-                    <RulesPanel />
-                  </section>
-                </DeferredPanel>
+                <PermissionGate permission={VIEW_PERMISSIONS.settings}>
+                  <DeferredPanel>
+                    <section className="content-grid content-grid--rules">
+                      <RulesPanel />
+                    </section>
+                  </DeferredPanel>
+                </PermissionGate>
               </motion.div>
             )}
 
@@ -273,12 +252,15 @@ export function ScreenCalculatorPage() {
                 transition={{ duration: 0.15 }}
                 className="view-content"
               >
-                <DeferredPanel>
-                  <UsersPanel />
-                </DeferredPanel>
+                <PermissionGate permission={VIEW_PERMISSIONS.users}>
+                  <DeferredPanel>
+                    <UsersPanel />
+                  </DeferredPanel>
+                </PermissionGate>
               </motion.div>
             )}
           </AnimatePresence>
+          )}
         </div>
       </section>
     </main>

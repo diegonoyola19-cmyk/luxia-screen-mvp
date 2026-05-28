@@ -13,7 +13,7 @@ interface UserProfile {
 }
 
 export function UsersPanel() {
-  const { user: currentUser, role } = useAuthStore();
+  const { user: currentUser, role, hasPermission } = useAuthStore();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,10 @@ export function UsersPanel() {
   const [createPassword, setCreatePassword] = useState('');
   const [createRole, setCreateRole] = useState<UserRole>('consulta');
   const [isCreating, setIsCreating] = useState(false);
+  const canViewUsers = hasPermission('users.view');
+  const canCreateUser = hasPermission('users.create_user');
+  const canEditRoles = hasPermission('users.edit_roles');
+  const canDisableUser = hasPermission('users.disable_user');
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -60,6 +64,11 @@ export function UsersPanel() {
   }, []);
 
   const handleRoleChange = async (userId: string, targetEmail: string, newRole: UserRole) => {
+    if (!canEditRoles) {
+      toast.error('No tienes permisos para editar roles.');
+      return;
+    }
+
     if (userId === currentUser?.id) {
       toast.error('No puedes cambiar tu propio rol administrador.');
       return;
@@ -87,6 +96,11 @@ export function UsersPanel() {
   };
 
   const handleStatusToggle = async (userId: string, targetEmail: string, currentStatus: boolean) => {
+    if (!canDisableUser) {
+      toast.error('No tienes permisos para activar o desactivar usuarios.');
+      return;
+    }
+
     if (userId === currentUser?.id) {
       toast.error('No puedes desactivar tu propia cuenta de administrador.');
       return;
@@ -118,6 +132,11 @@ export function UsersPanel() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateUser) {
+      toast.error('No tienes permisos para crear usuarios.');
+      return;
+    }
+
     if (!createEmail || !createPassword || !createRole) {
       toast.error('Todos los campos son obligatorios.');
       return;
@@ -155,6 +174,19 @@ export function UsersPanel() {
       setIsCreating(false);
     }
   };
+
+  if (!canViewUsers) {
+    return (
+      <Card className="rules-panel">
+        <div className="alert alert--neutral" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '30px', margin: '0' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '24px', marginRight: '10px' }}>lock</span>
+          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+            No tienes permisos para ver el panel de usuarios.
+          </span>
+        </div>
+      </Card>
+    );
+  }
 
   if (loading) {
     return (
@@ -197,7 +229,7 @@ export function UsersPanel() {
           <button className="button button--secondary button--sm" onClick={fetchProfiles} disabled={updatingId !== null || isCreating}>
             🔄 Refrescar
           </button>
-          {role === 'admin' && (
+          {canCreateUser && (
             <button className="button button--primary button--sm" onClick={() => setIsCreateModalOpen(true)} disabled={updatingId !== null || isCreating}>
               ➕ Crear Usuario
             </button>
@@ -247,11 +279,11 @@ export function UsersPanel() {
                           padding: '6px 10px', 
                           fontSize: '0.85rem', 
                           opacity: isSelf ? 0.6 : 1,
-                          cursor: isSelf ? 'not-allowed' : 'pointer'
+                          cursor: isSelf || !canEditRoles ? 'not-allowed' : 'pointer'
                         }}
                         value={profile.role}
                         onChange={(e) => handleRoleChange(profile.id, profile.email, e.target.value as UserRole)}
-                        disabled={isSelf || updatingId !== null}
+                        disabled={isSelf || updatingId !== null || !canEditRoles}
                       >
                         <option value="admin">Administrador</option>
                         <option value="produccion">Producción</option>
@@ -265,17 +297,17 @@ export function UsersPanel() {
                     </td>
 
                     <td className="pv2-td" style={{ padding: '16px 12px', textAlign: 'center' }}>
-                      <label className="switch-container" style={{ display: 'inline-flex', alignItems: 'center', cursor: isSelf ? 'not-allowed' : 'pointer', gap: '10px' }}>
+                      <label className="switch-container" style={{ display: 'inline-flex', alignItems: 'center', cursor: isSelf || !canDisableUser ? 'not-allowed' : 'pointer', gap: '10px' }}>
                         <input
                           type="checkbox"
                           checked={profile.is_active}
                           onChange={() => handleStatusToggle(profile.id, profile.email, profile.is_active)}
-                          disabled={isSelf || updatingId !== null}
+                          disabled={isSelf || updatingId !== null || !canDisableUser}
                           style={{ 
                             width: '18px', 
                             height: '18px', 
                             accentColor: 'var(--primary)',
-                            cursor: isSelf ? 'not-allowed' : 'pointer'
+                            cursor: isSelf || !canDisableUser ? 'not-allowed' : 'pointer'
                           }}
                         />
                         <span style={{ 
@@ -284,7 +316,7 @@ export function UsersPanel() {
                           color: profile.is_active ? 'var(--success, #22C55E)' : 'var(--danger, #ffb4ab)',
                           textTransform: 'uppercase',
                           letterSpacing: '0.02em',
-                          opacity: isSelf ? 0.6 : 1
+                          opacity: isSelf || !canDisableUser ? 0.6 : 1
                         }}>
                           {profile.is_active ? 'Activo' : 'Suspendido'}
                         </span>
