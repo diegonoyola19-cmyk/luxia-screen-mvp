@@ -4,10 +4,34 @@ import type { User, Session } from '@supabase/supabase-js';
 
 export type UserRole = 'admin' | 'produccion' | 'bodega' | 'consulta';
 
+const FALLBACK_PERMISSIONS_BY_ROLE: Record<UserRole, string[]> = {
+  admin: ['*'],
+  produccion: [
+    'production.view',
+    'production.create_order',
+    'production.add_to_batch',
+    'orders.view',
+    'orders.generate_pdf',
+  ],
+  bodega: [
+    'inventory.view',
+    'inventory.create_scrap',
+    'inventory.discard_scrap',
+    'inventory.export',
+  ],
+  consulta: [
+    'production.view',
+    'inventory.view',
+    'orders.view',
+    'orders.generate_pdf',
+  ],
+};
+
 export interface Profile {
   id: string;
   email: string;
   role: UserRole;
+  role_id?: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -19,11 +43,16 @@ interface AuthState {
   isActive: boolean;
   loading: boolean;
   error: string | null;
+  permissions: string[];
+  permissionsLoading: boolean;
+  permissionsError: string | null;
   
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   initialize: () => () => void;
   clearError: () => void;
+  hasPermission: (permissionId: string) => boolean;
+  hasAnyPermission: (permissionIds: string[]) => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
@@ -31,7 +60,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('role, is_active')
+        .select('role, role_id, is_active')
         .eq('id', userId)
         .maybeSingle();
 
@@ -44,6 +73,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         console.log("[Auth] profile", data);
         return {
           role: data.role as UserRole,
+          roleId: data.role_id as string | null,
           isActive: data.is_active ?? true,
           exists: true
         };
@@ -57,11 +87,56 @@ export const useAuthStore = create<AuthState>((set, get) => {
     }
   };
 
+  const fetchPermissions = async (roleId?: string | null) => {
+    if (!roleId) {
+      return { permissions: [], error: null };
+    }
+
+    try {
+      set({ permissionsLoading: true, permissionsError: null });
+
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('permission_id')
+        .eq('role_id', roleId);
+
+      if (error) {
+        throw error;
+      }
+
+      const permissions = (data || [])
+        .map((row: { permission_id?: string | null }) => row.permission_id)
+        .filter((permissionId): permissionId is string => Boolean(permissionId));
+
+      return { permissions, error: null };
+    } catch (err: any) {
+      if (import.meta.env.DEV) {
+        console.error('[Auth] dynamic permissions failed, using role fallback', err);
+      }
+
+      return {
+        permissions: [],
+        error: err?.message || 'No se pudieron cargar los permisos dinamicos.',
+      };
+    } finally {
+      set({ permissionsLoading: false });
+    }
+  };
+
   const handleSession = async (session: Session | null) => {
     console.log("[Auth] session", session);
     
     if (!session?.user) {
-      set({ user: null, session: null, role: null, isActive: true, loading: false });
+      set({
+        user: null,
+        session: null,
+        role: null,
+        isActive: true,
+        loading: false,
+        permissions: [],
+        permissionsLoading: false,
+        permissionsError: null,
+      });
       return;
     }
 
@@ -75,6 +150,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
           role: null,
           isActive: false,
           loading: false,
+          permissions: [],
+          permissionsLoading: false,
+          permissionsError: null,
           error: 'Tu usuario no tiene perfil asignado. Contacta al administrador.'
         });
         // Desvincular de manera no bloqueante
@@ -89,17 +167,24 @@ export const useAuthStore = create<AuthState>((set, get) => {
           role: null,
           isActive: false,
           loading: false,
+          permissions: [],
+          permissionsLoading: false,
+          permissionsError: null,
           error: 'Esta cuenta está desactivada. Contacta al administrador.'
         });
         supabase.auth.signOut().catch(() => {});
         return;
       }
 
+      const permissionsResult = await fetchPermissions(profile.roleId);
+
       set({
         user: session.user,
         session: session,
         role: profile.role,
         isActive: profile.isActive,
+        permissions: permissionsResult.permissions,
+        permissionsError: permissionsResult.error,
         loading: false,
         error: null
       });
@@ -110,6 +195,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
         session: null,
         role: null,
         loading: false, 
+        permissions: [],
+        permissionsLoading: false,
+        permissionsError: null,
         error: 'No se pudo conectar con Supabase. Verifica conexión o estado del proyecto.' 
       });
     }
@@ -124,11 +212,34 @@ export const useAuthStore = create<AuthState>((set, get) => {
     isActive: true,
     loading: true,
     error: null,
+    permissions: [],
+    permissionsLoading: false,
+    permissionsError: null,
 
     clearError: () => set({ error: null }),
 
+    hasPermission: (permissionId) => {
+      const { permissions, role } = get();
+
+      if (permissions.length > 0) {
+        return permissions.includes(permissionId);
+      }
+
+      if (!role) {
+        return false;
+      }
+
+      const fallbackPermissions = FALLBACK_PERMISSIONS_BY_ROLE[role] || [];
+      return fallbackPermissions.includes('*') || fallbackPermissions.includes(permissionId);
+    },
+
+    hasAnyPermission: (permissionIds) => {
+      const { hasPermission } = get();
+      return permissionIds.some((permissionId) => hasPermission(permissionId));
+    },
+
     signIn: async (email, password) => {
-      set({ loading: true, error: null });
+      set({ loading: true, error: null, permissionsError: null });
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -170,6 +281,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
           role: null,
           isActive: true,
           loading: false,
+          permissions: [],
+          permissionsLoading: false,
+          permissionsError: null,
           error: null
         });
       }
@@ -188,6 +302,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
         console.error("[Auth] initialize failed", err);
         set({ 
           loading: false, 
+          permissions: [],
+          permissionsLoading: false,
+          permissionsError: null,
           error: 'No se pudo conectar con Supabase. Verifica conexión o estado del proyecto.' 
         });
       });
