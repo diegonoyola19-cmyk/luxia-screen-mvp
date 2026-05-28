@@ -144,4 +144,54 @@ describe('useAuthStore permissions', () => {
     expect(useAuthStore.getState().permissionsError).toBe('permission query failed');
     expect(useAuthStore.getState().hasPermission('production.create_order')).toBe(true);
   });
+
+  it('refreshes permissions for the current user', async () => {
+    useAuthStore.setState({
+      ...baseState,
+      user: {
+        id: 'user-1',
+        email: 'admin@luxia.test',
+      } as any,
+      role: 'consulta',
+      permissions: ['production.view'],
+    });
+
+    supabaseMock.from.mockImplementation((table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              role: 'admin',
+              role_id: 'role-admin',
+              is_active: true,
+            },
+            error: null,
+          }),
+        };
+      }
+
+      if (table === 'role_permissions') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({
+            data: [
+              { permission_id: 'users.view' },
+              { permission_id: 'users.edit_roles' },
+            ],
+            error: null,
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    await useAuthStore.getState().refreshPermissions();
+
+    expect(useAuthStore.getState().role).toBe('admin');
+    expect(useAuthStore.getState().permissions).toEqual(['users.view', 'users.edit_roles']);
+    expect(useAuthStore.getState().permissionsError).toBeNull();
+  });
 });

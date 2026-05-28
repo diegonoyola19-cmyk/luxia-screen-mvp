@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuthStore, type UserRole } from '../../../store/useAuthStore';
 import { Card } from '../../../components/ui/Card';
 import { toast } from 'sonner';
+import { RolePermissionsPanel } from './RolePermissionsPanel';
 
 interface UserProfile {
   id: string;
@@ -25,6 +26,7 @@ export function UsersPanel() {
   const [createPassword, setCreatePassword] = useState('');
   const [createRole, setCreateRole] = useState<UserRole>('consulta');
   const [isCreating, setIsCreating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
   const canViewUsers = hasPermission('users.view');
   const canCreateUser = hasPermission('users.create_user');
   const canEditRoles = hasPermission('users.edit_roles');
@@ -199,36 +201,74 @@ export function UsersPanel() {
     );
   }
 
+  const tabs = (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <button
+        type="button"
+        className={['view-switcher__tab', activeTab === 'users' ? 'view-switcher__tab--active' : ''].join(' ')}
+        onClick={() => setActiveTab('users')}
+      >
+        Usuarios
+      </button>
+      {canEditRoles && (
+        <button
+          type="button"
+          className={['view-switcher__tab', activeTab === 'roles' ? 'view-switcher__tab--active' : ''].join(' ')}
+          onClick={() => setActiveTab('roles')}
+        >
+          Roles y permisos
+        </button>
+      )}
+    </div>
+  );
+
+  if (activeTab === 'roles' && canEditRoles) {
+    return (
+      <>
+        {tabs}
+        <RolePermissionsPanel />
+      </>
+    );
+  }
+
   if (loading) {
     return (
-      <Card className="rules-panel">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '16px' }}>
-          <div className="login-spinner" style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.08)', borderTopColor: 'var(--primary)' }}></div>
-          <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>Cargando usuarios...</span>
-        </div>
-      </Card>
+      <>
+        {tabs}
+        <Card className="rules-panel">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', gap: '16px' }}>
+            <div className="login-spinner" style={{ width: '32px', height: '32px', border: '3px solid rgba(255,255,255,0.08)', borderTopColor: 'var(--primary)' }}></div>
+            <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>Cargando usuarios...</span>
+          </div>
+        </Card>
+      </>
     );
   }
 
   if (error) {
     return (
-      <Card className="rules-panel">
-        <div className="alert alert--error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '30px', margin: '0' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '24px', marginRight: '10px' }}>error</span>
-          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{error}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-          <button className="button button--secondary button--sm" onClick={fetchProfiles}>
-            🔄 Reintentar conexión
-          </button>
-        </div>
-      </Card>
+      <>
+        {tabs}
+        <Card className="rules-panel">
+          <div className="alert alert--error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '30px', margin: '0' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '24px', marginRight: '10px' }}>error</span>
+            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{error}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+            <button className="button button--secondary button--sm" onClick={fetchProfiles}>
+              🔄 Reintentar conexión
+            </button>
+          </div>
+        </Card>
+      </>
     );
   }
 
   return (
-    <Card className="rules-panel">
-      <div className="results-header" style={{ borderBottom: '1px solid var(--line)', paddingBottom: '16px', marginBottom: '24px' }}>
+    <>
+      {tabs}
+      <Card className="rules-panel">
+        <div className="results-header" style={{ borderBottom: '1px solid var(--line)', paddingBottom: '16px', marginBottom: '24px' }}>
         <div>
           <span className="section-heading__eyebrow">Seguridad y Permisos</span>
           <h2>Control de Usuarios y Roles</h2>
@@ -409,6 +449,7 @@ export function UsersPanel() {
           </div>
         </div>
       )}
-    </Card>
+      </Card>
+    </>
   );
 }

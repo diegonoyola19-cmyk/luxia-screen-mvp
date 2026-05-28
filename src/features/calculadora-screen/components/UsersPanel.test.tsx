@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UsersPanel } from './UsersPanel';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -19,6 +19,10 @@ vi.mock('sonner', () => ({
     error: vi.fn(),
     success: vi.fn(),
   },
+}));
+
+vi.mock('./RolePermissionsPanel', () => ({
+  RolePermissionsPanel: () => <div>Panel de roles mock</div>,
 }));
 
 const profiles = [
@@ -107,4 +111,22 @@ describe('UsersPanel RBAC permissions', () => {
       expect(screen.getByRole('checkbox')).not.toBeDisabled();
     });
   });
+
+  it('shows Roles y permisos tab only with users.edit_roles', async () => {
+    setAuthPermissions(['users.view']);
+    const { rerender } = render(<UsersPanel />);
+
+    await screen.findByText('operador@luxia.test');
+    expect(screen.queryByRole('button', { name: /Roles y permisos/i })).not.toBeInTheDocument();
+
+    setAuthPermissions(['users.view', 'users.edit_roles']);
+    rerender(<UsersPanel />);
+
+    const rolesTab = await screen.findByRole('button', { name: /Roles y permisos/i });
+    expect(rolesTab).toBeInTheDocument();
+
+    fireEvent.click(rolesTab);
+    expect(screen.getByText('Panel de roles mock')).toBeInTheDocument();
+  });
+
 });

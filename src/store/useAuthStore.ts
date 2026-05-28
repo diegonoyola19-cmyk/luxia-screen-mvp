@@ -51,6 +51,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   initialize: () => () => void;
   clearError: () => void;
+  refreshPermissions: () => Promise<void>;
   hasPermission: (permissionId: string) => boolean;
   hasAnyPermission: (permissionIds: string[]) => boolean;
 }
@@ -217,6 +218,28 @@ export const useAuthStore = create<AuthState>((set, get) => {
     permissionsError: null,
 
     clearError: () => set({ error: null }),
+
+    refreshPermissions: async () => {
+      const { user } = get();
+      if (!user) {
+        set({ permissions: [], permissionsError: null, permissionsLoading: false });
+        return;
+      }
+
+      const profile = await fetchProfile(user.id);
+      if (!profile.exists || !profile.isActive) {
+        set({ permissions: [], permissionsError: null, permissionsLoading: false });
+        return;
+      }
+
+      const permissionsResult = await fetchPermissions(profile.roleId);
+      set({
+        role: profile.role,
+        isActive: profile.isActive,
+        permissions: permissionsResult.permissions,
+        permissionsError: permissionsResult.error,
+      });
+    },
 
     hasPermission: (permissionId) => {
       const { permissions, role } = get();
