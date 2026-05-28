@@ -25,6 +25,10 @@ vi.mock('./RolePermissionsPanel', () => ({
   RolePermissionsPanel: () => <div>Panel de roles mock</div>,
 }));
 
+vi.mock('./UserActivityPanel', () => ({
+  UserActivityPanel: () => <div>Panel de actividad mock</div>,
+}));
+
 const profiles = [
   {
     id: 'other-user',
@@ -66,6 +70,7 @@ describe('UsersPanel RBAC permissions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockProfilesFetch();
+    supabaseMock.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
     setAuthPermissions(['users.view']);
   });
 
@@ -129,4 +134,47 @@ describe('UsersPanel RBAC permissions', () => {
     expect(screen.getByText('Panel de roles mock')).toBeInTheDocument();
   });
 
+  it('shows Actividad tab with users.view and hides it without users.view', async () => {
+    setAuthPermissions([]);
+    const { rerender } = render(<UsersPanel />);
+
+    expect(screen.queryByRole('button', { name: /Actividad/i })).not.toBeInTheDocument();
+
+    setAuthPermissions(['users.view']);
+    rerender(<UsersPanel />);
+
+    const activityTab = await screen.findByRole('button', { name: /Actividad/i });
+    expect(activityTab).toBeInTheDocument();
+
+    fireEvent.click(activityTab);
+    expect(screen.getByText('Panel de actividad mock')).toBeInTheDocument();
+  });
+
+  it('updates role through admin-update-user-profile', async () => {
+    setAuthPermissions(['users.view', 'users.edit_roles']);
+    render(<UsersPanel />);
+
+    const roleSelect = await screen.findByRole('combobox');
+    fireEvent.change(roleSelect, { target: { value: 'bodega' } });
+
+    await waitFor(() => {
+      expect(supabaseMock.functions.invoke).toHaveBeenCalledWith('admin-update-user-profile', {
+        body: { userId: 'other-user', role: 'bodega' },
+      });
+    });
+  });
+
+  it('updates active status through admin-update-user-profile', async () => {
+    setAuthPermissions(['users.view', 'users.disable_user']);
+    render(<UsersPanel />);
+
+    const statusToggle = await screen.findByRole('checkbox');
+    fireEvent.click(statusToggle);
+
+    await waitFor(() => {
+      expect(supabaseMock.functions.invoke).toHaveBeenCalledWith('admin-update-user-profile', {
+        body: { userId: 'other-user', isActive: false },
+      });
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { useAuthStore, type UserRole } from '../../../store/useAuthStore';
 import { Card } from '../../../components/ui/Card';
 import { toast } from 'sonner';
 import { RolePermissionsPanel } from './RolePermissionsPanel';
+import { UserActivityPanel } from './UserActivityPanel';
 
 interface UserProfile {
   id: string;
@@ -26,7 +27,7 @@ export function UsersPanel() {
   const [createPassword, setCreatePassword] = useState('');
   const [createRole, setCreateRole] = useState<UserRole>('consulta');
   const [isCreating, setIsCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'activity'>('users');
   const canViewUsers = hasPermission('users.view');
   const canCreateUser = hasPermission('users.create_user');
   const canEditRoles = hasPermission('users.edit_roles');
@@ -78,12 +79,12 @@ export function UsersPanel() {
 
     setUpdatingId(userId);
     try {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ role: newRole, updated_at: new Date().toISOString() })
-        .eq('id', userId);
+      const { data, error: updateError } = await supabase.functions.invoke('admin-update-user-profile', {
+        body: { userId, role: newRole },
+      });
 
       if (updateError) throw updateError;
+      if (data?.error) throw new Error(data.error);
 
       setProfiles(prev =>
         prev.map(p => (p.id === userId ? { ...p, role: newRole } : p))
@@ -111,12 +112,12 @@ export function UsersPanel() {
     const nextStatus = !currentStatus;
     setUpdatingId(userId);
     try {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ is_active: nextStatus, updated_at: new Date().toISOString() })
-        .eq('id', userId);
+      const { data, error: updateError } = await supabase.functions.invoke('admin-update-user-profile', {
+        body: { userId, isActive: nextStatus },
+      });
 
       if (updateError) throw updateError;
+      if (data?.error) throw new Error(data.error);
 
       setProfiles(prev =>
         prev.map(p => (p.id === userId ? { ...p, is_active: nextStatus } : p))
@@ -219,6 +220,15 @@ export function UsersPanel() {
           Roles y permisos
         </button>
       )}
+      {(canViewUsers || canEditRoles) && (
+        <button
+          type="button"
+          className={['view-switcher__tab', activeTab === 'activity' ? 'view-switcher__tab--active' : ''].join(' ')}
+          onClick={() => setActiveTab('activity')}
+        >
+          Actividad
+        </button>
+      )}
     </div>
   );
 
@@ -227,6 +237,15 @@ export function UsersPanel() {
       <>
         {tabs}
         <RolePermissionsPanel />
+      </>
+    );
+  }
+
+  if (activeTab === 'activity' && (canViewUsers || canEditRoles)) {
+    return (
+      <>
+        {tabs}
+        <UserActivityPanel profiles={profiles} />
       </>
     );
   }

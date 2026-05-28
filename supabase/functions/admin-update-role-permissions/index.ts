@@ -58,7 +58,7 @@ serve(async (req) => {
 
     const { data: callerProfile, error: callerProfileError } = await supabaseAdmin
       .from('profiles')
-      .select('role, role_id, is_active')
+      .select('email, role, role_id, is_active')
       .eq('id', user.id)
       .single()
 
@@ -143,6 +143,27 @@ serve(async (req) => {
       if (insertError) {
         throw insertError
       }
+    }
+
+    const { error: activityError } = await supabaseAdmin
+      .from('user_activity_log')
+      .insert({
+        actor_user_id: user.id,
+        actor_email: callerProfile.email || user.email || null,
+        target_user_id: null,
+        target_email: null,
+        event_type: 'role.permissions_changed',
+        event_label: 'Permisos de rol actualizados',
+        metadata: {
+          roleId,
+          roleName: targetRole.name,
+          permissionIds: uniquePermissionIds,
+          permissionCount: uniquePermissionIds.length,
+        },
+      })
+
+    if (activityError) {
+      console.error('Activity log insert error:', activityError)
     }
 
     return json({ success: true, roleId, permissionIds: uniquePermissionIds }, 200)

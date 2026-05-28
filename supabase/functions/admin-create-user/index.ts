@@ -43,7 +43,7 @@ serve(async (req) => {
     
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('role, is_active')
+      .select('email, role, is_active')
       .eq('id', user.id)
       .single()
 
@@ -108,6 +108,25 @@ serve(async (req) => {
       // No fallamos toda la request si falló la actualización del rol, 
       // pero devolvemos un warning, idealmente no debería fallar con Service Role.
       throw new Error(`Usuario creado en Auth pero falló al asignar rol: ${profileUpdateError.message}`)
+    }
+
+    const { error: activityError } = await supabaseAdmin
+      .from('user_activity_log')
+      .insert({
+        actor_user_id: user.id,
+        actor_email: profile.email || user.email || null,
+        target_user_id: newUserId,
+        target_email: email,
+        event_type: 'user.created',
+        event_label: 'Usuario creado',
+        metadata: {
+          role,
+          roleId: targetRole.id,
+        },
+      })
+
+    if (activityError) {
+      console.error('Activity log insert error:', activityError)
     }
 
     return new Response(JSON.stringify({ success: true, user: authData.user }), {
