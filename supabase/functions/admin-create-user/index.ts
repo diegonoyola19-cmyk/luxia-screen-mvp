@@ -58,6 +58,21 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Email, password y role son obligatorios' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    const { data: targetRole, error: targetRoleError } = await supabaseAdmin
+      .from('roles')
+      .select('id, name')
+      .eq('name', role)
+      .maybeSingle()
+
+    if (targetRoleError) {
+      console.error("Role lookup error:", targetRoleError)
+      return new Response(JSON.stringify({ error: 'No se pudo validar el rol solicitado.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (!targetRole) {
+      return new Response(JSON.stringify({ error: `El rol "${role}" no existe en el catálogo dinámico.` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // 4. Crear usuario en Auth usando Service Role
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -83,6 +98,7 @@ serve(async (req) => {
         id: newUserId,
         email: email,
         role: role,
+        role_id: targetRole.id,
         is_active: true,
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' })

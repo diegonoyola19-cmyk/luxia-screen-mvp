@@ -153,11 +153,22 @@ export function UsersPanel() {
       });
 
       if (error) {
-        console.error('Invoke Error:', error);
+        const invokeError = error as any;
+        const context = invokeError.context;
+        console.error('Invoke Error:', {
+          name: invokeError.name,
+          message: invokeError.message,
+          status: context?.status,
+          statusText: context?.statusText,
+          context,
+        });
         throw new Error('Error al contactar con el servicio de creación.');
       }
 
       if (data?.error) {
+        console.error('Create user service error:', {
+          message: data.error,
+        });
         throw new Error(data.error);
       }
 
