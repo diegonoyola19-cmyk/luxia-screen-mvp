@@ -27,3 +27,11 @@ src/features/calculadora-screen/components/*.exe
 
 # Ignore excel files
 *.xlsx
+
+# Ignore SQL backups/dumps
+dump.sql
+*.dump.sql
+backups/*.sql
+
+# Ignore scratch files
+scratch/
