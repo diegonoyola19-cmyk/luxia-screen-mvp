@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { useAuthStore } from '../store/useAuthStore';
 import type { SavedOrder } from '../domain/curtains/types';
 
 export async function fetchActiveOrders(): Promise<SavedOrder[]> {
@@ -16,6 +17,8 @@ export async function fetchActiveOrders(): Promise<SavedOrder[]> {
 }
 
 function mapOrderToRow(order: SavedOrder) {
+  const userId = useAuthStore.getState().user?.id;
+  
   return {
     id: order.id,
     order_number: order.orderNumber || 'Unknown',
@@ -23,7 +26,9 @@ function mapOrderToRow(order: SavedOrder) {
     status: order.status || 'draft',
     payload: order,
     created_at: order.createdAt || new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    created_by: userId || null,
+    updated_by: userId || null
   };
 }
 
