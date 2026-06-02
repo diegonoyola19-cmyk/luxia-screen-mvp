@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
@@ -27,7 +27,13 @@ function GlobalSyncIndicator() {
 
   if (!isOnline) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+      <div style={{ 
+        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', 
+        fontWeight: 600, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', 
+        padding: '4px 8px', borderRadius: '4px',
+        transition: 'all var(--transition-normal) var(--ease-out-quint)',
+        animation: 'pulse-slow 2s infinite ease-in-out'
+      }}>
         <span>🔴</span> Trabajando offline {pendingCount > 0 ? `(${pendingCount} pend.)` : ''}
       </div>
     );
@@ -35,7 +41,13 @@ function GlobalSyncIndicator() {
 
   if (errorCount > 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+      <div style={{ 
+        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', 
+        fontWeight: 600, color: 'var(--color-danger)', background: 'var(--color-danger-soft)', 
+        padding: '4px 8px', borderRadius: '4px',
+        transition: 'all var(--transition-normal) var(--ease-out-quint)',
+        animation: 'pulse-slow 2s infinite ease-in-out'
+      }}>
         <span>⚠️</span> Error de sincronización
       </div>
     );
@@ -43,15 +55,156 @@ function GlobalSyncIndicator() {
 
   if (pendingCount > 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
-        <span>⏳</span> {pendingCount} órdenes pendientes de subir
+      <div style={{ 
+        display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', 
+        fontWeight: 600, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', 
+        padding: '4px 8px', borderRadius: '4px',
+        transition: 'all var(--transition-normal) var(--ease-out-quint)'
+      }}>
+        <span>⏳</span> {pendingCount} pend.
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#10b981', opacity: 0.7 }} title="Sincronizado">
-      ☁️ Sincronizado
+    <div style={{ 
+      display: 'flex', alignItems: 'center', gap: '6px', fontSize: '1rem', 
+      fontWeight: 600, color: '#10b981', opacity: 0.7,
+      transition: 'all var(--transition-normal) var(--ease-out-quint)'
+    }} title="Sincronizado">
+      ☁️
+    </div>
+  );
+}
+
+function UserMenuDropdown({ user, role, theme, setTheme, signOut }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false);
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
+
+  if (!user) return null;
+
+  const initial = user.email ? user.email.charAt(0).toUpperCase() : 'U';
+
+  return (
+    <div style={{ position: 'relative' }} ref={menuRef}>
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary-glow)',
+          color: 'var(--primary)', fontWeight: 800, fontSize: '1rem', display: 'flex', 
+          alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(192, 37, 58, 0.2)',
+          cursor: 'pointer',
+          transition: 'transform var(--transition-fast) var(--ease-out-quint), box-shadow var(--transition-fast) var(--ease-out-quint)'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+        aria-label="Menú de usuario"
+      >
+        {initial}
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.175, 0.885, 0.32, 1.275] }}
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '260px',
+              background: 'var(--surface)', border: '1px solid var(--line-strong)',
+              borderRadius: '8px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '12px',
+              display: 'flex', flexDirection: 'column', gap: '12px', zIndex: 100
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span 
+                style={{ 
+                  fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', 
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+                }}
+                title={user.email}
+              >
+                {user.email}
+              </span>
+              <span style={{ 
+                fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', 
+                padding: '2px 6px', borderRadius: '4px', background: 'var(--primary-glow)', 
+                color: 'var(--primary)', width: 'fit-content' 
+              }}>
+                {role || 'consulta'}
+              </span>
+            </div>
+
+            <div style={{ height: '1px', background: 'var(--line)' }} />
+
+            <button
+              type="button"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 12px', background: 'transparent', border: '1px solid var(--line-strong)',
+                borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text)', cursor: 'pointer'
+              }}
+              onClick={() => {
+                setTheme(theme === 'dark' ? 'light' : 'dark');
+                setIsOpen(false);
+              }}
+            >
+              <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>
+              <span>{theme === 'dark' ? '☀️' : '🌙'}</span>
+            </button>
+
+            <button
+              type="button"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '8px 12px', background: 'var(--color-danger-soft)', border: 'none',
+                borderRadius: '6px', fontSize: '0.8rem', color: 'var(--color-danger)', fontWeight: 700, cursor: 'pointer',
+                transition: 'background var(--transition-fast) var(--ease-out-quint), transform var(--transition-fast) var(--ease-out-quint)'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-danger-border)'}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-danger-soft)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.97)'}
+              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              onClick={() => {
+                signOut();
+                setIsOpen(false);
+              }}
+            >
+              Cerrar sesión
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -108,12 +261,12 @@ const VIEW_PERMISSIONS = {
 
 type ProtectedView = keyof typeof VIEW_PERMISSIONS;
 
-const NAV_ITEMS: Array<{ view: ProtectedView; label: string }> = [
-  { view: 'production-v2', label: 'Producción' },
-  { view: 'inventory', label: 'Bodega' },
-  { view: 'orders', label: 'Ordenes' },
-  { view: 'settings', label: 'Configuracion' },
-  { view: 'users', label: 'Usuarios' },
+const NAV_ITEMS: Array<{ view: ProtectedView; label: string; icon: string }> = [
+  { view: 'production-v2', label: 'Producción', icon: '🏭' },
+  { view: 'inventory', label: 'Bodega', icon: '📦' },
+  { view: 'orders', label: 'Ordenes', icon: '📋' },
+  { view: 'settings', label: 'Configuracion', icon: '⚙️' },
+  { view: 'users', label: 'Usuarios', icon: '👥' },
 ];
 
 export function ScreenCalculatorPage() {
@@ -121,6 +274,11 @@ export function ScreenCalculatorPage() {
   const setActiveView = useCalculatorStore((state) => state.setActiveView);
   const theme = useCalculatorStore((state) => state.theme);
   const setTheme = useCalculatorStore((state) => state.setTheme);
+
+  const [isPinned, setIsPinned] = useState(() => localStorage.getItem('luxia:sidebar:pinned') === 'true');
+  const [forceCollapsed, setForceCollapsed] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useOrderSync();
 
@@ -133,6 +291,16 @@ export function ScreenCalculatorPage() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('luxia:sidebar:pinned', String(isPinned));
+  }, [isPinned]);
+
   // Redirection guard: if current view is not allowed for the user's role, auto-redirect to first allowed
   useEffect(() => {
     if (allowedTabs.length > 0 && !allowedTabs.includes(activeView as ProtectedView)) {
@@ -140,79 +308,96 @@ export function ScreenCalculatorPage() {
     }
   }, [allowedTabs, activeView, setActiveView]);
 
+  const activeTabLabel = NAV_ITEMS.find(i => i.view === activeView)?.label || '';
+
   return (
-    <main className="page-shell">
-      <section className="page-frame">
-        <div className="view-switcher">
-          <div style={{ display: 'flex', alignItems: 'center', marginRight: '40px', gap: '12px', flexShrink: 0 }}>
-            <LuxiaIcon width={46} height={46} />
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '1.4rem', fontWeight: 900, letterSpacing: '0.04em', color: 'var(--text)', lineHeight: 1 }}>LUXIA</span>
-              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '0.65rem', fontWeight: 500, letterSpacing: '0.01em', color: 'var(--text-muted, #6E6E73)', marginTop: '2px' }}>Powered by Vertilux</span>
+    <div className="app-layout">
+      {isMobile && isMobileDrawerOpen && (
+        <div 
+          className="app-drawer-overlay" 
+          onClick={() => setIsMobileDrawerOpen(false)} 
+        />
+      )}
+
+      <aside 
+        onMouseLeave={() => setForceCollapsed(false)}
+        className={isMobile 
+          ? `app-drawer ${isMobileDrawerOpen ? 'app-drawer--open' : ''}` 
+          : `app-sidebar ${isPinned ? 'app-sidebar--pinned' : ''} ${forceCollapsed ? 'app-sidebar--force-collapsed' : ''}`
+        }
+      >
+        <div className="app-sidebar__inner">
+          <div className="app-sidebar__header">
+            <LuxiaIcon width={32} height={32} />
+            <div className="app-sidebar__header-text">
+              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.04em', color: 'var(--text)', lineHeight: 1 }}>LUXIA</span>
+              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '0.55rem', fontWeight: 500, letterSpacing: '0.01em', color: 'var(--text-muted, #6E6E73)', marginTop: '2px' }}>Powered by Vertilux</span>
             </div>
           </div>
 
-          {NAV_ITEMS.filter((item) => allowedTabs.includes(item.view)).map((item) => (
-            <button
-              key={item.view}
-              type="button"
-              className={[
-                'view-switcher__tab',
-                activeView === item.view ? 'view-switcher__tab--active' : '',
-              ].join(' ')}
-              aria-pressed={activeView === item.view}
-              onClick={() => setActiveView(item.view)}
-            >
-              {item.label}
-            </button>
-          ))}
+          <nav className="app-sidebar__nav">
+            {NAV_ITEMS.filter((item) => allowedTabs.includes(item.view)).map((item) => (
+              <button
+                key={item.view}
+                type="button"
+                className={`app-sidebar__link ${activeView === item.view ? 'app-sidebar__link--active' : ''}`}
+                aria-label={item.label}
+                onClick={() => {
+                  setActiveView(item.view);
+                  setIsMobileDrawerOpen(false);
+                }}
+              >
+                <div className="app-sidebar__icon" aria-hidden="true">{item.icon}</div>
+                <span className="app-sidebar__text">{item.label}</span>
+              </button>
+            ))}
+          </nav>
 
-          {/* User profile info & buttons aligned to the right */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
-            <GlobalSyncIndicator />
-            {user && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginRight: '6px' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>
-                  {user.email}
-                </span>
-                <span style={{ 
-                  fontSize: '0.62rem', 
-                  fontWeight: 800, 
-                  letterSpacing: '0.06em', 
-                  textTransform: 'uppercase', 
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  background: 'var(--primary-glow)',
-                  color: 'var(--primary)'
-                }}>
-                  {role || 'consulta'}
-                </span>
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="view-switcher__tab"
-              style={{ flex: 'none', height: 'auto', padding: '6px 12px', border: '1px solid var(--line-strong)', borderRadius: '999px', fontSize: '0.78rem', color: 'var(--muted-strong)' }}
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          {!isMobile && (
+            <button 
+              className="app-sidebar__toggle" 
+              onClick={() => {
+                if (isPinned) {
+                  setIsPinned(false);
+                  setForceCollapsed(true);
+                } else {
+                  setIsPinned(true);
+                  setForceCollapsed(false);
+                }
+              }}
+              title={isPinned ? "Colapsar menú" : "Fijar menú expandido"}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              <span className="app-sidebar__toggle-icon">»</span>
             </button>
-
-            <button
-              type="button"
-              className="view-switcher__tab"
-              style={{ flex: 'none', height: 'auto', padding: '6px 14px', background: 'rgba(192, 37, 58, 0.1)', border: '1px solid rgba(192, 37, 58, 0.2)', borderRadius: '999px', fontSize: '0.78rem', color: '#ffb4ab', fontWeight: 700 }}
-              onClick={() => signOut()}
-              title="Cerrar sesión"
-            >
-              Salir
-            </button>
-          </div>
+          )}
         </div>
+      </aside>
 
-        <div className={`page-content${activeView === 'production-v2' ? ' page-content--fullwidth' : ''}`}>
+      <main className="app-main">
+        <header className="app-header">
+          <button 
+            className="mobile-menu-btn" 
+            onClick={() => setIsMobileDrawerOpen(true)}
+            aria-label="Abrir menú"
+          >
+            ☰
+          </button>
+          
+          <h1 className="app-header__title">{activeTabLabel}</h1>
+
+          <div className="app-header__actions">
+            <GlobalSyncIndicator />
+            <UserMenuDropdown 
+              user={user} 
+              role={role} 
+              theme={theme} 
+              setTheme={setTheme} 
+              signOut={signOut} 
+            />
+          </div>
+        </header>
+
+        <div className={`page-content${['production-v2', 'orders', 'inventory'].includes(activeView as string) ? ' page-content--fullwidth' : ''}`}>
           {allowedTabs.length === 0 ? (
             <section className="content-grid">
               <div className="card">
@@ -314,8 +499,8 @@ export function ScreenCalculatorPage() {
           </AnimatePresence>
           )}
         </div>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }
 

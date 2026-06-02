@@ -961,7 +961,7 @@
   display: grid;
   grid-template-columns: minmax(360px, 0.38fr) minmax(0, 0.62fr);
   gap: 0;
-  height: calc(100vh - 110px);
+  height: calc(100vh - 64px);
   overflow: hidden;
 }
 
@@ -1092,18 +1092,19 @@
   border-radius: var(--radius-md);
   padding: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform var(--transition-fast) var(--ease-out-quint), box-shadow var(--transition-fast) var(--ease-out-quint), border-color var(--transition-fast) var(--ease-out-quint);
   position: relative;
 }
 
 .order-list-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
   border-color: var(--line-strong);
 }
 
 .order-list-card--active {
   border-left: 4px solid var(--primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .order-list-card__top {
