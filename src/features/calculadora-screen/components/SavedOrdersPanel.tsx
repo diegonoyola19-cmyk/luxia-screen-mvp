@@ -169,12 +169,25 @@ function StatusBadge({ status }: { status: SavedOrderStatus | string }) {
   return <span className={`badge-status ${badgeClass}`}>{label}</span>;
 }
 
-function OrderListItem({ row, isActive, onClick }: { row: OrderReportRow, isActive: boolean, onClick: () => void }) {
+function OrderListItem({ row, isActive, syncStatus, onClick }: { row: OrderReportRow, isActive: boolean, syncStatus?: import('../store/types').SyncStatus, onClick: () => void }) {
   const status = getOrderStatus(row.order);
+
+  let syncIcon = null;
+  if (syncStatus) {
+    if (syncStatus.status === 'pending') {
+      syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '0.9em' }}>⏳</span>;
+    } else if (syncStatus.status === 'error') {
+      syncIcon = <span title={`Error: ${syncStatus.errorMessage || 'No se pudo sincronizar'}`} style={{ marginLeft: 6, fontSize: '0.9em' }}>🔴</span>;
+    }
+  }
+
   return (
     <div className={`order-list-card ${isActive ? 'order-list-card--active' : ''}`} onClick={onClick}>
       <div className="order-list-card__top">
-        <span className="order-list-card__title">{row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}</span>
+        <span className="order-list-card__title">
+          {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}
+          {syncIcon}
+        </span>
         <StatusBadge status={status} />
       </div>
       <div className="order-list-card__meta">
@@ -486,6 +499,7 @@ export function SavedOrdersPanel() {
                 key={row.order.id} 
                 row={row} 
                 isActive={selectedRow?.order.id === row.order.id} 
+                syncStatus={store.syncMetadata[row.order.id]}
                 onClick={() => store.setSelectedOrderId(row.order.id)} 
               />
             ))

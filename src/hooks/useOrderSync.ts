@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useCalculatorStore } from '../features/calculadora-screen/store/useCalculatorStore';
-import { fetchActiveOrders, upsertOrders } from '../lib/supabaseOrders';
+import { fetchActiveOrders, upsertOrders, upsertOrder, softDeleteOrder } from '../lib/supabaseOrders';
 import { supabase } from '../lib/supabase';
 
 export function useOrderSync() {
@@ -8,6 +8,50 @@ export function useOrderSync() {
   const isSubscribed = useRef(false);
 
   useEffect(() => {
+    let isFlushing = false;
+
+    async function flushQueue() {
+      if (isFlushing || !navigator.onLine) return;
+      isFlushing = true;
+      try {
+        const store = useCalculatorStore.getState();
+        const meta = store.syncMetadata;
+        const savedOrders = store.savedOrders;
+
+        const pendingEntries = Object.entries(meta).filter(([_, status]) => status.status === 'pending');
+        if (pendingEntries.length === 0) return;
+
+        for (const [orderId, status] of pendingEntries) {
+          try {
+            if (status.pendingAction === 'upsert') {
+              const orderToUpsert = savedOrders.find(o => o.id === orderId);
+              if (orderToUpsert) {
+                await upsertOrder(orderToUpsert);
+                useCalculatorStore.getState().markOrderSynced(orderId);
+              } else {
+                // If the order is not in local state but it's pending upsert, it's an anomaly. Clear it.
+                useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
+              }
+            } else if (status.pendingAction === 'delete') {
+              await softDeleteOrder(orderId);
+              useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
+            }
+          } catch (err: any) {
+            // Network errors will be handled naturally (they throw TypeError or similar for fetch)
+            if (err?.status && err.status >= 400 && err.status < 500) {
+               useCalculatorStore.getState().markOrderSyncError(orderId, err.message || 'Error de sincronización');
+            } else {
+               // Posible error de red o servidor, pausar cola para reintentar luego
+               console.warn('[useOrderSync] Deteniendo cola por error de red o 5xx', err);
+               break; 
+            }
+          }
+        }
+      } finally {
+        isFlushing = false;
+      }
+    }
+
     async function initSync() {
       if (isMigrating.current) return;
       isMigrating.current = true;
@@ -25,18 +69,19 @@ export function useOrderSync() {
         const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
 
         const toMigrate = localOrders.filter(o => {
-          if (remoteIds.has(o.id)) return false; // Ya esta en Supabase
+          if (remoteIds.has(o.id)) return false; 
           if (!o.createdAt) return false;
           const createdMs = new Date(o.createdAt).getTime();
           if (isNaN(createdMs)) return false;
-          if (now - createdMs > ninetyDaysMs) return false; // Mas vieja de 90 dias
+          if (now - createdMs > ninetyDaysMs) return false; 
           return true;
         });
 
         if (toMigrate.length > 0) {
           console.log(`[useOrderSync] Migrating ${toMigrate.length} local orders to Supabase...`);
-          // Para no ensuciar SavedOrder type con propiedades internas temporalmente lo ignoramos
           await upsertOrders(toMigrate);
+          // Marcar migradas como synced
+          toMigrate.forEach(o => useCalculatorStore.getState().markOrderSynced(o.id));
         }
 
         // 3. Merge remote into local sin duplicar y priorizando remoto (last-write-wins)
@@ -49,9 +94,14 @@ export function useOrderSync() {
             merged.push(ro);
             hasChanges = true;
           } else {
-            // Remoto siempre pisa local al inicializar (para sincronizar entre dispositivos)
-            merged[idx] = ro;
-            hasChanges = true;
+            // Check if local is pending. If local is pending, keep local for now, let flushQueue push it.
+            // If local is NOT pending, remote wins.
+            const isPending = store.syncMetadata[ro.id]?.status === 'pending';
+            if (!isPending) {
+              merged[idx] = ro;
+              hasChanges = true;
+              useCalculatorStore.getState().markOrderSynced(ro.id);
+            }
           }
         });
 
@@ -59,6 +109,9 @@ export function useOrderSync() {
           merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           store.setSavedOrders(() => merged);
         }
+
+        // Lanzar vaciado de cola inicial
+        flushQueue();
 
         // 4. Suscripcion a Realtime
         if (!isSubscribed.current) {
@@ -77,7 +130,8 @@ export function useOrderSync() {
 
                 if (eventType === 'INSERT' || eventType === 'UPDATE') {
                   if (newRow.deleted_at) {
-                    storeState.deleteSavedOrder(newRow.id);
+                    storeState.removeOrderLocally(newRow.id);
+                    storeState.clearOrderSyncMetadata(newRow.id);
                   } else {
                     const parsedPayload = newRow.payload;
                     const currentOrders = storeState.savedOrders;
@@ -85,7 +139,6 @@ export function useOrderSync() {
                     
                     const updated = [...currentOrders];
                     if (existingIdx >= 0) {
-                      // Solo actualizar si hay un cambio real (optimistic update evita loops infinitos)
                       if (JSON.stringify(currentOrders[existingIdx]) !== JSON.stringify(parsedPayload)) {
                         updated[existingIdx] = parsedPayload;
                         updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -96,9 +149,11 @@ export function useOrderSync() {
                       updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                       storeState.setSavedOrders(() => updated);
                     }
+                    storeState.markOrderSynced(newRow.id);
                   }
                 } else if (eventType === 'DELETE') {
-                  storeState.deleteSavedOrder(oldRow.id);
+                  storeState.removeOrderLocally(oldRow.id);
+                  storeState.clearOrderSyncMetadata(oldRow.id);
                 }
               }
             )
@@ -110,13 +165,19 @@ export function useOrderSync() {
         }
 
       } catch (err) {
-        console.error('[useOrderSync] Error during sync init (fallback to local caching):', err);
+        console.error('[useOrderSync] Error during sync init:', err);
       }
     }
+
+    const handleNetworkChange = () => flushQueue();
+    window.addEventListener('online', handleNetworkChange);
+    window.addEventListener('sync-orders', handleNetworkChange);
 
     initSync();
 
     return () => {
+      window.removeEventListener('online', handleNetworkChange);
+      window.removeEventListener('sync-orders', handleNetworkChange);
       if (isSubscribed.current) {
         supabase.channel('work_orders_realtime').unsubscribe();
         isSubscribed.current = false;

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCalculatorStore } from './store/useCalculatorStore';
@@ -6,6 +6,55 @@ import { LuxiaIcon } from '../../components/LuxiaIcon';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PermissionGate } from '../../components/PermissionGate';
 import { useOrderSync } from '../../hooks/useOrderSync';
+
+function GlobalSyncIndicator() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const syncMetadata = useCalculatorStore(s => s.syncMetadata);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  const pendingCount = Object.values(syncMetadata || {}).filter(m => m.status === 'pending').length;
+  const errorCount = Object.values(syncMetadata || {}).filter(m => m.status === 'error').length;
+
+  if (!isOnline) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+        <span>🔴</span> Trabajando offline {pendingCount > 0 ? `(${pendingCount} pend.)` : ''}
+      </div>
+    );
+  }
+
+  if (errorCount > 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+        <span>⚠️</span> Error de sincronización
+      </div>
+    );
+  }
+
+  if (pendingCount > 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)', padding: '4px 8px', borderRadius: '4px' }}>
+        <span>⏳</span> {pendingCount} órdenes pendientes de subir
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 600, color: '#10b981', opacity: 0.7 }} title="Sincronizado">
+      ☁️ Sincronizado
+    </div>
+  );
+}
 
 const ProductionModuleV2 = lazy(async () => {
   const module = await import('./components/ProductionModuleV2');
@@ -120,6 +169,7 @@ export function ScreenCalculatorPage() {
 
           {/* User profile info & buttons aligned to the right */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+            <GlobalSyncIndicator />
             {user && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', marginRight: '6px' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)' }}>

@@ -11,7 +11,6 @@ import { resolveGroupBom } from '../../../../logic/doubleBracketBom';
 import type { CurtainOrderLine } from '../../../../domain/curtains/roller-bom-rules.types';
 import rollerBomRulesConfig from '../../../../data/roller-bom-rules-v2.json';
 import { normalizeOrderStatus } from '../../../../domain/orders/orderStatus';
-import { upsertOrder, softDeleteOrder, upsertOrders } from '../../../../lib/supabaseOrders';
 
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
@@ -68,6 +67,47 @@ export const createOrderSlice: StateCreator<
   savedOrders: [],
   selectedOrderId: null,
   remainders: [],
+  syncMetadata: {},
+
+  markOrderPending: (orderId, pendingAction, errorMessage) => set((state) => ({
+    syncMetadata: {
+      ...state.syncMetadata,
+      [orderId]: {
+        status: 'pending',
+        pendingAction,
+        errorMessage,
+        lastAttempt: new Date().toISOString()
+      }
+    }
+  })),
+
+  markOrderSynced: (orderId) => set((state) => ({
+    syncMetadata: {
+      ...state.syncMetadata,
+      [orderId]: {
+        status: 'synced',
+        lastAttempt: new Date().toISOString()
+      }
+    }
+  })),
+
+  markOrderSyncError: (orderId, errorMessage) => set((state) => ({
+    syncMetadata: {
+      ...state.syncMetadata,
+      [orderId]: {
+        ...(state.syncMetadata[orderId] || {}),
+        status: 'error',
+        errorMessage,
+        lastAttempt: new Date().toISOString()
+      }
+    }
+  })),
+
+  clearOrderSyncMetadata: (orderId) => set((state) => {
+    const newMeta = { ...state.syncMetadata };
+    delete newMeta[orderId];
+    return { syncMetadata: newMeta };
+  }),
 
   setRemainders: (remainders) => {
     if (import.meta.env.DEV) {
@@ -502,16 +542,22 @@ export const createOrderSlice: StateCreator<
       activeView: 'orders'
     }));
 
-    // Dual-write temporal: fire and forget
-    upsertOrder(savedOrder).catch(console.warn);
+    // Encolar offline
+    get().markOrderPending(savedOrder.id, 'upsert');
+    window.dispatchEvent(new Event('sync-orders'));
   },
   deleteSavedOrder: (id) => {
     set((state) => ({
       savedOrders: state.savedOrders.filter((order) => order.id !== id),
       selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
     }));
-    softDeleteOrder(id).catch(console.warn);
+    get().markOrderPending(id, 'delete');
+    window.dispatchEvent(new Event('sync-orders'));
   },
+  removeOrderLocally: (id) => set((state) => ({
+    savedOrders: state.savedOrders.filter((order) => order.id !== id),
+    selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
+  })),
 
   updateSavedOrderStatus: (id, status, metadata) => {
     let updatedOrder: SavedOrder | undefined;
@@ -532,7 +578,8 @@ export const createOrderSlice: StateCreator<
       }),
     }));
     if (updatedOrder) {
-      upsertOrder(updatedOrder).catch(console.warn);
+      get().markOrderPending(updatedOrder.id, 'upsert');
+      window.dispatchEvent(new Event('sync-orders'));
     }
   },
 
@@ -552,7 +599,8 @@ export const createOrderSlice: StateCreator<
       })
     }));
     if (updatedOrder) {
-      upsertOrder(updatedOrder).catch(console.warn);
+      get().markOrderPending(updatedOrder.id, 'upsert');
+      window.dispatchEvent(new Event('sync-orders'));
     }
   },
 
@@ -586,7 +634,8 @@ export const createOrderSlice: StateCreator<
     });
 
     if (updatedOrders.length > 0) {
-      upsertOrders(updatedOrders).catch(console.warn);
+      updatedOrders.forEach(o => get().markOrderPending(o.id, 'upsert'));
+      window.dispatchEvent(new Event('sync-orders'));
     }
   },
 
@@ -627,7 +676,8 @@ export const createOrderSlice: StateCreator<
     });
 
     if (validImports.length > 0) {
-      upsertOrders(validImports).catch(console.warn);
+      validImports.forEach(o => get().markOrderPending(o.id, 'upsert'));
+      window.dispatchEvent(new Event('sync-orders'));
     }
   }
 });

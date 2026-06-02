@@ -31,6 +31,15 @@ import type { SavedOrderStatus } from '../../../domain/orders/orderStatus';
 import type { ProductionMaterialReview } from '../../../domain/orders/materialReview';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
+export interface SyncStatus {
+  status: 'synced' | 'pending' | 'error';
+  pendingAction?: 'upsert' | 'delete';
+  lastAttempt?: string;
+  errorMessage?: string;
+}
+
+export type SyncMetadata = Record<string, SyncStatus>;
+
 /** Extensión local del WastePiece para marcar retazos generados en la sesión activa. */
 export interface SessionWastePiece extends WastePiece {
   isSessionPiece?: boolean;
@@ -91,6 +100,7 @@ export interface OrderSlice {
   savedOrders: SavedOrder[];
   selectedOrderId: string | null;
   remainders: ReusableRemainder[];
+  syncMetadata: SyncMetadata;
 
   setOrderDraft: (updater: (current: OrderDraft) => OrderDraft) => void;
   addToOrder: (displayResult: CalculationResult, parsedFormValues: CalculationInput, selectedWasteMatch: WasteReuseMatch | null) => void;
@@ -100,6 +110,7 @@ export interface OrderSlice {
   clearOrder: () => void;
   saveOrder: () => void;
   deleteSavedOrder: (id: string) => void;
+  removeOrderLocally: (id: string) => void;
   updateSavedOrderStatus: (id: string, status: SavedOrderStatus, metadata?: Partial<SavedOrder>) => void;
   saveProductionReview: (orderId: string, review: ProductionMaterialReview) => void;
   markOrdersSentToSage: (ids: string[], orderSnapshots?: Record<string, import('../../../domain/orders/materialReview').ProductionIssueSnapshot>) => void;
@@ -107,6 +118,10 @@ export interface OrderSlice {
   setSavedOrders: (updater: (current: SavedOrder[]) => SavedOrder[] | SavedOrder[]) => void;
   importOrders: (importedOrders: SavedOrder[]) => void;
   setRemainders: (remainders: ReusableRemainder[]) => void;
+  markOrderPending: (orderId: string, pendingAction: 'upsert' | 'delete', errorMessage?: string) => void;
+  markOrderSynced: (orderId: string) => void;
+  markOrderSyncError: (orderId: string, errorMessage: string) => void;
+  clearOrderSyncMetadata: (orderId: string) => void;
 }
 
 export interface WasteSlice {
