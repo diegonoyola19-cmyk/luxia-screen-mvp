@@ -10,6 +10,13 @@ npm-debug.log*
 .npm-cache/
 yarn-debug.log*
 yarn-error.log*
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+npm-debug.log*
+.npm-cache/
+yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
 vite*.log
 .vite-local-server.mjs
@@ -17,3 +24,6 @@ vite*.log
 
 .vercel/
 src/features/calculadora-screen/components/*.exe
+
+# Ignore excel files
+*.xlsx

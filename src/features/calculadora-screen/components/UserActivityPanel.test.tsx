@@ -7,6 +7,11 @@ const supabaseMock = vi.hoisted(() => ({
   functions: {
     invoke: vi.fn(),
   },
+  channel: vi.fn(() => ({
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn(),
+  })),
+  removeChannel: vi.fn(),
 }));
 
 vi.mock('../../../lib/supabase', () => ({

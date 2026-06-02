@@ -64,6 +64,34 @@ export function UsersPanel() {
 
   useEffect(() => {
     fetchProfiles();
+
+    const channel = supabase.channel('admin_profiles')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const newProfile = payload.new as UserProfile;
+          setProfiles(prev => {
+            if (prev.some(p => p.id === newProfile.id)) return prev;
+            return [newProfile, ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const newProfile = payload.new as UserProfile;
+          setProfiles(prev =>
+            prev.map(p => (p.id === newProfile.id ? newProfile : p))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleRoleChange = async (userId: string, targetEmail: string, newRole: UserRole) => {

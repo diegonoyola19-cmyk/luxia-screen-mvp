@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../../../lib/supabase';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -139,6 +139,11 @@ export function RolePermissionsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const isSavingRef = useRef(false);
+  useEffect(() => {
+    isSavingRef.current = saving;
+  }, [saving]);
 
   const canEditRoles = hasPermission('users.edit_roles');
   const selectedRole = roles.find((item) => item.id === selectedRoleId) || null;
@@ -199,6 +204,27 @@ export function RolePermissionsPanel() {
   useEffect(() => {
     if (canEditRoles) {
       loadData();
+
+      let debounceTimeout: ReturnType<typeof setTimeout>;
+      const channel = supabase.channel('admin_role_permissions')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'role_permissions' },
+          () => {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+              if (!isSavingRef.current) {
+                loadData();
+              }
+            }, 800);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        clearTimeout(debounceTimeout);
+        supabase.removeChannel(channel);
+      };
     } else {
       setLoading(false);
     }

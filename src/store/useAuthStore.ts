@@ -189,6 +189,39 @@ export const useAuthStore = create<AuthState>((set, get) => {
         loading: false,
         error: null
       });
+
+      if (globalAuthChannel) {
+        supabase.removeChannel(globalAuthChannel);
+      }
+
+      globalAuthChannel = supabase.channel(`auth_updates_${session.user.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` },
+          (payload) => {
+            const newProfile = payload.new;
+            if (newProfile.is_active === false) {
+              get().signOut();
+            } else {
+              const currentRole = get().role;
+              // refresh if role changed
+              if (newProfile.role !== currentRole) {
+                get().refreshPermissions();
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'role_permissions', filter: `role_id=eq.${profile.roleId}` },
+          () => {
+            if (refreshDebounceTimeout) clearTimeout(refreshDebounceTimeout);
+            refreshDebounceTimeout = setTimeout(() => {
+              get().refreshPermissions();
+            }, 500);
+          }
+        )
+        .subscribe();
     } catch (err) {
       console.error("[Auth] initialize failed", err);
       set({ 
@@ -205,6 +238,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
   };
 
   let initCalled = false;
+  let globalAuthChannel: ReturnType<typeof supabase.channel> | null = null;
+  let refreshDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   return {
     user: null,
@@ -298,6 +333,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       } catch (err) {
         console.error('Error signing out:', err);
       } finally {
+        if (globalAuthChannel) {
+          supabase.removeChannel(globalAuthChannel);
+          globalAuthChannel = null;
+        }
         set({
           user: null,
           session: null,

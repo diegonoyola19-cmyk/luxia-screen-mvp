@@ -98,6 +98,34 @@ export function UserActivityPanel({ profiles }: UserActivityPanelProps) {
 
   useEffect(() => {
     loadActivity();
+
+    if (canViewActivity) {
+      const channel = supabase.channel('admin_user_activity')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'user_activity_log' },
+          (payload) => {
+            const newEvent = payload.new as ActivityEvent;
+            
+            if (targetUserId && newEvent.target_user_id !== targetUserId && newEvent.actor_user_id !== targetUserId) {
+              return;
+            }
+            if (eventType && newEvent.event_type !== eventType) {
+              return;
+            }
+
+            setEvents(prev => {
+              if (prev.some(e => e.id === newEvent.id)) return prev;
+              return [newEvent, ...prev];
+            });
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [targetUserId, eventType, canViewActivity]);
 
   if (!canViewActivity) {
