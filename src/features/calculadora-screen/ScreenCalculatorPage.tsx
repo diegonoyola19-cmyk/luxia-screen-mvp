@@ -5,6 +5,7 @@ import { useCalculatorStore } from './store/useCalculatorStore';
 import { LuxiaIcon } from '../../components/LuxiaIcon';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PermissionGate } from '../../components/PermissionGate';
+import { useOrderSync } from '../../hooks/useOrderSync';
 
 const ProductionModuleV2 = lazy(async () => {
   const module = await import('./components/ProductionModuleV2');
@@ -72,12 +73,13 @@ export function ScreenCalculatorPage() {
   const theme = useCalculatorStore((state) => state.theme);
   const setTheme = useCalculatorStore((state) => state.setTheme);
 
+  useOrderSync();
+
   const { user, role, signOut, hasPermission, permissions } = useAuthStore();
   const allowedTabs = useMemo(
     () => NAV_ITEMS.filter((item) => hasPermission(VIEW_PERMISSIONS[item.view])).map((item) => item.view),
     [hasPermission, permissions, role]
   );
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);

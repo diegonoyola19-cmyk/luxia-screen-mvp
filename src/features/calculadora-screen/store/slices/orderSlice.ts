@@ -11,6 +11,8 @@ import { resolveGroupBom } from '../../../../logic/doubleBracketBom';
 import type { CurtainOrderLine } from '../../../../domain/curtains/roller-bom-rules.types';
 import rollerBomRulesConfig from '../../../../data/roller-bom-rules-v2.json';
 import { normalizeOrderStatus } from '../../../../domain/orders/orderStatus';
+import { upsertOrder, softDeleteOrder, upsertOrders } from '../../../../lib/supabaseOrders';
+
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
 
@@ -499,92 +501,135 @@ export const createOrderSlice: StateCreator<
       errors: {},
       activeView: 'orders'
     }));
-  },
-  deleteSavedOrder: (id) => set((state) => ({
-    savedOrders: state.savedOrders.filter((order) => order.id !== id),
-    selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
-  })),
 
-  updateSavedOrderStatus: (id, status, metadata) => set((state) => ({
-    savedOrders: state.savedOrders.map((order) =>
-      order.id === id
-        ? {
+    // Dual-write temporal: fire and forget
+    upsertOrder(savedOrder).catch(console.warn);
+  },
+  deleteSavedOrder: (id) => {
+    set((state) => ({
+      savedOrders: state.savedOrders.filter((order) => order.id !== id),
+      selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
+    }));
+    softDeleteOrder(id).catch(console.warn);
+  },
+
+  updateSavedOrderStatus: (id, status, metadata) => {
+    let updatedOrder: SavedOrder | undefined;
+    set((state) => ({
+      savedOrders: state.savedOrders.map((order) => {
+        if (order.id === id) {
+          updatedOrder = {
             ...order,
             ...metadata,
             status: status,
             sageExportedAt: status === 'sent_to_sage'
               ? order.sageExportedAt ?? new Date().toISOString()
               : null,
-          }
-        : order,
-    ),
-  })),
+          };
+          return updatedOrder;
+        }
+        return order;
+      }),
+    }));
+    if (updatedOrder) {
+      upsertOrder(updatedOrder).catch(console.warn);
+    }
+  },
 
-  saveProductionReview: (orderId, review) => set((state) => ({
-    savedOrders: state.savedOrders.map((order) =>
-      order.id === orderId
-        ? {
+  saveProductionReview: (orderId, review) => {
+    let updatedOrder: SavedOrder | undefined;
+    set((state) => ({
+      savedOrders: state.savedOrders.map((order) => {
+        if (order.id === orderId) {
+          updatedOrder = {
             ...order,
             productionReview: review,
             status: review.status === 'completed' ? 'materials_checked' : order.status
-          }
-        : order
-    )
-  })),
+          };
+          return updatedOrder;
+        }
+        return order;
+      })
+    }));
+    if (updatedOrder) {
+      upsertOrder(updatedOrder).catch(console.warn);
+    }
+  },
 
-    markOrdersSentToSage: (ids, orderSnapshots) => set((state) => {
+    markOrdersSentToSage: (ids, orderSnapshots) => {
     const idSet = new Set(ids);
     const exportedAt = new Date().toISOString();
+    const updatedOrders: SavedOrder[] = [];
 
-    return {
-      savedOrders: state.savedOrders.map((order) => {
-        if (!idSet.has(order.id)) return order;
-        const snapshot = orderSnapshots?.[order.id];
-        return { 
-          ...order, 
-          status: 'sent_to_sage', 
-          sageExportedAt: exportedAt,
-          productionReview: snapshot ? {
-            ...order.productionReview,
-            status: 'completed',
-            reviewedAt: order.productionReview?.reviewedAt || exportedAt,
-            adjustments: order.productionReview?.adjustments || [],
-            finalMaterialLines: order.productionReview?.finalMaterialLines || [],
-            issueSnapshot: snapshot
-          } : order.productionReview
-        };
-      }),
-    };
-  }),
+    set((state) => {
+      return {
+        savedOrders: state.savedOrders.map((order) => {
+          if (!idSet.has(order.id)) return order;
+          const snapshot = orderSnapshots?.[order.id];
+          const updated = { 
+            ...order, 
+            status: 'sent_to_sage', 
+            sageExportedAt: exportedAt,
+            productionReview: snapshot ? {
+              ...order.productionReview,
+              status: 'completed',
+              reviewedAt: order.productionReview?.reviewedAt || exportedAt,
+              adjustments: order.productionReview?.adjustments || [],
+              finalMaterialLines: order.productionReview?.finalMaterialLines || [],
+              issueSnapshot: snapshot
+            } : order.productionReview
+          } as SavedOrder;
+          updatedOrders.push(updated);
+          return updated;
+        }),
+      };
+    });
+
+    if (updatedOrders.length > 0) {
+      upsertOrders(updatedOrders).catch(console.warn);
+    }
+  },
 
   setSelectedOrderId: (id) => set({ selectedOrderId: id }),
 
   setSavedOrders: (updater) => set((state) => ({ savedOrders: typeof updater === 'function' ? updater(state.savedOrders) : updater })),
 
-  importOrders: (importedOrders) => set((state) => {
-    if (importedOrders.length === 0) {
-      return { errors: { ...state.errors, general: 'El archivo no contiene ordenes validas para importar.' } };
-    }
+  importOrders: (importedOrders) => {
+    let newMergedOrders: SavedOrder[] = [];
+    const validImports: SavedOrder[] = [];
 
-    const mergedOrders = [...state.savedOrders];
-    importedOrders.forEach((order) => {
-      const exists = mergedOrders.some((currentOrder) => currentOrder.id === order.id);
-      if (!exists) {
-        mergedOrders.push({
-          ...order,
-          status: normalizeOrderStatus(order.status),
-          sageExportedAt: order.sageExportedAt ?? null,
-        });
+    set((state) => {
+      if (importedOrders.length === 0) {
+        return { errors: { ...state.errors, general: 'El archivo no contiene ordenes validas para importar.' } };
       }
+
+      const mergedOrders = [...state.savedOrders];
+      importedOrders.forEach((order) => {
+        const exists = mergedOrders.some((currentOrder) => currentOrder.id === order.id);
+        if (!exists) {
+          const newOrder = {
+            ...order,
+            status: normalizeOrderStatus(order.status),
+            sageExportedAt: order.sageExportedAt ?? null,
+          } as SavedOrder;
+          mergedOrders.push(newOrder);
+          validImports.push(newOrder);
+        }
+      });
+      newMergedOrders = mergedOrders;
+
+      return {
+        savedOrders: mergedOrders,
+        selectedOrderId: importedOrders[0]?.id ?? null,
+        errors: { ...state.errors, general: undefined },
+        activeView: 'orders'
+      };
     });
 
-    return {
-      savedOrders: mergedOrders,
-      selectedOrderId: importedOrders[0]?.id ?? null,
-      errors: { ...state.errors, general: undefined },
-      activeView: 'orders'
-    };
-  })
+    if (validImports.length > 0) {
+      upsertOrders(validImports).catch(console.warn);
+    }
+  }
 });
 
 
