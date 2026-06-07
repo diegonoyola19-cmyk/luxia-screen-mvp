@@ -23,6 +23,7 @@ const mockAuthStore = useAuthStore as unknown as ReturnType<typeof vi.fn>;
 describe('InventoryPanelV2', () => {
   let discardInventoryItemMock: any;
   let setRemaindersMock: any;
+  let enqueueOperationMock: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,6 +36,7 @@ describe('InventoryPanelV2', () => {
 
     discardInventoryItemMock = vi.fn();
     setRemaindersMock = vi.fn();
+    enqueueOperationMock = vi.fn();
 
     vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
       const state = {
@@ -47,7 +49,7 @@ describe('InventoryPanelV2', () => {
             orderNumber: 'ORD-0225',
           }
         ],
-        setRemainders: vi.fn(),
+        setRemainders: setRemaindersMock,
         addFabricScrap: vi.fn()
       };
       return selector(state);
@@ -106,7 +108,8 @@ describe('InventoryPanelV2', () => {
         syncStatus: 'idle',
         lastError: null,
         lastSyncedAt: null,
-        pendingQueue: []
+        pendingQueue: [],
+        enqueueOperation: enqueueOperationMock
       };
       return selector ? selector(state) : state;
     });
@@ -241,45 +244,62 @@ describe('InventoryPanelV2', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('no llama a Supabase/store y muestra toast al intentar descartar sobrante (Fase 5B.6)', () => {
+    it('no llama a localStore sino a enqueueOperation al descartar sobrante (Fase 5B.7)', async () => {
       render(<InventoryPanelV2 />);
       fireEvent.click(screen.getByText('Sobrantes Lineales'));
       fireEvent.click(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/));
       
-      // Clic dar de baja en el panel detalle
       fireEvent.click(screen.getByText('Dar de baja'));
       
       const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
       fireEvent.click(confirmBtns[confirmBtns.length - 1]);
 
-      // No state should be updated, it just closes modal in 5B.6
+      await waitFor(() => {
+        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'update_status',
+          itemId: 'test-tube',
+          payload: { status: 'discarded' }
+        }));
+        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'create_movement',
+          itemId: 'test-tube',
+          payload: expect.objectContaining({ action: 'discard' })
+        }));
+      });
+      
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('no llama a Supabase/store y muestra toast al intentar descartar tela (Fase 5B.6)', () => {
+    it('no llama a localStore sino a enqueueOperation al descartar tela (Fase 5B.7)', async () => {
       render(<InventoryPanelV2 />);
       
-      // Seleccionar el retazo (por defecto en la pestaña telas)
       fireEvent.click(screen.getByText('RET-001'));
-      
-      // Abrir modal
       fireEvent.click(screen.getByText('Dar de baja'));
       
       expect(screen.getByText(/¿Dar de baja retazo RET-001\?/)).toBeInTheDocument();
       
-      // Confirmar
       const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
       fireEvent.click(confirmBtns[confirmBtns.length - 1]);
 
+      await waitFor(() => {
+        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'update_status',
+          itemId: 'fab-1',
+          payload: { status: 'discarded' }
+        }));
+      });
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 
   describe('Botones Superiores', () => {
     let addFabricScrapMock: any;
+    let enqueueOperationMock: any;
     
     beforeEach(() => {
       addFabricScrapMock = vi.fn();
+      enqueueOperationMock = vi.fn();
+      
       vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
         const state = {
           productionInventory: { fabrics: [], tubes: [], bottoms: [] },
@@ -290,6 +310,14 @@ describe('InventoryPanelV2', () => {
           addFabricScrap: addFabricScrapMock,
         };
         return selector(state);
+      });
+
+      vi.mocked(useGlobalInventoryStore).mockImplementation((selector: any) => {
+        const state = {
+          items: [], movements: [], syncStatus: 'idle', lastError: null, lastSyncedAt: null, pendingQueue: [],
+          enqueueOperation: enqueueOperationMock
+        };
+        return selector ? selector(state) : state;
       });
     });
 
@@ -344,7 +372,7 @@ describe('InventoryPanelV2', () => {
       expect(saveBtn).toBeDisabled();
     });
 
-    it('no crea un retazo manual en Fase 5B.6 y cierra modal', () => {
+    it('crea un retazo manual usando enqueueOperation en lugar de local (Fase 5B.7)', async () => {
       render(<InventoryPanelV2 />);
       fireEvent.click(screen.getByText('+ Registrar retazo manual'));
       
@@ -357,6 +385,23 @@ describe('InventoryPanelV2', () => {
       const saveBtn = screen.getByRole('button', { name: 'Guardar retazo' });
       expect(saveBtn).not.toBeDisabled();
       fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'upsert_item',
+          payload: expect.objectContaining({
+            code: 'MANUAL-123',
+            material_kind: 'fabric',
+            status: 'available'
+          })
+        }));
+        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'create_movement',
+          payload: expect.objectContaining({
+            action: 'create_scrap'
+          })
+        }));
+      });
 
       expect(addFabricScrapMock).not.toHaveBeenCalled();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

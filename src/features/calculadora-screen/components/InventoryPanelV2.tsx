@@ -162,9 +162,29 @@ export function InventoryPanelV2() {
     );
   }, [linearOffcuts, searchQuery]);
 
+  const { user } = useAuthStore();
+  const enqueueOperation = useGlobalInventoryStore((state) => state.enqueueOperation);
+
   const handleDiscard = (id: string, category: 'fabric' | 'tube' | 'bottom') => {
-    toast.error('Acción deshabilitada temporalmente en Fase 5B.6');
-    setDiscardingItem(null);
+    if (isReadOnly) return toast.error('No tienes permisos para modificar el inventario');
+
+    const itemToDiscard = globalItems.find(i => i.id === id);
+    if (!itemToDiscard) {
+      toast.error('Ítem no encontrado en inventario global.');
+      setDiscardingItem(null);
+      return;
+    }
+
+    import('../../../lib/inventoryGlobalActions').then(({ createGlobalDiscardPayload }) => {
+      const { updatedStatus, movement } = createGlobalDiscardPayload(itemToDiscard, user?.id, 'Descartado manualmente desde Bodega');
+      
+      enqueueOperation({ type: 'update_status', itemId: id, payload: { status: updatedStatus } });
+      enqueueOperation({ type: 'create_movement', payload: movement, itemId: id });
+      
+      if (selectedItem?.id === id) setSelectedItem(null);
+      setDiscardingItem(null);
+      toast.success('Baja encolada correctamente. Se sincronizará pronto.');
+    });
   };
 
   const toFT = (meters: number) => (meters * 3.28084).toFixed(2);
@@ -188,8 +208,38 @@ export function InventoryPanelV2() {
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.error('La creación de retazos está temporalmente deshabilitada en esta fase.');
-    setIsManualModalOpen(false);
+    if (isReadOnly) return toast.error('No tienes permisos para modificar el inventario');
+
+    const w = parseFloat(manualForm.widthMeters);
+    const l = parseFloat(manualForm.lengthMeters);
+    if (!manualForm.color.trim()) return toast.error('El color o descripción es requerido.');
+    if (isNaN(w) || w <= 0) return toast.error('El ancho debe ser mayor a 0.');
+    if (isNaN(l) || l <= 0) return toast.error('El alto debe ser mayor a 0.');
+
+    const generatedCode = manualForm.code.trim() || `RET-MAN-${new Date().toISOString().replace(/[-:T.]/g, '').substring(0, 14)}`;
+
+    import('../../../lib/inventoryGlobalActions').then(({ createGlobalScrapPayload }) => {
+      const { item, movement } = createGlobalScrapPayload({
+        code: generatedCode,
+        family: manualForm.family,
+        color: manualForm.color,
+        widthMeters: w,
+        lengthMeters: l,
+        notes: manualForm.notes,
+        orderNumber: manualForm.orderNumber,
+        userId: user?.id
+      });
+
+      enqueueOperation({ type: 'upsert_item', payload: item });
+      enqueueOperation({ type: 'create_movement', payload: movement, itemId: item.id });
+
+      setIsManualModalOpen(false);
+      setManualForm({
+        code: '', family: '', sku: '', color: '', widthMeters: '', lengthMeters: '', orderNumber: 'Registro manual', notes: ''
+      });
+      toast.success('Retazo registrado globalmente.');
+      setActiveTab('telas');
+    });
   };
 
   return (
