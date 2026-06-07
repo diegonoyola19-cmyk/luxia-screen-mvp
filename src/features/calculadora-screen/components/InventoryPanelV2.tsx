@@ -7,6 +7,9 @@ import { formatNumber, formatDate } from '../../../lib/format';
 import { YARD2_PER_M2 } from '../utils';
 import { componentCatalogBySku } from '../../../domain/inventory/componentCatalog';
 import fabricCatalogData from '../../../data/luxia-roller-catalog.json';
+import { useGlobalInventoryStore } from '../../../store/useGlobalInventoryStore';
+import { selectGlobalFabricsForBodega, selectGlobalLinearsForBodega } from '../../../lib/inventoryGlobalSelectors';
+import { getInventoryMigrationStatus } from '../../../lib/inventoryMigration';
 import './InventoryPanelV2.css';
 
 function toFT(meters: number): string {
@@ -61,14 +64,14 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 export function InventoryPanelV2() {
-  const inventory = useCalculatorStore((state) => state.productionInventory);
+  const globalItems = useGlobalInventoryStore((state) => state.items);
+  const syncStatus = useGlobalInventoryStore((state) => state.syncStatus);
+  const syncError = useGlobalInventoryStore((state) => state.lastError);
+  
+  const migrationStatus = getInventoryMigrationStatus();
+
   const { role } = useAuthStore();
   const isReadOnly = role === 'consulta';
-  const discardInventoryItem = useCalculatorStore((state) => state.discardInventoryItem);
-  const remainders = useCalculatorStore((state) => state.remainders || []);
-  const savedOrders = useCalculatorStore((state) => state.savedOrders || []);
-  const setRemainders = useCalculatorStore((state) => state.setRemainders);
-  const addFabricScrap = useCalculatorStore((state) => state.addFabricScrap);
 
   const [activeTab, setActiveTab] = useState<'telas' | 'lineales'>('telas');
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,55 +107,12 @@ export function InventoryPanelV2() {
     setFamilyFilter('');
   }, [activeTab]);
 
-  // Data
-  const availableScraps = useMemo(
-    () => inventory.fabrics.filter((item) => item.kind === 'scrap' && item.status === 'available'),
-    [inventory.fabrics],
-  );
-
-  const linearOffcuts = useMemo(() => {
-    return remainders
-      .filter((r) => r.status === 'available' && r.remainingLengthFt >= 3.28084)
-      .map((r) => {
-        // Encontrar catalog entry
-        const catalogEntry = componentCatalogBySku[r.sku];
-        
-        let kind: 'tube' | 'bottomrail' | 'other' = 'other';
-        if (catalogEntry?.materialKind === 'tube') kind = 'tube';
-        else if (catalogEntry?.materialKind === 'bottomrail') kind = 'bottomrail';
-        else if (r.sku.includes('-TU-')) kind = 'tube';
-        else if (r.sku.includes('-AL-CLZ') || r.sku.toLowerCase().includes('bottom')) kind = 'bottomrail';
-
-        // Resolver número de orden
-        let sourceOrderNumber = r.createdFromOrderId;
-        if (r.createdFromOrderId) {
-          const order = savedOrders.find((o) => o.id === r.createdFromOrderId);
-          if (order && order.orderNumber) {
-            sourceOrderNumber = order.orderNumber;
-          }
-        }
-
-        return {
-          id: r.id,
-          code: r.id.substring(0, 8).toUpperCase(),
-          kind,
-          itemType: kind === 'tube' ? 'Tubo' : kind === 'bottomrail' ? 'Bottomrail' : 'Otro',
-          sku: r.sku,
-          description: r.description || catalogEntry?.marketName || 'Sin descripción',
-          lengthMeters: r.remainingLengthFt / 3.28084, // Usamos lengthMeters para consistencia visual con UI previa
-          remainingLengthFt: r.remainingLengthFt,
-          remainingLengthM: r.remainingLengthFt / 3.28084,
-          sourceOrderNumber: sourceOrderNumber || 'Corte de Prod.',
-          createdAt: r.createdAt || new Date().toISOString(),
-          status: r.status,
-          color: r.description || catalogEntry?.marketName || r.sku, // Usado en búsqueda y detalle
-        };
-      });
-  }, [remainders, savedOrders]);
+  // Data from Global Store
+  const availableScraps = useMemo(() => selectGlobalFabricsForBodega(globalItems), [globalItems]);
+  const linearOffcuts = useMemo(() => selectGlobalLinearsForBodega(globalItems), [globalItems]);
 
   if (import.meta.env.DEV) {
-    console.log("[Bodega] state.remainders", remainders);
-    console.log("[Bodega] linearRemaindersView", linearOffcuts);
+    console.log("[Bodega] globalItems", globalItems);
   }
 
   const tubeOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'tube').length, [linearOffcuts]);
@@ -203,15 +163,7 @@ export function InventoryPanelV2() {
   }, [linearOffcuts, searchQuery]);
 
   const handleDiscard = (id: string, category: 'fabric' | 'tube' | 'bottom') => {
-    // Esta función ya no usa window.confirm directamente, se llamará desde el modal
-    if (category === 'fabric') {
-      discardInventoryItem(id, category);
-    } else {
-      // Linear remainders are discarded via setting their status
-      const updated = remainders.map(r => r.id === id ? { ...r, status: 'discarded' as const } : r);
-      setRemainders(updated);
-    }
-    if (selectedItem?.id === id) setSelectedItem(null);
+    toast.error('Acción deshabilitada temporalmente en Fase 5B.6');
     setDiscardingItem(null);
   };
 
@@ -236,37 +188,8 @@ export function InventoryPanelV2() {
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const w = parseFloat(manualForm.widthMeters);
-    const l = parseFloat(manualForm.lengthMeters);
-    if (!manualForm.color.trim()) return toast.error('El color o descripción es requerido.');
-    if (isNaN(w) || w <= 0) return toast.error('El ancho debe ser mayor a 0.');
-    if (isNaN(l) || l <= 0) return toast.error('El alto debe ser mayor a 0.');
-
-    const generatedCode = manualForm.code.trim() || `RET-MAN-${new Date().toISOString().replace(/[-:T.]/g, '').substring(0, 14)}`;
-
-    addFabricScrap({
-      id: crypto.randomUUID(),
-      code: generatedCode,
-      family: manualForm.family,
-      color: manualForm.color,
-      openness: 'N/A',
-      costPerYd2: 0,
-      widthMeters: w,
-      lengthMeters: l,
-      kind: 'scrap',
-      status: 'available',
-      createdAt: new Date().toISOString(),
-      source: 'manual',
-      notes: manualForm.notes,
-      orderNumber: manualForm.orderNumber
-    });
-
+    toast.error('La creación de retazos está temporalmente deshabilitada en esta fase.');
     setIsManualModalOpen(false);
-    setManualForm({
-      code: '', family: '', sku: '', color: '', widthMeters: '', lengthMeters: '', orderNumber: 'Registro manual', notes: ''
-    });
-    toast.success('Retazo registrado.');
-    setActiveTab('telas');
   };
 
   return (
@@ -274,8 +197,8 @@ export function InventoryPanelV2() {
       {/* HEADER */}
       <div className="iv2-header">
         <div className="iv2-header-title">
-          <h2>Bodega</h2>
-          <p>Consulta retazos de tela y sobrantes lineales disponibles para reutilizar en producción.</p>
+          <h2>Bodega <span style={{fontSize: '0.6em', background: 'var(--primary-glow)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', verticalAlign: 'middle', marginLeft: '8px'}}>GLOBAL</span></h2>
+          <p>Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
         </div>
         <div className="iv2-header-actions">
           <button className="iv2-btn-secondary" onClick={() => setIsManualModalOpen(true)} disabled={isReadOnly}>
@@ -289,6 +212,18 @@ export function InventoryPanelV2() {
           </button>
         </div>
       </div>
+
+      {migrationStatus.status !== 'completed' && (
+        <div className="alert alert--warning" style={{ margin: '0 2rem 1rem 2rem' }}>
+          ⚠️ <strong>Atención:</strong> Aún hay datos locales sin migrar. Dirígete a <em>Configuración</em> para empujar tu bodega local hacia la nube global.
+        </div>
+      )}
+
+      {syncError && (
+        <div className="alert alert--error" style={{ margin: '0 2rem 1rem 2rem' }}>
+          ❌ <strong>Error de sincronización:</strong> {syncError}
+        </div>
+      )}
 
       {/* KPIS */}
       <div className="iv2-summary-grid">

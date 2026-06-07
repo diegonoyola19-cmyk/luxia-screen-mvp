@@ -1,7 +1,10 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InventoryPanelV2 } from './InventoryPanelV2';
 import { useCalculatorStore } from '../store/useCalculatorStore';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { useGlobalInventoryStore } from '../../../store/useGlobalInventoryStore';
+import * as migrationLib from '../../../lib/inventoryMigration';
 
 vi.mock('../store/useCalculatorStore', () => {
   return {
@@ -9,57 +12,103 @@ vi.mock('../store/useCalculatorStore', () => {
   };
 });
 
+vi.mock('../../../store/useAuthStore');
+vi.mock('../../../store/useGlobalInventoryStore');
+vi.mock('../../../lib/inventoryMigration', () => ({
+  getInventoryMigrationStatus: vi.fn(),
+}));
+
+const mockAuthStore = useAuthStore as unknown as ReturnType<typeof vi.fn>;
+
 describe('InventoryPanelV2', () => {
+  let discardInventoryItemMock: any;
+  let setRemaindersMock: any;
+
   beforeEach(() => {
-    // Basic mock setup
+    vi.clearAllMocks();
+    (migrationLib.getInventoryMigrationStatus as any).mockReturnValue({ status: 'completed' });
+
+    mockAuthStore.mockReturnValue({
+      role: 'admin',
+      hasPermission: () => true,
+    });
+
+    discardInventoryItemMock = vi.fn();
+    setRemaindersMock = vi.fn();
+
     vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
       const state = {
         productionInventory: { fabrics: [], tubes: [], bottoms: [] },
-        discardInventoryItem: vi.fn(),
-        remainders: [
-          {
-            id: 'test-tube',
-            sku: '0-154-TU-50001',
-            description: 'Tubo Motor 50mm',
-            originalLengthFt: 19,
-            remainingLengthFt: 6.56168, // 2 metros
-            consumedByOrderIds: [],
-            createdFromOrderId: 'test-order-1',
-            createdAt: '2023-10-01T10:00:00.000Z',
-            status: 'available',
-          },
-          {
-            id: 'test-bottom',
-            sku: '0-151-AL-CLZ19',
-            description: 'Bottomrail Bronze',
-            originalLengthFt: 19,
-            remainingLengthFt: 3.28084, // 1 metro
-            consumedByOrderIds: [],
-            createdFromOrderId: 'test-order-1',
-            createdAt: '2023-10-01T10:00:00.000Z',
-            status: 'available',
-          },
-          {
-            id: 'test-consumed',
-            sku: '0-154-TU-50001',
-            description: 'Tubo Consumido',
-            originalLengthFt: 19,
-            remainingLengthFt: 1,
-            consumedByOrderIds: [],
-            createdFromOrderId: 'test-order-1',
-            createdAt: '2023-10-01T10:00:00.000Z',
-            status: 'consumed',
-          },
-        ],
+        discardInventoryItem: discardInventoryItemMock,
+        remainders: [],
         savedOrders: [
           {
             id: 'test-order-1',
             orderNumber: 'ORD-0225',
           }
         ],
-        setRemainders: vi.fn()
+        setRemainders: vi.fn(),
+        addFabricScrap: vi.fn()
       };
       return selector(state);
+    });
+
+    vi.mocked(useGlobalInventoryStore).mockImplementation((selector: any) => {
+      const state = {
+        items: [
+          {
+            id: 'test-tube',
+            sku: '0-154-TU-50001',
+            material_kind: 'tube',
+            type: 'scrap',
+            status: 'available',
+            location: 'test',
+            created_at: '2023-10-01T10:00:00.000Z',
+            updated_at: '2023-10-01T10:00:00.000Z',
+            payload: { length_meters: 2.0, source_order_number: 'ORD-0225' }
+          },
+          {
+            id: 'test-bottom',
+            sku: '0-151-AL-CLZ19',
+            material_kind: 'bottomrail',
+            type: 'scrap',
+            status: 'available',
+            location: 'test',
+            created_at: '2023-10-01T10:00:00.000Z',
+            updated_at: '2023-10-01T10:00:00.000Z',
+            payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
+          },
+          {
+            id: 'test-consumed',
+            sku: '0-154-TU-50001',
+            material_kind: 'tube',
+            type: 'scrap',
+            status: 'consumed',
+            location: 'test',
+            created_at: '2023-10-01T10:00:00.000Z',
+            updated_at: '2023-10-01T10:00:00.000Z',
+            payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
+          },
+          {
+            id: 'fab-1',
+            sku: 'test-fab',
+            code: 'RET-001',
+            material_kind: 'fabric',
+            type: 'scrap',
+            status: 'available',
+            location: 'test',
+            created_at: '2023-10-01T10:00:00.000Z',
+            updated_at: '2023-10-01T10:00:00.000Z',
+            payload: { family: 'Roller', color: 'White', width_meters: 1, length_meters: 1 }
+          }
+        ],
+        movements: [],
+        syncStatus: 'idle',
+        lastError: null,
+        lastSyncedAt: null,
+        pendingQueue: []
+      };
+      return selector ? selector(state) : state;
     });
   });
 
@@ -70,7 +119,7 @@ describe('InventoryPanelV2', () => {
     const btn = screen.getByText('Sobrantes Lineales');
     fireEvent.click(btn);
 
-    expect(screen.getByText('Tubo Motor 50mm')).toBeInTheDocument();
+    expect(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/)).toBeInTheDocument();
     expect(screen.getByText('Tubo')).toBeInTheDocument();
   });
 
@@ -80,7 +129,7 @@ describe('InventoryPanelV2', () => {
     const btn = screen.getByText('Sobrantes Lineales');
     fireEvent.click(btn);
 
-    expect(screen.getByText('Bottomrail Bronze')).toBeInTheDocument();
+    expect(screen.getByText(/SO Rollux-Al. Bottomrail Classic Bronze/)).toBeInTheDocument();
     expect(screen.getByText('Bottomrail')).toBeInTheDocument();
   });
 
@@ -90,7 +139,8 @@ describe('InventoryPanelV2', () => {
     const btn = screen.getByText('Sobrantes Lineales');
     fireEvent.click(btn);
 
-    expect(screen.queryByText('Tubo Consumido')).not.toBeInTheDocument();
+    // It only returns available, so 2 items.
+    expect(screen.queryAllByText(/2" \(50mm\) Smooth Alu. Motor Tube/).length).toBe(1);
   });
 
   it('convierte FT a metros correctamente y los muestra', () => {
@@ -131,15 +181,16 @@ describe('InventoryPanelV2', () => {
   });
 
   it('muestra el empty state si no hay sobrantes lineales', () => {
-    vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
+    vi.mocked(useGlobalInventoryStore).mockImplementation((selector: any) => {
       const state = {
-        productionInventory: { fabrics: [], tubes: [], bottoms: [] },
-        discardInventoryItem: vi.fn(),
-        remainders: [],
-        savedOrders: [],
-        setRemainders: vi.fn()
+        items: [],
+        movements: [],
+        syncStatus: 'idle',
+        lastError: null,
+        lastSyncedAt: null,
+        pendingQueue: []
       };
-      return selector(state);
+      return selector ? selector(state) : state;
     });
 
     render(<InventoryPanelV2 />);
@@ -172,7 +223,7 @@ describe('InventoryPanelV2', () => {
       fireEvent.click(screen.getByText('Sobrantes Lineales'));
       
       // Seleccionar un sobrante lineal
-      fireEvent.click(screen.getByText('Tubo Motor 50mm'));
+      fireEvent.click(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/));
 
       // Verificar que el detalle está abierto (botón de dar de baja)
       const btnBaja = screen.getByText('Dar de baja');
@@ -190,63 +241,22 @@ describe('InventoryPanelV2', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('descarta un sobrante lineal al confirmar', () => {
-      let setRemaindersMock = vi.fn();
-      vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
-        const state = {
-          productionInventory: { fabrics: [], tubes: [], bottoms: [] },
-          discardInventoryItem: vi.fn(),
-          remainders: [{
-            id: 'test-tube',
-            sku: '0-154-TU-50001',
-            description: 'Tubo Motor 50mm',
-            originalLengthFt: 19,
-            remainingLengthFt: 6.56168,
-            consumedByOrderIds: [],
-            createdFromOrderId: 'test-order-1',
-            createdAt: '2023-10-01T10:00:00.000Z',
-            status: 'available',
-          }],
-          savedOrders: [],
-          setRemainders: setRemaindersMock
-        };
-        return selector(state);
-      });
-
+    it('no llama a Supabase/store y muestra toast al intentar descartar sobrante (Fase 5B.6)', () => {
       render(<InventoryPanelV2 />);
       fireEvent.click(screen.getByText('Sobrantes Lineales'));
-      fireEvent.click(screen.getByText('Tubo Motor 50mm'));
+      fireEvent.click(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/));
       
       // Clic dar de baja en el panel detalle
       fireEvent.click(screen.getByText('Dar de baja'));
       
-      // Confirmar en el modal
-      // Hay 2 botones 'Dar de baja' en este punto (uno en el panel detalle, otro en el modal)
-      // Buscamos el del modal
       const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
       fireEvent.click(confirmBtns[confirmBtns.length - 1]);
 
-      expect(setRemaindersMock).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'test-tube', status: 'discarded' })
-      ]);
-      expect(window.confirm).not.toHaveBeenCalled();
+      // No state should be updated, it just closes modal in 5B.6
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('descarta un retazo de tela al confirmar', () => {
-      let discardItemMock = vi.fn();
-      vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
-        const state = {
-          productionInventory: { fabrics: [
-            { id: 'fab-1', kind: 'scrap', status: 'available', code: 'RET-001', family: 'Roller', color: 'White', widthMeters: 1, lengthMeters: 1, createdAt: '2023-10-01' }
-          ], tubes: [], bottoms: [] },
-          discardInventoryItem: discardItemMock,
-          remainders: [],
-          savedOrders: [],
-          setRemainders: vi.fn()
-        };
-        return selector(state);
-      });
-
+    it('no llama a Supabase/store y muestra toast al intentar descartar tela (Fase 5B.6)', () => {
       render(<InventoryPanelV2 />);
       
       // Seleccionar el retazo (por defecto en la pestaña telas)
@@ -261,7 +271,7 @@ describe('InventoryPanelV2', () => {
       const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
       fireEvent.click(confirmBtns[confirmBtns.length - 1]);
 
-      expect(discardItemMock).toHaveBeenCalledWith('fab-1', 'fabric');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 
@@ -334,7 +344,7 @@ describe('InventoryPanelV2', () => {
       expect(saveBtn).toBeDisabled();
     });
 
-    it('crea un retazo manual con los datos correctos', () => {
+    it('no crea un retazo manual en Fase 5B.6 y cierra modal', () => {
       render(<InventoryPanelV2 />);
       fireEvent.click(screen.getByText('+ Registrar retazo manual'));
       
@@ -348,18 +358,8 @@ describe('InventoryPanelV2', () => {
       expect(saveBtn).not.toBeDisabled();
       fireEvent.click(saveBtn);
 
-      expect(addFabricScrapMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'MANUAL-123',
-          family: 'Test Family',
-          color: 'Test Color',
-          widthMeters: 1.5,
-          lengthMeters: 2.0,
-          kind: 'scrap',
-          status: 'available',
-          source: 'manual'
-        })
-      );
+      expect(addFabricScrapMock).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('la acción de exportar no explota', async () => {

@@ -6,6 +6,7 @@ import { LuxiaIcon } from '../../components/LuxiaIcon';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PermissionGate } from '../../components/PermissionGate';
 import { useOrderSync } from '../../hooks/useOrderSync';
+import { useInventorySync } from '../../hooks/useInventorySync';
 
 function GlobalSyncIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -284,6 +285,9 @@ export function ScreenCalculatorPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useOrderSync();
+  
+  // Phase 5B.6: Mount global inventory sync. This will load global items on startup.
+  useInventorySync();
 
   const { user, role, signOut, hasPermission, permissions } = useAuthStore();
   const allowedTabs = useMemo(
