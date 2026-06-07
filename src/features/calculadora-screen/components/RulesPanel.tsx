@@ -2,6 +2,7 @@ import { useCalculatorStore } from '../store/useCalculatorStore';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { InventoryMigrationPanel } from './InventoryMigrationPanel';
 
 export function RulesPanel() {
   return (
@@ -17,6 +18,7 @@ export function RulesPanel() {
       </div>
 
       <CalculationRulesSection />
+      <InventoryMigrationPanel />
     </Card>
   );
 }
