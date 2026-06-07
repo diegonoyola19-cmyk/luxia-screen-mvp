@@ -2,6 +2,16 @@ import { supabase } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import type { SavedOrder } from '../domain/curtains/types';
 
+function handleSupabaseError(error: any, context: string) {
+  console.warn(`[supabaseOrders] ${context} error:`, error.message);
+  if (error.code === '42501' || error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('policy')) {
+    const err = new Error('Permiso denegado por políticas de seguridad (RLS).');
+    err.name = 'PermissionError';
+    throw err;
+  }
+  throw error;
+}
+
 export async function fetchActiveOrders(): Promise<SavedOrder[]> {
   const { data, error } = await supabase
     .from('work_orders')
@@ -9,8 +19,7 @@ export async function fetchActiveOrders(): Promise<SavedOrder[]> {
     .is('deleted_at', null);
 
   if (error) {
-    console.warn('[supabaseOrders] fetchActiveOrders error:', error.message);
-    throw error;
+    handleSupabaseError(error, 'fetchActiveOrders');
   }
 
   return (data || []).map((row) => row.payload as SavedOrder);
@@ -39,8 +48,7 @@ export async function upsertOrder(order: SavedOrder): Promise<void> {
     .upsert(row, { onConflict: 'id' });
 
   if (error) {
-    console.warn('[supabaseOrders] upsertOrder error:', error.message);
-    throw error;
+    handleSupabaseError(error, 'upsertOrder');
   }
 }
 
@@ -52,8 +60,7 @@ export async function upsertOrders(orders: SavedOrder[]): Promise<void> {
     .upsert(rows, { onConflict: 'id' });
 
   if (error) {
-    console.warn('[supabaseOrders] upsertOrders error:', error.message);
-    throw error;
+    handleSupabaseError(error, 'upsertOrders');
   }
 }
 
@@ -64,7 +71,6 @@ export async function softDeleteOrder(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) {
-    console.warn('[supabaseOrders] softDeleteOrder error:', error.message);
-    throw error;
+    handleSupabaseError(error, 'softDeleteOrder');
   }
 }

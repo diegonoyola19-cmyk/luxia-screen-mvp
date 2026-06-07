@@ -37,8 +37,9 @@ export function useOrderSync() {
               useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
             }
           } catch (err: any) {
-            // Network errors will be handled naturally (they throw TypeError or similar for fetch)
-            if (err?.status && err.status >= 400 && err.status < 500) {
+            if (err?.name === 'PermissionError') {
+               useCalculatorStore.getState().markOrderSyncError(orderId, 'Permiso denegado para sincronizar esta orden.');
+            } else if (err?.status && err.status >= 400 && err.status < 500) {
                useCalculatorStore.getState().markOrderSyncError(orderId, err.message || 'Error de sincronización');
             } else {
                // Posible error de red o servidor, pausar cola para reintentar luego

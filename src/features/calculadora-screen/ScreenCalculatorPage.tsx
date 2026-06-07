@@ -40,8 +40,11 @@ function GlobalSyncIndicator() {
   }
 
   if (errorCount > 0) {
+    const errorMsg = Object.values(syncMetadata || {}).find(m => m.status === 'error')?.errorMessage || 'Error de sincronización';
     return (
-      <div style={{ 
+      <div 
+        title={errorMsg}
+        style={{ 
         display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', 
         fontWeight: 600, color: 'var(--color-danger)', background: 'var(--color-danger-soft)', 
         padding: '4px 8px', borderRadius: '4px',
