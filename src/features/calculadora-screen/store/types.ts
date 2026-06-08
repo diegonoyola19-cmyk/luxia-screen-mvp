@@ -33,7 +33,12 @@ import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
 export interface SyncStatus {
   status: 'synced' | 'pending' | 'error';
-  pendingAction?: 'upsert' | 'delete';
+  /** 'upsert_with_inventory' indica que además del upsert a work_orders se debe llamar el RPC de consumo de inventario */
+  pendingAction?: 'upsert' | 'upsert_with_inventory' | 'delete';
+  /** true cuando el RPC process_order_inventory_tx ya fue ejecutado exitosamente para esta orden */
+  inventorySynced?: boolean;
+  /** Código de error específico del RPC de inventario (ej. 'INSUFFICIENT_STOCK', 'ITEM_NOT_AVAILABLE') */
+  inventoryErrorCode?: string;
   lastAttempt?: string;
   errorMessage?: string;
 }
@@ -118,9 +123,9 @@ export interface OrderSlice {
   setSavedOrders: (updater: (current: SavedOrder[]) => SavedOrder[] | SavedOrder[]) => void;
   importOrders: (importedOrders: SavedOrder[]) => void;
   setRemainders: (remainders: ReusableRemainder[]) => void;
-  markOrderPending: (orderId: string, pendingAction: 'upsert' | 'delete', errorMessage?: string) => void;
-  markOrderSynced: (orderId: string) => void;
-  markOrderSyncError: (orderId: string, errorMessage: string) => void;
+  markOrderPending: (orderId: string, pendingAction: 'upsert' | 'upsert_with_inventory' | 'delete', errorMessage?: string) => void;
+  markOrderSynced: (orderId: string, options?: { inventorySynced?: boolean }) => void;
+  markOrderSyncError: (orderId: string, errorMessage: string, inventoryErrorCode?: string) => void;
   clearOrderSyncMetadata: (orderId: string) => void;
 }
 

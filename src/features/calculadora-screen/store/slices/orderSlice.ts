@@ -81,24 +81,26 @@ export const createOrderSlice: StateCreator<
     }
   })),
 
-  markOrderSynced: (orderId) => set((state) => ({
+  markOrderSynced: (orderId, options) => set((state) => ({
     syncMetadata: {
       ...state.syncMetadata,
       [orderId]: {
         status: 'synced',
-        lastAttempt: new Date().toISOString()
+        lastAttempt: new Date().toISOString(),
+        ...(options?.inventorySynced !== undefined ? { inventorySynced: options.inventorySynced } : {})
       }
     }
   })),
 
-  markOrderSyncError: (orderId, errorMessage) => set((state) => ({
+  markOrderSyncError: (orderId, errorMessage, inventoryErrorCode) => set((state) => ({
     syncMetadata: {
       ...state.syncMetadata,
       [orderId]: {
         ...(state.syncMetadata[orderId] || {}),
         status: 'error',
         errorMessage,
-        lastAttempt: new Date().toISOString()
+        lastAttempt: new Date().toISOString(),
+        ...(inventoryErrorCode ? { inventoryErrorCode } : {})
       }
     }
   })),
