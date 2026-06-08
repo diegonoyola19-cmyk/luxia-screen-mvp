@@ -66,30 +66,47 @@ export function buildConsumptionPlan(savedOrder: SavedOrder): ConsumptionPlan {
       });
     } else if (result?.selectedFabric) {
       // Consumo normal de rollo
-      const downloadedMeters = (result.fabricDownloadedYd2 / 1.19599); // Aproximado yd2 a m2, o tomamos length = yd2 / (width/0.9144)
-      // Como no tenemos el largo en m exacto en el result, calculamos a partir de los M2
       const cutLengthMeters = result.fabricDownloadedM2 / result.recommendedRollWidthMeters;
       
       if (cutLengthMeters > 0) {
+        if (!result.recommendedRollWidthMeters || result.recommendedRollWidthMeters <= 0) {
+          plan.warnings.push({
+            code: 'MISSING_ROLL_WIDTH',
+            message: `Cortina ${index + 1} no tiene un ancho de rollo válido`,
+            severity: 'error'
+          });
+          return;
+        }
+
+        const consumedAreaM2 = result.recommendedRollWidthMeters * cutLengthMeters;
+        const consumedAreaYd2 = consumedAreaM2 * 1.1959900463;
+
         plan.items.push({
           action: 'consume',
           category: 'fabric',
           itemCode: result.selectedFabric.itemCode,
-          requiredQuantity: cutLengthMeters,
-          unit: 'm',
+          requiredQuantity: consumedAreaYd2,
+          unit: 'yd2',
           widthMeters: result.recommendedRollWidthMeters,
           source: 'fabric_selection',
           notes: `Corte de rollo para cortina ${index + 1}`,
           payload: {
-            fabricDownloadedM2: result.fabricDownloadedM2,
-            recommendedRollWidthMeters: result.recommendedRollWidthMeters
+            rollWidthMeters: result.recommendedRollWidthMeters,
+            cutLengthMeters: cutLengthMeters,
+            consumedAreaM2: consumedAreaM2,
+            consumedAreaYd2: consumedAreaYd2,
+            originalRequiredQuantityMeters: cutLengthMeters,
+            originalOrderMeasurementsMeters: {
+              width: item.input?.widthMeters,
+              height: item.input?.heightMeters
+            }
           }
         });
       } else {
         plan.warnings.push({
           code: 'ZERO_FABRIC_CONSUMPTION',
-          message: `Cortina ${index + 1} tiene consumo de tela en cero o calculo fallido`,
-          severity: 'warning'
+          message: `Cortina ${index + 1} tiene consumo de tela en cero o cálculo fallido`,
+          severity: 'error'
         });
       }
 

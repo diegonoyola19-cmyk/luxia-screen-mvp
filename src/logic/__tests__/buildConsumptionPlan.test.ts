@@ -29,21 +29,27 @@ describe('buildConsumptionPlan', () => {
       action: 'consume',
       category: 'fabric',
       itemCode: 'FAB-001',
-      requiredQuantity: 2.0, // 6.0 / 3.0
-      unit: 'm',
+      requiredQuantity: 2.0 * 3.0 * 1.1959900463, // cutLength * width * 1.195...
+      unit: 'yd2',
       widthMeters: 3.0,
-      source: 'fabric_selection'
+      source: 'fabric_selection',
+      payload: expect.objectContaining({
+        rollWidthMeters: 3.0,
+        cutLengthMeters: 2.0,
+        consumedAreaM2: 6.0,
+        consumedAreaYd2: 2.0 * 3.0 * 1.1959900463
+      })
     }));
   });
 
-  it('Incluye widthMeters cuando existe recommendedRollWidthMeters', () => {
+  it('Genera error si falta recommendedRollWidthMeters', () => {
     const order = {
       id: 'o2',
       items: [
         {
           result: {
             selectedFabric: { itemCode: 'FAB-002' },
-            recommendedRollWidthMeters: 2.5,
+            recommendedRollWidthMeters: 0,
             fabricDownloadedM2: 5.0,
             wastePieceWidthMeters: 0,
             wastePieceHeightMeters: 0
@@ -53,7 +59,31 @@ describe('buildConsumptionPlan', () => {
     } as unknown as SavedOrder;
 
     const plan = buildConsumptionPlan(order);
-    expect(plan.items[0].widthMeters).toBe(2.5);
+    expect(plan.warnings).toHaveLength(1);
+    expect(plan.warnings[0].code).toBe('MISSING_ROLL_WIDTH');
+    expect(plan.warnings[0].severity).toBe('error');
+  });
+
+  it('Genera error si cutLengthMeters es 0', () => {
+    const order = {
+      id: 'o2b',
+      items: [
+        {
+          result: {
+            selectedFabric: { itemCode: 'FAB-002b' },
+            recommendedRollWidthMeters: 2.5,
+            fabricDownloadedM2: 0,
+            wastePieceWidthMeters: 0,
+            wastePieceHeightMeters: 0
+          }
+        }
+      ]
+    } as unknown as SavedOrder;
+
+    const plan = buildConsumptionPlan(order);
+    expect(plan.warnings).toHaveLength(1);
+    expect(plan.warnings[0].code).toBe('ZERO_FABRIC_CONSUMPTION');
+    expect(plan.warnings[0].severity).toBe('error');
   });
 
   it('Orden con reusedWastePiece genera action=use_scrap', () => {
