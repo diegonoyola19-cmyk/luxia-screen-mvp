@@ -522,16 +522,13 @@ export const createOrderSlice: StateCreator<
       sageExportedAt: null,
     };
 
-    const inventoryResult = applyOrderToInventory(
-      productionInventory,
-      savedOrder,
-      ruleConfig,
-    );
+    // ─── FASE 5B.8.D4/D5: Desactivación de inventario local ───────────────
+    // Ya no se descuenta el inventario localmente aquí con applyOrderToInventory.
+    // El backend lo hará atómicamente y emitirá eventos realtime.
+    // ───────────────────────────────────────────────────────────────────────
 
     set((state) => ({
       savedOrders: [savedOrder, ...state.savedOrders],
-      productionInventory: inventoryResult.inventory,
-      inventoryMovements: [...inventoryResult.movements.reverse(), ...state.inventoryMovements],
       selectedOrderId: savedOrder.id,
       orderDraft: { orderNumber: '', items: [] },
       itemsAProducir: [],
@@ -544,8 +541,8 @@ export const createOrderSlice: StateCreator<
       activeView: 'orders'
     }));
 
-    // Encolar offline
-    get().markOrderPending(savedOrder.id, 'upsert');
+    // Encolar offline con consumo global
+    get().markOrderPending(savedOrder.id, 'upsert_with_inventory');
     window.dispatchEvent(new Event('sync-orders'));
   },
   deleteSavedOrder: (id) => {
