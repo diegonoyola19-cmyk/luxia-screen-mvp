@@ -91,7 +91,7 @@ describe('inventoryMigration', () => {
 
   describe('mapLocalMovementToGlobalMovement', () => {
     it('maps correctly and validates action', () => {
-      const local = { id: 'uuid-2', action: 'weird_action', itemCode: 'F-01', itemLabel: 'Tela F-01', quantity: 5, category: 'fabric', unit: 'm', createdAt: '' };
+      const local = { id: 'uuid-2', action: 'weird_action', itemCode: 'F-01', itemLabel: 'Tela F-01', quantity: 5, category: 'fabric' as const, unit: 'm', createdAt: '' };
       const mapped = mapLocalMovementToGlobalMovement(local, 'dev-1');
 
       expect(mapped.action).toBe('adjust'); // fallback for weird_action

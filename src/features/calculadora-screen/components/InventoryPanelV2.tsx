@@ -374,7 +374,7 @@ export function InventoryPanelV2() {
                         <div className="iv2-cell" data-label="Medida">{formatNumber(fabric.widthMeters)}m x {formatNumber(fabric.lengthMeters)}m</div>
                         <div className="iv2-cell" data-label="Área">{formatNumber(fabric.widthMeters * fabric.lengthMeters)} m²</div>
                         <div className="iv2-cell" data-label="Gen. Por Orden">{(fabric as any).orderNumber || 'Corte de Prod.'}</div>
-                        <div className="iv2-cell" data-label="Fecha Gen.">{new Date(fabric.createdAt).toLocaleDateString()}</div>
+                        <div className="iv2-cell" data-label="Fecha Gen.">{fabric.createdAt ? new Date(fabric.createdAt).toLocaleDateString() : '—'}</div>
                         <div className="iv2-cell" data-label="Estado"><span className="iv2-badge iv2-badge--available">Disponible</span></div>
                       </div>
                     ))
@@ -415,7 +415,7 @@ export function InventoryPanelV2() {
                           <strong>{toFT(linear.remainingLengthM)} FT</strong> <span style={{color: 'var(--color-text-muted)'}}>/ {formatNumber(linear.remainingLengthM)} m</span>
                         </div>
                         <div className="iv2-cell" data-label="Gen. Por Orden">{linear.sourceOrderNumber}</div>
-                        <div className="iv2-cell" data-label="Fecha Gen.">{new Date(linear.createdAt).toLocaleDateString()}</div>
+                        <div className="iv2-cell" data-label="Fecha Gen.">{linear.createdAt ? new Date(linear.createdAt).toLocaleDateString() : '—'}</div>
                         <div className="iv2-cell" data-label="Estado"><span className="iv2-badge iv2-badge--available">Disponible</span></div>
                       </div>
                     ))

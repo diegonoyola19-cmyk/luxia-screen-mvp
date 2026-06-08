@@ -16,8 +16,8 @@ describe('inventoryGlobalActions', () => {
 
     const { item, movement } = createGlobalScrapPayload(input);
 
-    expect(item.material_kind).toBe('fabric');
-    expect(item.type).toBe('scrap');
+    expect(item.category).toBe('fabric');
+    expect(item.kind).toBe('scrap');
     expect(item.status).toBe('available');
     expect(item.code).toBe('RET-001');
     expect(item.payload?.width_meters).toBe(2.0);
@@ -46,13 +46,11 @@ describe('inventoryGlobalActions', () => {
     const item: InventoryItem = {
       id: 'item-1',
       code: 'RET-001',
-      sku: 'sku',
-      material_kind: 'fabric',
-      type: 'scrap',
+      category: 'fabric',
+      kind: 'scrap',
       status: 'available',
-      location: 'bodega',
-      created_at: '2023',
-      updated_at: '2023',
+      created_from_order_id: null,
+      source: 'manual',
       payload: { length_meters: 1.5 }
     };
 
@@ -65,13 +63,11 @@ describe('inventoryGlobalActions', () => {
     const item: InventoryItem = {
       id: 'item-1',
       code: 'RET-001',
-      sku: 'sku',
-      material_kind: 'fabric',
-      type: 'scrap',
+      category: 'fabric',
+      kind: 'scrap',
       status: 'available',
-      location: 'bodega',
-      created_at: '2023',
-      updated_at: '2023',
+      created_from_order_id: null,
+      source: 'manual',
       payload: { length_meters: 1.5 }
     };
 

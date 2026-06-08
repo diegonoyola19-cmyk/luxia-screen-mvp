@@ -60,45 +60,48 @@ describe('InventoryPanelV2', () => {
         items: [
           {
             id: 'test-tube',
-            sku: '0-154-TU-50001',
-            material_kind: 'tube',
-            type: 'scrap',
+            code: '0-154-TU-50001',
+            category: 'tube',
+            kind: 'scrap',
             status: 'available',
-            location: 'test',
+            created_from_order_id: null,
+            source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
             payload: { length_meters: 2.0, source_order_number: 'ORD-0225' }
           },
           {
             id: 'test-bottom',
-            sku: '0-151-AL-CLZ19',
-            material_kind: 'bottomrail',
-            type: 'scrap',
+            code: '0-151-AL-CLZ19',
+            category: 'bottom',
+            kind: 'scrap',
             status: 'available',
-            location: 'test',
+            created_from_order_id: null,
+            source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
             payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
           },
           {
             id: 'test-consumed',
-            sku: '0-154-TU-50001',
-            material_kind: 'tube',
-            type: 'scrap',
+            code: '0-154-TU-50001',
+            category: 'tube',
+            kind: 'scrap',
             status: 'consumed',
-            location: 'test',
+            created_from_order_id: null,
+            source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
             payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
           },
           {
             id: 'fab-1',
-            sku: 'test-fab',
             code: 'RET-001',
-            material_kind: 'fabric',
-            type: 'scrap',
+            category: 'fabric',
+            kind: 'scrap',
             status: 'available',
-            location: 'test',
+            created_from_order_id: null,
+            source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
             payload: { family: 'Roller', color: 'White', width_meters: 1, length_meters: 1 }
@@ -391,7 +394,8 @@ describe('InventoryPanelV2', () => {
           type: 'upsert_item',
           payload: expect.objectContaining({
             code: 'MANUAL-123',
-            material_kind: 'fabric',
+            category: 'fabric',
+            kind: 'scrap',
             status: 'available'
           })
         }));

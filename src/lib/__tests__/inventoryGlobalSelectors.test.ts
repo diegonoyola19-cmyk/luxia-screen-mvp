@@ -7,22 +7,24 @@ describe('inventoryGlobalSelectors', () => {
     const items: InventoryItem[] = [
       {
         id: '1',
-        material_kind: 'fabric',
-        type: 'scrap',
+        category: 'fabric',
+        kind: 'scrap',
+        code: '123',
         status: 'available',
-        sku: '123',
-        location: 'A1',
+        created_from_order_id: null,
+        source: 'migration',
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
         payload: { family: 'Screen', color: 'White', width_meters: 2.5, length_meters: 1.5 }
       },
       {
         id: '2',
-        material_kind: 'fabric',
-        type: 'roll', // Should be ignored
+        category: 'fabric',
+        kind: 'roll',   // Should be ignored (not 'scrap')
+        code: '124',
         status: 'available',
-        sku: '124',
-        location: 'A1',
+        created_from_order_id: null,
+        source: 'migration',
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
         payload: {}
@@ -39,22 +41,24 @@ describe('inventoryGlobalSelectors', () => {
     const items: InventoryItem[] = [
       {
         id: '1',
-        material_kind: 'tube',
-        type: 'scrap',
+        category: 'tube',
+        kind: 'bar',
+        code: 'TUBE-1',
         status: 'available',
-        sku: 'TUBE-1',
-        location: 'A1',
+        created_from_order_id: null,
+        source: 'migration',
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
         payload: { length_meters: 2.0 }
       },
       {
         id: '2',
-        material_kind: 'bottomrail',
-        type: 'scrap',
+        category: 'bottom',
+        kind: 'bar',
+        code: 'BOT-1',
         status: 'available',
-        sku: 'BOT-1',
-        location: 'A1',
+        created_from_order_id: null,
+        source: 'migration',
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
         payload: { length_meters: 1.5 }

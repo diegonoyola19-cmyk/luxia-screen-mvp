@@ -1,4 +1,4 @@
-import { InventoryItem, InventoryMovement } from '../domain/inventory/types';
+import type { InventoryItem, InventoryMovement, InventoryCategory } from '../domain/inventory/types';
 
 export interface ManualScrapInput {
   code: string;
@@ -18,14 +18,17 @@ export function createGlobalScrapPayload(input: ManualScrapInput): { item: Inven
   const item: InventoryItem = {
     id: itemId,
     code: input.code,
-    sku: input.code, // or some default logic
-    material_kind: 'fabric',
-    type: 'scrap',
+    category: 'fabric',
+    kind: 'scrap',
     status: 'available',
-    location: 'Bodega Principal', // default location
+    created_from_order_id: null,
+    source: 'manual',
     created_at: now,
     updated_at: now,
     payload: {
+      widthMeters: input.widthMeters,
+      lengthMeters: input.lengthMeters,
+      // Legacy keys used by selectors
       width_meters: input.widthMeters,
       length_meters: input.lengthMeters,
       family: input.family,
@@ -41,7 +44,10 @@ export function createGlobalScrapPayload(input: ManualScrapInput): { item: Inven
   const movement: InventoryMovement = {
     id: crypto.randomUUID(),
     inventory_item_id: itemId,
+    order_id: null,
+    category: 'fabric',
     action: 'create_scrap',
+    item_code: input.code,
     quantity: input.lengthMeters,
     unit: 'm',
     notes: input.notes || 'Registro manual de retazo',
@@ -61,21 +67,26 @@ export function createGlobalScrapPayload(input: ManualScrapInput): { item: Inven
 export function createGlobalDiscardPayload(item: InventoryItem, userId?: string, reason?: string): { updatedStatus: 'discarded'; movement: InventoryMovement } {
   const now = new Date().toISOString();
 
-  const quantity = item.payload?.length_meters || 1;
+  const quantity = (item.payload?.length_meters as number) || 1;
+  const category: InventoryCategory = item.category;
+  const unitLabel = item.category === 'fabric' ? 'm' : 'pieza';
 
   const movement: InventoryMovement = {
     id: crypto.randomUUID(),
     inventory_item_id: item.id,
+    order_id: null,
+    category,
     action: 'discard',
-    quantity: quantity,
-    unit: item.material_kind === 'fabric' ? 'm' : 'pieza',
+    item_code: item.code,
+    quantity,
+    unit: unitLabel,
     notes: reason || 'Baja manual de inventario',
     created_by: userId || 'system',
     created_at: now,
     payload: {
       previous_status: item.status,
       new_status: 'discarded',
-      item_code: item.code || item.sku,
+      item_code: item.code,
       item_snapshot: item
     }
   };
