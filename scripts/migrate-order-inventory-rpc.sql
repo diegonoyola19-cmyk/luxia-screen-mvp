@@ -24,6 +24,7 @@ DECLARE
     
     v_inv_item_id uuid;
     v_inv_length numeric;
+    v_inv_available_yd2 numeric;
     v_inv_payload jsonb;
     v_inv_qty numeric;
 BEGIN
@@ -94,25 +95,29 @@ BEGIN
         IF v_action = 'consume' THEN
             IF v_category = 'fabric' THEN
                 -- Buscar el rollo disponible más antiguo
-                SELECT id, (payload->>'length_meters')::numeric, payload
-                INTO v_inv_item_id, v_inv_length, v_inv_payload
+                SELECT id, (payload->>'available_yd2')::numeric, payload
+                INTO v_inv_item_id, v_inv_available_yd2, v_inv_payload
                 FROM public.inventory_items
                 WHERE category = 'fabric' 
                   AND code = v_item_code 
                   AND status = 'available'
                   AND kind = 'roll'
                   AND (payload->>'width_meters')::numeric = v_width_meters
-                  AND (payload->>'length_meters')::numeric >= v_req_qty
+                  AND (payload->>'available_yd2')::numeric >= v_req_qty
                 ORDER BY created_at ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED;
 
                 IF v_inv_item_id IS NULL THEN
-                    RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay rollo disponible para tela % de ancho % con cantidad %', v_item_code, v_width_meters, v_req_qty;
+                    RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay rollo disponible para tela % de ancho % con cantidad (yd2) %', v_item_code, v_width_meters, v_req_qty;
                 END IF;
 
                 -- Actualizar stock
-                v_inv_payload := jsonb_set(v_inv_payload, '{length_meters}', to_jsonb(v_inv_length - v_req_qty));
+                v_inv_available_yd2 := v_inv_available_yd2 - v_req_qty;
+                v_inv_length := v_inv_available_yd2 / (v_width_meters * 1.1959900463);
+                
+                v_inv_payload := jsonb_set(v_inv_payload, '{available_yd2}', to_jsonb(v_inv_available_yd2));
+                v_inv_payload := jsonb_set(v_inv_payload, '{length_meters}', to_jsonb(v_inv_length));
                 
                 UPDATE public.inventory_items
                 SET payload = v_inv_payload,
@@ -174,8 +179,9 @@ BEGIN
                 'available', 
                 jsonb_build_object(
                     'width_meters', v_width_meters, 
-                    'length_meters', v_req_qty,
-                    'area_meters', v_width_meters * v_req_qty
+                    'length_meters', v_req_qty / (v_width_meters * 1.1959900463),
+                    'available_yd2', v_req_qty,
+                    'area_meters', v_width_meters * (v_req_qty / (v_width_meters * 1.1959900463))
                 ),
                 v_order_id, 
                 'production_cut',
