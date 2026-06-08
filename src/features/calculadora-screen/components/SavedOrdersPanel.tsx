@@ -169,6 +169,16 @@ function StatusBadge({ status }: { status: SavedOrderStatus | string }) {
   return <span className={`badge-status ${badgeClass}`}>{label}</span>;
 }
 
+export function inventoryErrorLabel(code: string): string {
+  switch (code) {
+    case 'INSUFFICIENT_STOCK':   return 'Stock insuficiente en bodega';
+    case 'ITEM_NOT_AVAILABLE':   return 'Material o retazo no disponible';
+    case 'PERMISSION_DENIED':    return 'Sin permiso para consumir inventario';
+    case 'INVALID_CONSUMPTION_PLAN': return 'Plan de consumo inválido';
+    default: return `Error de inventario: ${code}`;
+  }
+}
+
 function OrderListItem({ row, isActive, syncStatus, onClick }: { row: OrderReportRow, isActive: boolean, syncStatus?: import('../store/types').SyncStatus, onClick: () => void }) {
   const status = getOrderStatus(row.order);
 
@@ -177,7 +187,10 @@ function OrderListItem({ row, isActive, syncStatus, onClick }: { row: OrderRepor
     if (syncStatus.status === 'pending') {
       syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '0.9em' }}>⏳</span>;
     } else if (syncStatus.status === 'error') {
-      syncIcon = <span title={`Error: ${syncStatus.errorMessage || 'No se pudo sincronizar'}`} style={{ marginLeft: 6, fontSize: '0.9em' }}>🔴</span>;
+      const errorTitle = syncStatus.inventoryErrorCode
+        ? inventoryErrorLabel(syncStatus.inventoryErrorCode)
+        : syncStatus.errorMessage || 'No se pudo sincronizar';
+      syncIcon = <span title={`Error: ${errorTitle}`} style={{ marginLeft: 6, fontSize: '0.9em' }}>🔴</span>;
     }
   }
 
@@ -201,6 +214,7 @@ function OrderListItem({ row, isActive, syncStatus, onClick }: { row: OrderRepor
     </div>
   );
 }
+
 
 // ── Main Component ──────────────
 
