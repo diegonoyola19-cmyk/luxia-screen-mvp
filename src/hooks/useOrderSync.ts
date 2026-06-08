@@ -2,6 +2,15 @@ import { useEffect, useRef } from 'react';
 import { useCalculatorStore } from '../features/calculadora-screen/store/useCalculatorStore';
 import { fetchActiveOrders, upsertOrders, upsertOrder, softDeleteOrder } from '../lib/supabaseOrders';
 import { supabase } from '../lib/supabase';
+import { buildConsumptionPlan } from '../logic/buildConsumptionPlan';
+import { 
+  processOrderInventoryTransaction,
+  OrderInventoryPermissionError,
+  InsufficientStockError,
+  InvalidConsumptionPlanError,
+  InventoryItemUnavailableError,
+  OrderInventoryRpcError
+} from '../lib/supabaseOrderInventory';
 
 export function useOrderSync() {
   const isMigrating = useRef(false);
@@ -24,27 +33,93 @@ export function useOrderSync() {
         for (const [orderId, status] of pendingEntries) {
           try {
             if (status.pendingAction === 'upsert') {
+              // ─── Comportamiento previo intacto: solo sincronizar work_orders ─────────
               const orderToUpsert = savedOrders.find(o => o.id === orderId);
               if (orderToUpsert) {
                 await upsertOrder(orderToUpsert);
                 useCalculatorStore.getState().markOrderSynced(orderId);
               } else {
-                // If the order is not in local state but it's pending upsert, it's an anomaly. Clear it.
                 useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
               }
+
+            } else if (status.pendingAction === 'upsert_with_inventory') {
+              // ─── Nuevo flujo: sincronizar orden + consumo atómico de inventario ──────
+              const orderToSync = savedOrders.find(o => o.id === orderId);
+
+              if (!orderToSync) {
+                useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
+                continue;
+              }
+
+              // Idempotencia frontend: si ya se consumió inventario, degradar a upsert simple
+              if (status.inventorySynced === true) {
+                await upsertOrder(orderToSync);
+                useCalculatorStore.getState().markOrderSynced(orderId, { inventorySynced: true });
+                continue;
+              }
+
+              // Construir plan de consumo
+              const plan = buildConsumptionPlan(orderToSync);
+
+              // Validar que el plan no tenga errores bloqueantes
+              const planErrors = plan.warnings.filter(w => w.severity === 'error');
+              if (planErrors.length > 0) {
+                useCalculatorStore.getState().markOrderSyncError(
+                  orderId,
+                  `Plan de consumo inválido: ${planErrors.map(e => e.message).join(' | ')}`,
+                  'INVALID_CONSUMPTION_PLAN'
+                );
+                continue;
+              }
+
+              // Llamar al RPC (que ya hace UPSERT de work_orders internamente)
+              await processOrderInventoryTransaction(orderToSync, plan);
+              useCalculatorStore.getState().markOrderSynced(orderId, { inventorySynced: true });
+
             } else if (status.pendingAction === 'delete') {
+              // ─── Comportamiento previo intacto: soft delete ───────────────────────────
               await softDeleteOrder(orderId);
               useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
             }
+
           } catch (err: any) {
-            if (err?.name === 'PermissionError') {
-               useCalculatorStore.getState().markOrderSyncError(orderId, 'Permiso denegado para sincronizar esta orden.');
+            // ─── Manejo de errores por tipo ──────────────────────────────────────────
+            if (err instanceof OrderInventoryPermissionError || err?.name === 'PermissionError') {
+              useCalculatorStore.getState().markOrderSyncError(
+                orderId,
+                err.message || 'Permiso denegado para sincronizar esta orden.',
+                err instanceof OrderInventoryPermissionError ? 'PERMISSION_DENIED' : undefined
+              );
+            } else if (err instanceof InsufficientStockError) {
+              useCalculatorStore.getState().markOrderSyncError(
+                orderId,
+                err.message,
+                'INSUFFICIENT_STOCK'
+              );
+            } else if (err instanceof InventoryItemUnavailableError) {
+              useCalculatorStore.getState().markOrderSyncError(
+                orderId,
+                err.message,
+                'ITEM_NOT_AVAILABLE'
+              );
+            } else if (err instanceof InvalidConsumptionPlanError) {
+              useCalculatorStore.getState().markOrderSyncError(
+                orderId,
+                err.message,
+                'INVALID_CONSUMPTION_PLAN'
+              );
+            } else if (err instanceof OrderInventoryRpcError) {
+              useCalculatorStore.getState().markOrderSyncError(
+                orderId,
+                err.message || 'Error de RPC de inventario',
+                err.code
+              );
             } else if (err?.status && err.status >= 400 && err.status < 500) {
-               useCalculatorStore.getState().markOrderSyncError(orderId, err.message || 'Error de sincronización');
+              useCalculatorStore.getState().markOrderSyncError(orderId, err.message || 'Error de sincronización');
             } else {
-               // Posible error de red o servidor, pausar cola para reintentar luego
-               console.warn('[useOrderSync] Deteniendo cola por error de red o 5xx', err);
-               break; 
+              // Error de red o servidor 5xx: mantener pending para reintento automático
+              console.warn('[useOrderSync] Deteniendo cola por error de red o 5xx', err);
+              break;
             }
           }
         }
@@ -64,24 +139,26 @@ export function useOrderSync() {
         const remoteOrders = await fetchActiveOrders();
         const remoteIds = new Set(remoteOrders.map(o => o.id));
 
-        // 2. Local migration logic
+        // 2. Local migration logic (siempre usa 'upsert' simple, nunca inventory)
         const localOrders = store.savedOrders;
         const now = Date.now();
         const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
 
         const toMigrate = localOrders.filter(o => {
-          if (remoteIds.has(o.id)) return false; 
+          if (remoteIds.has(o.id)) return false;
           if (!o.createdAt) return false;
           const createdMs = new Date(o.createdAt).getTime();
           if (isNaN(createdMs)) return false;
-          if (now - createdMs > ninetyDaysMs) return false; 
+          if (now - createdMs > ninetyDaysMs) return false;
+          // Skip orders that already have an explicit pending action — flushQueue will handle them
+          const existingMeta = store.syncMetadata[o.id];
+          if (existingMeta?.status === 'pending' && existingMeta?.pendingAction) return false;
           return true;
         });
 
         if (toMigrate.length > 0) {
           console.log(`[useOrderSync] Migrating ${toMigrate.length} local orders to Supabase...`);
           await upsertOrders(toMigrate);
-          // Marcar migradas como synced
           toMigrate.forEach(o => useCalculatorStore.getState().markOrderSynced(o.id));
         }
 
@@ -95,8 +172,6 @@ export function useOrderSync() {
             merged.push(ro);
             hasChanges = true;
           } else {
-            // Check if local is pending. If local is pending, keep local for now, let flushQueue push it.
-            // If local is NOT pending, remote wins.
             const isPending = store.syncMetadata[ro.id]?.status === 'pending';
             if (!isPending) {
               merged[idx] = ro;
@@ -111,7 +186,6 @@ export function useOrderSync() {
           store.setSavedOrders(() => merged);
         }
 
-        // Lanzar vaciado de cola inicial
         flushQueue();
 
         // 4. Suscripcion a Realtime
