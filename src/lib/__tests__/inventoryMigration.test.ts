@@ -91,7 +91,9 @@ describe('inventoryMigration', () => {
 
   describe('mapLocalMovementToGlobalMovement', () => {
     it('maps correctly and validates action', () => {
-      const local = { id: 'uuid-2', action: 'weird_action', itemCode: 'F-01', itemLabel: 'Tela F-01', quantity: 5, category: 'fabric' as const, unit: 'm', createdAt: '' };
+      // Simulate a corrupt/legacy action that doesn't match the type — function must fall back to 'adjust'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const local = { id: 'uuid-2', action: 'weird_action', itemCode: 'F-01', itemLabel: 'Tela F-01', quantity: 5, category: 'fabric' as const, unit: 'm', createdAt: '' } as any;
       const mapped = mapLocalMovementToGlobalMovement(local, 'dev-1');
 
       expect(mapped.action).toBe('adjust'); // fallback for weird_action

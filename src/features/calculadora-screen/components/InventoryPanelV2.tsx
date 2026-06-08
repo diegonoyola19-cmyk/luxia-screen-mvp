@@ -116,7 +116,7 @@ export function InventoryPanelV2() {
   }
 
   const tubeOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'tube').length, [linearOffcuts]);
-  const bottomOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'bottomrail').length, [linearOffcuts]);
+  const bottomOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'bottom').length, [linearOffcuts]);
 
   // Helper to get descriptive name
   const getDisplayName = (f: {family?: string, openness?: string}) => {
