@@ -22,11 +22,14 @@ import {
   getRollerFabricVariants
 } from '../../../lib/priceCatalog';
 import { CalculationInput } from '../../../domain/curtains/types';
+import { useGlobalInventoryStore } from '../../../store/useGlobalInventoryStore';
+import { selectFabricWithStock } from '../../../logic/selectFabricWithStock';
 
 import type { ResolvedMaterialLine } from '../../../domain/curtains/types';
 
 export function useCalculatorDerivedState(isAutoMode: boolean = false) {
   const store = useCalculatorStore();
+  const globalInventoryItems = useGlobalInventoryStore((state) => state.items);
 
   const fabricFamilies = useMemo(() => getRollerFabricFamilies(), []);
   const fabricOpennessOptions = useMemo(
@@ -218,14 +221,45 @@ export function useCalculatorDerivedState(isAutoMode: boolean = false) {
         return null;
       }
 
-      const rollAdjustedResult = applyRollOverrideToResult(store.result, store.selectedRollWidth);
-      const selectedFabric = resolveFabricSelection(
+      let rollAdjustedResult = applyRollOverrideToResult(store.result, store.selectedRollWidth);
+      let selectedFabric = resolveFabricSelection(
         store.formValues.fabricFamily,
         store.formValues.fabricOpenness,
         store.formValues.fabricColor,
         rollAdjustedResult.occupiedRollWidthMeters,
         rollAdjustedResult.recommendedRollWidthMeters,
       );
+
+      const cutLengthMeters = rollAdjustedResult.fabricDownloadedM2 / rollAdjustedResult.recommendedRollWidthMeters;
+      
+      const selection = selectFabricWithStock({
+        preferredFabric: selectedFabric,
+        candidateFabrics: relatedFabricVariants,
+        inventoryItems: globalInventoryItems,
+        cutLengthMeters
+      });
+
+      if (selection.wasSubstituted && selection.selectedWidthMeters) {
+        rollAdjustedResult = applyRollOverrideToResult(store.result, selection.selectedWidthMeters);
+        selectedFabric = resolveFabricSelection(
+          store.formValues.fabricFamily,
+          store.formValues.fabricOpenness,
+          store.formValues.fabricColor,
+          rollAdjustedResult.occupiedRollWidthMeters,
+          rollAdjustedResult.recommendedRollWidthMeters,
+        );
+      }
+
+      const fabricSubstitution = {
+        wasSubstituted: selection.wasSubstituted,
+        originalWidthMeters: selection.originalWidthMeters,
+        selectedWidthMeters: selection.selectedWidthMeters,
+        reason: selection.reason,
+        selectedInventoryItemId: selection.selectedInventoryItemId,
+        requiredYd2: selection.requiredYd2,
+        availableYd2: selection.availableYd2,
+        warnings: selection.warnings
+      };
 
       const costAwareResult = applyFabricCostToResult(
         rollAdjustedResult,
@@ -239,9 +273,10 @@ export function useCalculatorDerivedState(isAutoMode: boolean = false) {
       return {
         ...costAwareResult,
         selectedFabric,
+        fabricSubstitution,
       };
     },
-    [store.formValues.fabricColor, store.formValues.fabricFamily, store.formValues.fabricOpenness, store.productionInventory, store.result, store.selectedRollWidth],
+    [store.formValues.fabricColor, store.formValues.fabricFamily, store.formValues.fabricOpenness, store.productionInventory, store.result, store.selectedRollWidth, relatedFabricVariants, globalInventoryItems],
   );
 
   const displayResult = useMemo(

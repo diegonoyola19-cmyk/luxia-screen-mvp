@@ -201,6 +201,21 @@ export interface CalculationResult {
   rotatedCutLengthM?: number;
   maxAvailableRollWidthM?: number;
   rotatedReason?: string;
+  fabricSubstitution?: {
+    wasSubstituted: boolean;
+    originalWidthMeters?: number;
+    selectedWidthMeters?: number;
+    reason?: string;
+    selectedInventoryItemId?: string;
+    requiredYd2?: number;
+    availableYd2?: number;
+    warnings?: Array<{
+      code: string;
+      message: string;
+      severity: 'info' | 'warning' | 'error';
+      payload?: Record<string, unknown>;
+    }>;
+  };
 }
 
 export interface WastePiece {
