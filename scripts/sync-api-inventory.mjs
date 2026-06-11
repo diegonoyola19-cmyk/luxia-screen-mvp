@@ -87,10 +87,18 @@ async function main() {
     needsReconciliation: 0,
     failed: 0,
     skippedByReason: {},
+    mappedPositiveYd2: 0,
+    mappedZeroYd2: 0,
   };
 
   let processedCount = 0;
   const syncTimestamp = new Date().toISOString();
+
+  const mappedItemsList = [];
+  const notFabricSamples = [];
+  const unitAmbiguousSamples = [];
+  const positiveUnits = new Map();
+  const positiveWidths = new Map();
 
   for (const rawItem of dataRows) {
     if (processedCount >= limit) break;
@@ -100,11 +108,29 @@ async function main() {
     if (!mappedResult.success) {
       summary.skipped++;
       summary.skippedByReason[mappedResult.reason] = (summary.skippedByReason[mappedResult.reason] || 0) + 1;
+      
+      if (mappedResult.reason === 'NOT_FABRIC' && notFabricSamples.length < 10) {
+        notFabricSamples.push({ code: rawItem.ITEMNO, description: rawItem.DESCRIPTION });
+      } else if (mappedResult.reason === 'UNIT_AMBIGUOUS' && unitAmbiguousSamples.length < 10) {
+        unitAmbiguousSamples.push({ code: rawItem.ITEMNO, description: rawItem.DESCRIPTION, unit: rawItem.UNIT });
+      }
+      
       continue;
     }
 
     summary.mappedSuccess++;
     processedCount++;
+
+    const itemPayload = mappedResult.item.payload;
+    mappedItemsList.push(mappedResult.item);
+
+    if (itemPayload.available_yd2 > 0) {
+      summary.mappedPositiveYd2++;
+      positiveUnits.set(itemPayload.apiUnit, (positiveUnits.get(itemPayload.apiUnit) || 0) + 1);
+      positiveWidths.set(itemPayload.width_meters, (positiveWidths.get(itemPayload.width_meters) || 0) + 1);
+    } else {
+      summary.mappedZeroYd2++;
+    }
 
     const existingItem = existingMap.get(mappedResult.item.code);
     const plan = planSyncForItem(mappedResult, existingItem);
@@ -132,20 +158,52 @@ async function main() {
     }
   }
 
+  // Sort by highest available_yd2
+  mappedItemsList.sort((a, b) => b.payload.available_yd2 - a.payload.available_yd2);
+  const top20 = mappedItemsList.slice(0, 20);
+
   console.log('\n--- RESUMEN DE SINCRONIZACIÓN ---');
   console.log(`Modo Dry-Run: ${isDryRun ? 'SÍ (No se escribió en BD)' : 'NO (Cambios aplicados)'}`);
   console.log(`Límite procesado: ${limit === Infinity ? 'Ninguno' : limit}`);
   console.log(`Total API Items: ${summary.totalApiItems}`);
   console.log(`Mapped Success: ${summary.mappedSuccess}`);
+  console.log(`  > Con Stock Positivo: ${summary.mappedPositiveYd2}`);
+  console.log(`  > Con Stock Cero: ${summary.mappedZeroYd2}`);
   console.log(`Skipped: ${summary.skipped}`);
   console.log(`Inserted: ${summary.inserted}`);
   console.log(`Updated: ${summary.updated}`);
   console.log(`Needs Reconciliation: ${summary.needsReconciliation}`);
   console.log(`Failed Upserts: ${summary.failed}`);
+  
   console.log('\nRazones de salto (Skipped):');
   for (const [reason, count] of Object.entries(summary.skippedByReason)) {
     console.log(`  - ${reason}: ${count}`);
   }
+
+  console.log('\nUnidades en items con stock > 0:');
+  for (const [unit, count] of positiveUnits.entries()) {
+    console.log(`  - ${unit || 'N/A'}: ${count} ítems`);
+  }
+
+  console.log('\nAnchos (metros) en items con stock > 0:');
+  for (const [width, count] of positiveWidths.entries()) {
+    console.log(`  - ${width}m: ${count} ítems`);
+  }
+
+  console.log('\n--- TOP 20 TELAS CON MAYOR STOCK (available_yd2) ---');
+  top20.forEach((item, index) => {
+    const p = item.payload;
+    console.log(`${index + 1}. ${item.code} | ${p.description}`);
+    console.log(`   UNIT: ${p.apiUnit} | OnHand: ${p.apiQtyOnHand} | SalOrdr: ${p.apiQtySalesOrder} | apiAvailableRaw: ${p.apiAvailableRaw}`);
+    console.log(`   Width: ${p.width_meters}m | Length: ${p.length_meters.toFixed(2)}m | YD2: ${p.available_yd2.toFixed(2)}`);
+    console.log(`   Family: ${p.family} | Openness: ${p.openness} | Color: ${p.color}`);
+  });
+
+  console.log('\n--- 10 MUESTRAS DE NOT_FABRIC (Podrían ser telas?) ---');
+  notFabricSamples.forEach(s => console.log(`  - ${s.code}: ${s.description}`));
+
+  console.log('\n--- 10 MUESTRAS DE UNIT_AMBIGUOUS ---');
+  unitAmbiguousSamples.forEach(s => console.log(`  - ${s.code}: ${s.description} (Unit: ${s.unit})`));
 }
 
 main().catch((err) => {
