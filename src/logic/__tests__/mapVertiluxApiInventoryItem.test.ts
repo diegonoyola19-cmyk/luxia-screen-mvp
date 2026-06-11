@@ -195,4 +195,83 @@ describe('mapVertiluxApiInventoryItem', () => {
     mapVertiluxApiInventoryItem(raw);
     expect(raw).toEqual(clone);
   });
+
+  it('12. Tube con FT se mapea correctamente a category=tube, kind=bar', () => {
+    const raw: VertiluxApiRawItem = {
+      ITEMNO: '0154TU38111',
+      DESCRIPTION: '1½" (38mm) Alu. NEO Tube T6, W/Tape, 19\' MF',
+      UNIT: 'FT',
+      QTYONHAND: '100',
+      QTYSALORDR: '10',
+      QTYONORDER: null,
+      QTYOFFSET: null,
+    };
+    const result = mapVertiluxApiInventoryItem(raw, '2026-06-11T12:00:00Z');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    
+    expect(result.item.category).toBe('tube');
+    expect(result.item.kind).toBe('bar');
+    expect(result.item.payload.available_quantity).toBe(90);
+    expect(result.item.payload.unit).toBe('ft');
+    expect(result.item.payload.length_feet).toBe(19);
+    expect(result.item.payload.length_meters).toBeCloseTo(19 * 0.3048);
+  });
+
+  it('13. Bottom rail se mapea correctamente a category=bottom, kind=bar', () => {
+    const raw: VertiluxApiRawItem = {
+      ITEMNO: '0151ALCLW19',
+      DESCRIPTION: 'Rollux-Al. Bottomrail Classic White 19\'',
+      UNIT: 'ft',
+      QTYONHAND: '50',
+      QTYSALORDR: '0',
+      QTYONORDER: null,
+      QTYOFFSET: null,
+    };
+    const result = mapVertiluxApiInventoryItem(raw, '2026-06-11T12:00:00Z');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    
+    expect(result.item.category).toBe('bottom');
+    expect(result.item.kind).toBe('bar');
+    expect(result.item.payload.available_quantity).toBe(50);
+    expect(result.item.payload.unit).toBe('ft');
+    expect(result.item.payload.length_feet).toBe(19);
+  });
+
+  it('14. Component con EA se mapea a category=component, kind=unit', () => {
+    const raw: VertiluxApiRawItem = {
+      ITEMNO: '0151REC0005',
+      DESCRIPTION: 'Rollux-Roller Shade Bott/Endcap White Contemporary',
+      UNIT: 'EA',
+      QTYONHAND: '20',
+      QTYSALORDR: '5',
+      QTYONORDER: null,
+      QTYOFFSET: null,
+    };
+    const result = mapVertiluxApiInventoryItem(raw, '2026-06-11T12:00:00Z');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    
+    expect(result.item.category).toBe('component');
+    expect(result.item.kind).toBe('unit');
+    expect(result.item.payload.available_quantity).toBe(15);
+    expect(result.item.payload.unit).toBe('ea');
+  });
+
+  it('15. Bindercards y elementos desconocidos se rechazan', () => {
+    const raw: VertiluxApiRawItem = {
+      ITEMNO: '50021400000',
+      DESCRIPTION: 'Bindercard - Captiva Blackout',
+      UNIT: 'EA',
+      QTYONHAND: '10',
+      QTYSALORDR: '0',
+      QTYONORDER: null,
+      QTYOFFSET: null,
+    };
+    const result = mapVertiluxApiInventoryItem(raw);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.reason).toBe('NOT_BOM_MATERIAL');
+  });
 });

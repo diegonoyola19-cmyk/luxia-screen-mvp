@@ -61,7 +61,11 @@ export function buildUpsertPayload(plan: SyncPlanResult, existingItem?: Inventor
     newPayload.apiQtyOnOrder = plan.item.item.payload.apiQtyOnOrder;
     newPayload.apiQtyOffset = plan.item.item.payload.apiQtyOffset;
     newPayload.apiAvailableRaw = plan.item.item.payload.apiAvailableRaw;
-    newPayload.apiAvailableYd2 = plan.item.item.payload.apiAvailableYd2;
+    
+    if ('apiAvailableYd2' in plan.item.item.payload) {
+      newPayload.apiAvailableYd2 = plan.item.item.payload.apiAvailableYd2;
+    }
+    
     newPayload.lastApiSyncAt = plan.item.item.payload.lastApiSyncAt;
     newPayload.syncNeedsReconciliation = true;
     newPayload.reconciliationReason = 'LOCAL_MOVEMENTS_EXIST';

@@ -138,20 +138,56 @@ export function mapVertiluxApiInventoryItem(rawItem: VertiluxApiRawItem, syncTim
     return { success: false, status: 'skipped', reason: 'MISSING_ITEMNO', code, description };
   }
 
-  const category = inferCategory(description);
-  if (category !== 'fabric') {
-    return { success: false, status: 'skipped', reason: 'NOT_FABRIC', code, description };
+  const normalizedDesc = description.toLowerCase();
+  let category: 'fabric' | 'tube' | 'bottom' | 'component' | 'other' = 'other';
+
+  if (
+    normalizedDesc.includes('screen') ||
+    normalizedDesc.includes('premium') ||
+    normalizedDesc.includes('pinpoint') ||
+    normalizedDesc.includes('pinpointe') ||
+    normalizedDesc.includes('blackout')
+  ) {
+    if (normalizedDesc.includes('bindercard') || normalizedDesc.includes('card ') || normalizedDesc.includes('- card')) {
+      category = 'other';
+    } else {
+      category = 'fabric';
+    }
+  } else if (normalizedDesc.includes('tube') && !normalizedDesc.includes('endplug') && !normalizedDesc.includes('end plug')) {
+    category = 'tube';
+  } else if (normalizedDesc.includes('bottomrail') || normalizedDesc.includes('bottom rail') || normalizedDesc.includes('flat rail') || normalizedDesc.includes('hem bar') || normalizedDesc.includes('profile')) {
+    if (normalizedDesc.includes('cap') || normalizedDesc.includes('plug') || normalizedDesc.includes('tape')) {
+      category = 'component';
+    } else {
+      category = 'bottom';
+    }
+  } else if (
+    normalizedDesc.includes('chain') || 
+    normalizedDesc.includes('bracket') || 
+    normalizedDesc.includes('clutch') || 
+    normalizedDesc.includes('plug') || 
+    normalizedDesc.includes('cap') || 
+    normalizedDesc.includes('cover') || 
+    normalizedDesc.includes('tape') || 
+    normalizedDesc.includes('motor') ||
+    normalizedDesc.includes('fascia') ||
+    normalizedDesc.includes('cassette') ||
+    normalizedDesc.includes('control') ||
+    normalizedDesc.includes('weight')
+  ) {
+    category = 'component';
+  }
+
+  if (category === 'other') {
+    return { success: false, status: 'skipped', reason: 'NOT_BOM_MATERIAL', code, description };
   }
 
   const unit = (rawItem.UNIT || '').trim().toLowerCase();
   
-  if (unit === 'ea' || unit === '1') {
-    return { success: false, status: 'skipped', reason: 'UNIT_AMBIGUOUS', code, description };
-  }
-
-  const width_meters = extractWidthMeters(description);
-  if (width_meters === null || width_meters <= 0) {
-    return { success: false, status: 'skipped', reason: 'MISSING_WIDTH_METERS', code, description };
+  if (category === 'fabric') {
+    if (unit === 'ea' || unit === '1') {
+      return { success: false, status: 'skipped', reason: 'UNIT_AMBIGUOUS', code, description };
+    }
   }
 
   const apiQtyOnHand = asNumber(rawItem.QTYONHAND);
@@ -162,49 +198,134 @@ export function mapVertiluxApiInventoryItem(rawItem: VertiluxApiRawItem, syncTim
     apiAvailableRaw = 0; // clamp to 0
   }
 
-  let available_yd2 = 0;
-  if (unit === 'sqyd' || unit === 'yd2') {
-    available_yd2 = apiAvailableRaw;
-  } else if (unit === 'metro²' || unit === 'mt²') {
-    available_yd2 = apiAvailableRaw * 1.1959900463;
-  } else if (unit === 'yd') {
-    available_yd2 = apiAvailableRaw * 0.9144 * width_meters * 1.1959900463;
-  } else {
-    return { success: false, status: 'skipped', reason: 'UNIT_UNKNOWN', code, description };
+  if (category === 'fabric') {
+    const width_meters = extractWidthMeters(description);
+    if (width_meters === null || width_meters <= 0) {
+      return { success: false, status: 'skipped', reason: 'MISSING_WIDTH_METERS', code, description };
+    }
+
+    let available_yd2 = 0;
+    if (unit === 'sqyd' || unit === 'yd2') {
+      available_yd2 = apiAvailableRaw;
+    } else if (unit === 'metro²' || unit === 'mt²') {
+      available_yd2 = apiAvailableRaw * 1.1959900463;
+    } else if (unit === 'yd') {
+      available_yd2 = apiAvailableRaw * 0.9144 * width_meters * 1.1959900463;
+    } else {
+      return { success: false, status: 'skipped', reason: 'UNIT_UNKNOWN', code, description };
+    }
+
+    const length_meters = available_yd2 / (width_meters * 1.1959900463);
+    const family = inferFamily(description);
+    const openness = inferOpenness(family, description);
+    const color = inferColor(family, description);
+
+    return {
+      success: true,
+      item: {
+        category: 'fabric',
+        kind: 'roll',
+        status: 'available',
+        code,
+        payload: {
+          source: 'vertilux_api',
+          sourceItemNo: code,
+          description,
+          apiUnit: rawItem.UNIT || '',
+          apiQtyOnHand,
+          apiQtySalesOrder,
+          apiQtyOnOrder: asNumber(rawItem.QTYONORDER),
+          apiQtyOffset: rawItem.QTYOFFSET !== null ? asNumber(rawItem.QTYOFFSET) : null,
+          apiAvailableRaw,
+          apiAvailableYd2: available_yd2,
+          available_yd2,
+          width_meters,
+          length_meters,
+          family,
+          openness,
+          color,
+          isVirtualRoll: true,
+          lastApiSyncAt: syncTimestamp,
+        },
+      },
+    };
   }
 
-  const length_meters = available_yd2 / (width_meters * 1.1959900463);
-  const family = inferFamily(description);
-  const openness = inferOpenness(family, description);
-  const color = inferColor(family, description);
+  if (category === 'tube' || category === 'bottom') {
+    const length_feet = extractFeet(description);
+    const length_meters = length_feet !== null ? length_feet * 0.3048 : undefined;
 
-  return {
-    success: true,
-    item: {
-      category: 'fabric',
-      kind: 'roll',
-      status: 'available',
-      code,
-      payload: {
-        source: 'vertilux_api',
-        sourceItemNo: code,
-        description,
-        apiUnit: rawItem.UNIT || '',
-        apiQtyOnHand,
-        apiQtySalesOrder,
-        apiQtyOnOrder: asNumber(rawItem.QTYONORDER),
-        apiQtyOffset: rawItem.QTYOFFSET !== null ? asNumber(rawItem.QTYOFFSET) : null,
-        apiAvailableRaw,
-        apiAvailableYd2: available_yd2,
-        available_yd2,
-        width_meters,
-        length_meters,
-        family,
-        openness,
-        color,
-        isVirtualRoll: true,
-        lastApiSyncAt: syncTimestamp,
-      },
-    },
-  };
+    return {
+      success: true,
+      item: {
+        category,
+        kind: 'bar',
+        status: 'available',
+        code,
+        payload: {
+          source: 'vertilux_api',
+          sourceItemNo: code,
+          description,
+          apiUnit: rawItem.UNIT || '',
+          apiQtyOnHand,
+          apiQtySalesOrder,
+          apiQtyOnOrder: asNumber(rawItem.QTYONORDER),
+          apiQtyOffset: rawItem.QTYOFFSET !== null ? asNumber(rawItem.QTYOFFSET) : null,
+          apiAvailableRaw,
+          available_quantity: apiAvailableRaw,
+          unit: unit === 'ft' || unit === 'pies' ? 'ft' : unit === 'mt' || unit === 'metro' || unit === 'm' ? 'm' : unit === 'ea' || unit === '1' ? 'ea' : unit,
+          length_feet,
+          length_meters,
+          lastApiSyncAt: syncTimestamp,
+        },
+      } as any,
+    };
+  }
+
+  if (category === 'component') {
+    let mappedUnit = unit;
+    if (unit === 'ea' || unit === '1' || unit === 'pc' || unit === 'pcs') {
+      mappedUnit = 'ea';
+    } else if (unit === 'rl' || unit === 'roll') {
+      mappedUnit = 'roll';
+    } else if (unit === 'ft' || unit === 'pies') {
+      mappedUnit = 'ft';
+    } else if (unit === 'yd' || unit === 'yds') {
+      mappedUnit = 'yd';
+    }
+
+    return {
+      success: true,
+      item: {
+        category,
+        kind: 'unit',
+        status: 'available',
+        code,
+        payload: {
+          source: 'vertilux_api',
+          sourceItemNo: code,
+          description,
+          apiUnit: rawItem.UNIT || '',
+          apiQtyOnHand,
+          apiQtySalesOrder,
+          apiQtyOnOrder: asNumber(rawItem.QTYONORDER),
+          apiQtyOffset: rawItem.QTYOFFSET !== null ? asNumber(rawItem.QTYOFFSET) : null,
+          apiAvailableRaw,
+          available_quantity: apiAvailableRaw,
+          unit: mappedUnit,
+          lastApiSyncAt: syncTimestamp,
+        },
+      } as any,
+    };
+  }
+
+  return { success: false, status: 'skipped', reason: 'UNKNOWN_CATEGORY', code, description };
+}
+
+function extractFeet(description: string): number | null {
+  const match = description.match(/(\d+(?:\.\d+)?)\s*(?:ft|')/i);
+  if (!match) return null;
+  const feet = Number(match[1]);
+  if (!Number.isFinite(feet)) return null;
+  return feet;
 }

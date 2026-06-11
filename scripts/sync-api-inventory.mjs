@@ -87,18 +87,20 @@ async function main() {
     needsReconciliation: 0,
     failed: 0,
     skippedByReason: {},
-    mappedPositiveYd2: 0,
-    mappedZeroYd2: 0,
+    mappedPositiveStock: 0,
+    mappedZeroStock: 0,
+    byCategory: { fabric: 0, tube: 0, bottom: 0, component: 0 },
+    positiveStockByCategory: { fabric: 0, tube: 0, bottom: 0, component: 0 },
   };
 
   let processedCount = 0;
   const syncTimestamp = new Date().toISOString();
 
   const mappedItemsList = [];
+  const mappedComponentsList = [];
   const notFabricSamples = [];
   const unitAmbiguousSamples = [];
   const positiveUnits = new Map();
-  const positiveWidths = new Map();
 
   for (const rawItem of dataRows) {
     if (processedCount >= limit) break;
@@ -109,7 +111,7 @@ async function main() {
       summary.skipped++;
       summary.skippedByReason[mappedResult.reason] = (summary.skippedByReason[mappedResult.reason] || 0) + 1;
       
-      if (mappedResult.reason === 'NOT_FABRIC' && notFabricSamples.length < 10) {
+      if (mappedResult.reason === 'NOT_BOM_MATERIAL' && notFabricSamples.length < 10) {
         notFabricSamples.push({ code: rawItem.ITEMNO, description: rawItem.DESCRIPTION });
       } else if (mappedResult.reason === 'UNIT_AMBIGUOUS' && unitAmbiguousSamples.length < 10) {
         unitAmbiguousSamples.push({ code: rawItem.ITEMNO, description: rawItem.DESCRIPTION, unit: rawItem.UNIT });
@@ -122,14 +124,23 @@ async function main() {
     processedCount++;
 
     const itemPayload = mappedResult.item.payload;
-    mappedItemsList.push(mappedResult.item);
-
-    if (itemPayload.available_yd2 > 0) {
-      summary.mappedPositiveYd2++;
-      positiveUnits.set(itemPayload.apiUnit, (positiveUnits.get(itemPayload.apiUnit) || 0) + 1);
-      positiveWidths.set(itemPayload.width_meters, (positiveWidths.get(itemPayload.width_meters) || 0) + 1);
+    
+    if (mappedResult.item.category === 'fabric') {
+        mappedItemsList.push(mappedResult.item);
     } else {
-      summary.mappedZeroYd2++;
+        mappedComponentsList.push(mappedResult.item);
+    }
+
+    summary.byCategory[mappedResult.item.category]++;
+
+    const hasStock = mappedResult.item.category === 'fabric' ? itemPayload.available_yd2 > 0 : itemPayload.available_quantity > 0;
+
+    if (hasStock) {
+      summary.mappedPositiveStock++;
+      summary.positiveStockByCategory[mappedResult.item.category]++;
+      positiveUnits.set(itemPayload.apiUnit, (positiveUnits.get(itemPayload.apiUnit) || 0) + 1);
+    } else {
+      summary.mappedZeroStock++;
     }
 
     const existingItem = existingMap.get(mappedResult.item.code);
@@ -162,13 +173,24 @@ async function main() {
   mappedItemsList.sort((a, b) => b.payload.available_yd2 - a.payload.available_yd2);
   const top20 = mappedItemsList.slice(0, 20);
 
+  // Sort by highest available_quantity for components
+  mappedComponentsList.sort((a, b) => b.payload.available_quantity - a.payload.available_quantity);
+  const top20Components = mappedComponentsList.slice(0, 20);
+
   console.log('\n--- RESUMEN DE SINCRONIZACIÓN ---');
   console.log(`Modo Dry-Run: ${isDryRun ? 'SÍ (No se escribió en BD)' : 'NO (Cambios aplicados)'}`);
   console.log(`Límite procesado: ${limit === Infinity ? 'Ninguno' : limit}`);
   console.log(`Total API Items: ${summary.totalApiItems}`);
   console.log(`Mapped Success: ${summary.mappedSuccess}`);
-  console.log(`  > Con Stock Positivo: ${summary.mappedPositiveYd2}`);
-  console.log(`  > Con Stock Cero: ${summary.mappedZeroYd2}`);
+  console.log(`  > Fabric: ${summary.byCategory.fabric}`);
+  console.log(`  > Tube: ${summary.byCategory.tube}`);
+  console.log(`  > Bottom: ${summary.byCategory.bottom}`);
+  console.log(`  > Component: ${summary.byCategory.component}`);
+  console.log(`Con Stock Positivo Total: ${summary.mappedPositiveStock}`);
+  console.log(`  > Fabric Positivo: ${summary.positiveStockByCategory.fabric}`);
+  console.log(`  > Tube Positivo: ${summary.positiveStockByCategory.tube}`);
+  console.log(`  > Bottom Positivo: ${summary.positiveStockByCategory.bottom}`);
+  console.log(`  > Component Positivo: ${summary.positiveStockByCategory.component}`);
   console.log(`Skipped: ${summary.skipped}`);
   console.log(`Inserted: ${summary.inserted}`);
   console.log(`Updated: ${summary.updated}`);
@@ -185,21 +207,23 @@ async function main() {
     console.log(`  - ${unit || 'N/A'}: ${count} ítems`);
   }
 
-  console.log('\nAnchos (metros) en items con stock > 0:');
-  for (const [width, count] of positiveWidths.entries()) {
-    console.log(`  - ${width}m: ${count} ítems`);
-  }
-
   console.log('\n--- TOP 20 TELAS CON MAYOR STOCK (available_yd2) ---');
   top20.forEach((item, index) => {
     const p = item.payload;
     console.log(`${index + 1}. ${item.code} | ${p.description}`);
     console.log(`   UNIT: ${p.apiUnit} | OnHand: ${p.apiQtyOnHand} | SalOrdr: ${p.apiQtySalesOrder} | apiAvailableRaw: ${p.apiAvailableRaw}`);
     console.log(`   Width: ${p.width_meters}m | Length: ${p.length_meters.toFixed(2)}m | YD2: ${p.available_yd2.toFixed(2)}`);
-    console.log(`   Family: ${p.family} | Openness: ${p.openness} | Color: ${p.color}`);
   });
 
-  console.log('\n--- 10 MUESTRAS DE NOT_FABRIC (Podrían ser telas?) ---');
+  console.log('\n--- TOP 20 TUBES/COMPONENTS CON MAYOR STOCK ---');
+  top20Components.forEach((item, index) => {
+    const p = item.payload;
+    console.log(`${index + 1}. [${item.category}] ${item.code} | ${p.description}`);
+    console.log(`   UNIT API: ${p.apiUnit} -> Internal: ${p.unit} | OnHand: ${p.apiQtyOnHand} | SalOrdr: ${p.apiQtySalesOrder} | Qty: ${p.available_quantity}`);
+    if (p.length_feet) console.log(`   Length Feet: ${p.length_feet}`);
+  });
+
+  console.log('\n--- 10 MUESTRAS DE NOT_BOM_MATERIAL ---');
   notFabricSamples.forEach(s => console.log(`  - ${s.code}: ${s.description}`));
 
   console.log('\n--- 10 MUESTRAS DE UNIT_AMBIGUOUS ---');
