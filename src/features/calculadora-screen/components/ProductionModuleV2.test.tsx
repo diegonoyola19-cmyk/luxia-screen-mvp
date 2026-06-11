@@ -164,3 +164,96 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
     expect(screen.getByRole('button', { name: /Agregar/i })).toBeInTheDocument();
   });
 });
+
+describe('ProductionModuleV2 - Fabric Substitution Alerts', () => {
+  beforeEach(() => {
+    vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
+      const state = {
+        formValues: { widthMeters: '1.5', heightMeters: '2.0', fabricColor: 'White' },
+        orderDraft: { orderNumber: 'ORD-001' },
+        cuttingGroups: [],
+        itemsAProducir: [],
+      };
+      return selector ? selector(state) : state;
+    });
+    vi.mocked(useDoubleBracketWidthGuard).mockReturnValue({ approvalState: 'idle' } as any);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('No muestra alerta si fabricSubstitution no existe', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: {},
+      displayResult: { fabricSubstitution: undefined },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.queryByText(/Stock insuficiente/i)).not.toBeInTheDocument();
+  });
+
+  it('No muestra alerta si fabricSubstitution.wasSubstituted=false', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: {},
+      displayResult: { fabricSubstitution: { wasSubstituted: false } },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.queryByText(/Stock insuficiente/i)).not.toBeInTheDocument();
+  });
+
+  it('Muestra alerta de warning (no stock suficiente) si wasSubstituted=false pero hay warning de error', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: {},
+      displayResult: { 
+        fabricSubstitution: { 
+          wasSubstituted: false,
+          warnings: [{ code: 'INSUFFICIENT_STOCK', severity: 'error', message: '...' }]
+        } 
+      },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText(/No hay stock suficiente para la tela seleccionada/i)).toBeInTheDocument();
+  });
+
+  it('Muestra alerta si fabricSubstitution.wasSubstituted=true con detalles', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: {},
+      displayResult: { 
+        fabricSubstitution: { 
+          wasSubstituted: true,
+          originalWidthMeters: 2.5,
+          selectedWidthMeters: 3.0,
+          requiredYd2: 5.5,
+          availableYd2: 1.2
+        } 
+      },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText(/Stock insuficiente en 2.50m. Se usará rollo de 3.00m./i)).toBeInTheDocument();
+    expect(screen.getByText(/Requiere 5.50 yd². Disponible: 1.20 yd²./i)).toBeInTheDocument();
+  });
+});

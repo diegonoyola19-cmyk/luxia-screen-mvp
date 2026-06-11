@@ -722,6 +722,31 @@ export function ProductionModuleV2() {
             </div>
           </div>
 
+          {displayResult?.fabricSubstitution?.wasSubstituted && (
+            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+                <div>
+                  <strong>Stock insuficiente en {formatNumber(displayResult.fabricSubstitution.originalWidthMeters ?? 0, 2)}m. Se usará rollo de {formatNumber(displayResult.fabricSubstitution.selectedWidthMeters ?? 0, 2)}m.</strong>
+                  {displayResult.fabricSubstitution.requiredYd2 != null && displayResult.fabricSubstitution.availableYd2 != null && (
+                    <p style={{ marginTop: '0.25rem' }}>
+                      Requiere {formatNumber(displayResult.fabricSubstitution.requiredYd2, 2)} yd². Disponible: {formatNumber(displayResult.fabricSubstitution.availableYd2, 2)} yd².
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!displayResult?.fabricSubstitution?.wasSubstituted && displayResult?.fabricSubstitution?.warnings?.some(w => w.severity === 'error') && (
+            <div className="pv2-alert pv2-alert--warning">
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+              <div>
+                <strong>No hay stock suficiente para la tela seleccionada. La orden podría fallar al sincronizar inventario.</strong>
+              </div>
+            </div>
+          )}
+
           {displayResult?.oversizedRotated ? (
             <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
