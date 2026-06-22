@@ -48,6 +48,7 @@ export interface ScreenRollCostSuggestion {
 const importedCatalog = catalog as ImportedCatalog;
 const FAMILY_ORDER = ['Screen', 'Premium', 'Pinpointe'];
 const parsedRollerCatalog = importedCatalog.items;
+const NON_SELECTABLE_COLOR_NAMES = new Set(['sin color']);
 
 export function getRollerFabricFamilies() {
   return [...new Set(parsedRollerCatalog.map((item) => item.family))].sort(byFamilyOrder);
@@ -78,7 +79,12 @@ export function getRollerFabricColorOptions(
   >();
 
   parsedRollerCatalog
-    .filter((item) => item.family === family && item.openness === openness)
+    .filter(
+      (item) =>
+        item.family === family &&
+        item.openness === openness &&
+        isSelectableRollerFabricItem(item),
+    )
     .forEach((item) => {
       const existing = groups.get(item.color);
 
@@ -123,7 +129,8 @@ export function getRollerFabricVariants(
       (item) =>
         item.family === family &&
         item.openness === openness &&
-        item.color === color,
+        item.color === color &&
+        isSelectableRollerFabricItem(item),
     )
     .sort((left, right) => left.widthMeters - right.widthMeters);
 }
@@ -227,6 +234,21 @@ function getMedian(values: number[]) {
   }
 
   return sorted[middle];
+}
+
+function isSelectableRollerFabricItem(item: ImportedCatalogItem) {
+  const normalizedColor = normalizeCatalogText(item.color);
+  const normalizedDescription = normalizeCatalogText(item.description);
+
+  if (NON_SELECTABLE_COLOR_NAMES.has(normalizedColor)) {
+    return false;
+  }
+
+  return !normalizedDescription.includes('bindercard');
+}
+
+function normalizeCatalogText(value: string) {
+  return value.trim().toLocaleLowerCase('es');
 }
 
 function byFamilyOrder(left: string, right: string) {

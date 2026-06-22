@@ -135,6 +135,10 @@ function toRollerCatalogItem(item) {
     return null;
   }
 
+  if (isNonSelectableRollerFabricDescription(description)) {
+    return null;
+  }
+
   const family = inferFamily(description);
   const widthMeters = extractWidthMeters(description);
 
@@ -367,4 +371,8 @@ function extractWidthMeters(description) {
   }
 
   return inches * 0.0254;
+}
+
+function isNonSelectableRollerFabricDescription(description) {
+  return description.toLowerCase().includes('bindercard');
 }
