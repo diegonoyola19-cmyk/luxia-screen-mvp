@@ -38,6 +38,31 @@ export type MapVertiluxResult =
         };
       };
     }
+  | {
+      success: true;
+      item: {
+        category: 'tube' | 'bottom' | 'component';
+        kind: 'bar' | 'unit';
+        status: 'available';
+        code: string;
+        payload: {
+          source: 'vertilux_api';
+          sourceItemNo: string;
+          description: string;
+          apiUnit: string;
+          apiQtyOnHand: number;
+          apiQtySalesOrder: number;
+          apiQtyOnOrder: number;
+          apiQtyOffset: number | null;
+          apiAvailableRaw: number;
+          available_quantity: number;
+          unit: string;
+          length_feet?: number | null;
+          length_meters?: number;
+          lastApiSyncAt: string;
+        };
+      };
+    }
   | { success: false; status: 'skipped'; reason: string; code: string; description: string };
 
 function asNumber(value: string | number | null): number {

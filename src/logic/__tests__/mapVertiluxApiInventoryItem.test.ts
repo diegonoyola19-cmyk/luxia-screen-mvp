@@ -16,6 +16,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.apiAvailableRaw).toBe(90);
     expect(result.item.payload.available_yd2).toBe(90);
     expect(result.item.payload.apiUnit).toBe('SQYD');
@@ -35,6 +36,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.apiAvailableRaw).toBe(50);
     expect(result.item.payload.available_yd2).toBeCloseTo(50 * 1.1959900463);
   });
@@ -55,6 +57,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     
     // width is 72" = 1.8288 m
     const expectedWidth = 72 * 0.0254;
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.width_meters).toBeCloseTo(expectedWidth);
     
     // YD to YD2: linear_yards * 0.9144 * width_meters * 1.1959900463
@@ -107,6 +110,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     const result = mapVertiluxApiInventoryItem(raw);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.apiQtyOnHand).toBe(150.5);
     expect(result.item.payload.apiQtySalesOrder).toBe(20.5);
     expect(result.item.payload.apiAvailableRaw).toBe(130);
@@ -125,6 +129,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     const result = mapVertiluxApiInventoryItem(raw);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.apiAvailableRaw).toBe(0);
     expect(result.item.payload.available_yd2).toBe(0);
   });
@@ -142,6 +147,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     const result = mapVertiluxApiInventoryItem(raw);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    if (result.item.category !== 'fabric') return;
     const expectedWidth = 98.43 * 0.0254;
     const expectedLength = 100 / (expectedWidth * 1.1959900463);
     expect(result.item.payload.length_meters).toBeCloseTo(expectedLength);
@@ -160,6 +166,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     const result = mapVertiluxApiInventoryItem(raw);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    if (result.item.category !== 'fabric') return;
     expect(result.item.code).toBe('CODE-123');
     expect(result.item.payload.sourceItemNo).toBe('CODE-123');
   });
@@ -177,6 +184,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     const result = mapVertiluxApiInventoryItem(raw);
     expect(result.success).toBe(true);
     if (!result.success) return;
+    if (result.item.category !== 'fabric') return;
     expect(result.item.payload.isVirtualRoll).toBe(true);
     expect(result.item.payload.source).toBe('vertilux_api');
   });
@@ -211,6 +219,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     if (!result.success) return;
     
     expect(result.item.category).toBe('tube');
+    if (result.item.category !== 'tube' && result.item.category !== 'bottom' && result.item.category !== 'component') return;
     expect(result.item.kind).toBe('bar');
     expect(result.item.payload.available_quantity).toBe(90);
     expect(result.item.payload.unit).toBe('ft');
@@ -233,6 +242,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     if (!result.success) return;
     
     expect(result.item.category).toBe('bottom');
+    if (result.item.category !== 'tube' && result.item.category !== 'bottom' && result.item.category !== 'component') return;
     expect(result.item.kind).toBe('bar');
     expect(result.item.payload.available_quantity).toBe(50);
     expect(result.item.payload.unit).toBe('ft');
@@ -254,6 +264,7 @@ describe('mapVertiluxApiInventoryItem', () => {
     if (!result.success) return;
     
     expect(result.item.category).toBe('component');
+    if (result.item.category !== 'tube' && result.item.category !== 'bottom' && result.item.category !== 'component') return;
     expect(result.item.kind).toBe('unit');
     expect(result.item.payload.available_quantity).toBe(15);
     expect(result.item.payload.unit).toBe('ea');
