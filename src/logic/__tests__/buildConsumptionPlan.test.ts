@@ -42,6 +42,37 @@ describe('buildConsumptionPlan', () => {
     }));
   });
 
+  it('Preserva specificInventoryItemId del rollo API seleccionado para consumo de tela', () => {
+    const order = {
+      id: 'o1b',
+      orderNumber: 'ORD-1B',
+      items: [
+        {
+          id: 'i1b',
+          result: {
+            selectedFabric: { itemCode: 'FAB-API-001' },
+            recommendedRollWidthMeters: 3.0,
+            fabricDownloadedM2: 6.0,
+            fabricSubstitution: {
+              wasSubstituted: false,
+              selectedInventoryItemId: 'api-roll-uuid-123'
+            },
+            wastePieceWidthMeters: 0,
+            wastePieceHeightMeters: 0
+          }
+        }
+      ]
+    } as unknown as SavedOrder;
+
+    const plan = buildConsumptionPlan(order);
+
+    expect(plan.items[0]).toEqual(expect.objectContaining({
+      action: 'consume',
+      category: 'fabric',
+      specificInventoryItemId: 'api-roll-uuid-123'
+    }));
+  });
+
   it('Genera error si falta recommendedRollWidthMeters', () => {
     const order = {
       id: 'o2',

@@ -88,6 +88,7 @@ export function buildConsumptionPlan(savedOrder: SavedOrder): ConsumptionPlan {
           requiredQuantity: consumedAreaYd2,
           unit: 'yd2',
           widthMeters: result.recommendedRollWidthMeters,
+          specificInventoryItemId: result.fabricSubstitution?.selectedInventoryItemId,
           source: 'fabric_selection',
           notes: `Corte de rollo para cortina ${index + 1}`,
           payload: {

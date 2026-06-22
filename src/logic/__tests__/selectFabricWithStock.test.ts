@@ -114,6 +114,7 @@ describe('selectFabricWithStock', () => {
     expect(result.selectedInventoryItemId).toBe('roll-300');
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].code).toBe('FABRIC_SUBSTITUTED');
+    expect(result.warnings[0].message).toBe('No hay stock en ancho 2.5m. Se usará ancho 3m porque cubre el requerimiento.');
   });
 
   it('3. No usa 3.00m si pertenece a otra familia/color/openness', () => {
@@ -267,5 +268,145 @@ describe('selectFabricWithStock', () => {
 
     expect(candidateFabrics).toEqual(candidatesCopy);
     expect(inventory).toEqual(inventoryCopy);
+  });
+
+  it('12. Encuentra stock cuando catálogo 1.83 equivale a API 1.8288', () => {
+    const pinpointeFabric: FabricSelectionSnapshot = {
+      family: 'Pinpointe',
+      openness: 'Blackout',
+      color: 'e Blackout FR White/Snow Flakes',
+      itemCode: '00026790072',
+      description: 'Rollux NEW Pinpointe Blackout FR White/Snow Flakes 72"',
+      imageUrl: null,
+      widthMeters: 1.83,
+      costPerYd2: 3.104
+    };
+
+    const result = selectFabricWithStock({
+      preferredFabric: pinpointeFabric,
+      candidateFabrics: [pinpointeFabric],
+      inventoryItems: [
+        createInventoryItem('pinpointe-72-api', 1.8288, 516.09, 'available', 'roll', 'Pinpointe', 'Blackout', 'e Blackout FR White/Snow Flakes')
+      ],
+      cutLengthMeters: 1.4
+    });
+
+    expect(result.reason).toBe('preferred_width_available');
+    expect(result.selectedInventoryItemId).toBe('pinpointe-72-api');
+    expect(result.selectedWidthMeters).toBe(1.83);
+  });
+
+  it('13. Encuentra stock cuando catálogo 2.5 equivale a API 2.500122', () => {
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: [
+        createInventoryItem('roll-250-api', 2.500122, req250 + 1)
+      ],
+      cutLengthMeters
+    });
+
+    expect(result.reason).toBe('preferred_width_available');
+    expect(result.selectedInventoryItemId).toBe('roll-250-api');
+  });
+
+  it('14. Encuentra stock sustituto cuando catálogo 3 equivale a API 2.999994', () => {
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: [
+        createInventoryItem('roll-250-low', 2.500122, req250 - 1),
+        createInventoryItem('roll-300-api', 2.999994, req300 + 1)
+      ],
+      cutLengthMeters
+    });
+
+    expect(result.reason).toBe('substituted_to_larger_width');
+    expect(result.selectedInventoryItemId).toBe('roll-300-api');
+    expect(result.selectedWidthMeters).toBe(3);
+  });
+
+  it('15. No considera 1.83 equivalente a 2.5', () => {
+    const narrowFabric: FabricSelectionSnapshot = {
+      ...preferredFabric,
+      itemCode: 'SCR-183',
+      widthMeters: 1.83
+    };
+
+    const result = selectFabricWithStock({
+      preferredFabric: narrowFabric,
+      candidateFabrics: [narrowFabric],
+      inventoryItems: [
+        createInventoryItem('roll-250-api', 2.500122, 100)
+      ],
+      cutLengthMeters
+    });
+
+    expect(result.reason).toBe('no_stock_available');
+    expect(result.selectedInventoryItemId).toBeUndefined();
+  });
+
+  it('16. Caso Pinpointe Blackout White/Snow Flakes pasa con ancho API convertido', () => {
+    const pinpointe183: FabricSelectionSnapshot = {
+      family: 'Pinpointe',
+      openness: 'Blackout',
+      color: 'e Blackout FR White/Snow Flakes',
+      itemCode: '00026790072',
+      description: 'Rollux NEW Pinpointe Blackout FR White/Snow Flakes 72"',
+      imageUrl: null,
+      widthMeters: 1.83,
+      costPerYd2: 3.104
+    };
+    const pinpointe250: FabricSelectionSnapshot = {
+      ...pinpointe183,
+      itemCode: '00026790098',
+      widthMeters: 2.5,
+      description: 'Rollux NEW Pinpointe Blackout FR White/Snow Flakes 98.43"'
+    };
+
+    const result = selectFabricWithStock({
+      preferredFabric: pinpointe183,
+      candidateFabrics: [pinpointe183, pinpointe250],
+      inventoryItems: [
+        createInventoryItem('pinpointe-72-api', 1.8288, 516.09, 'available', 'roll', 'Pinpointe', 'Blackout', 'e Blackout FR White/Snow Flakes'),
+        createInventoryItem('pinpointe-98-api', 2.500122, 968.62, 'available', 'roll', 'Pinpointe', 'Blackout', 'e Blackout FR White/Snow Flakes')
+      ],
+      cutLengthMeters: 1.4
+    });
+
+    expect(result.reason).toBe('preferred_width_available');
+    expect(result.selectedInventoryItemId).toBe('pinpointe-72-api');
+  });
+
+  it('17. Caso Screen 5% Brown/Chocolate pasa con ancho API convertido', () => {
+    const brown250: FabricSelectionSnapshot = {
+      family: 'Screen',
+      openness: '5%',
+      color: 'Brown/Chocolate',
+      itemCode: '00046202598',
+      description: 'VX Screen 3000-5 Brown/ Chocolate 98.43"',
+      imageUrl: null,
+      widthMeters: 2.5,
+      costPerYd2: 2.5906
+    };
+    const brown300: FabricSelectionSnapshot = {
+      ...brown250,
+      itemCode: '00046202518',
+      widthMeters: 3,
+      description: 'VX Screen 3000-5 Brown/ Chocolate 118.11"'
+    };
+
+    const result = selectFabricWithStock({
+      preferredFabric: brown250,
+      candidateFabrics: [brown250, brown300],
+      inventoryItems: [
+        createInventoryItem('brown-250-api', 2.500122, 775.71, 'available', 'roll', 'Screen', '5%', 'Brown/Chocolate'),
+        createInventoryItem('brown-300-api', 2.999994, 776.71, 'available', 'roll', 'Screen', '5%', 'Brown/Chocolate')
+      ],
+      cutLengthMeters: 1.3
+    });
+
+    expect(result.reason).toBe('preferred_width_available');
+    expect(result.selectedInventoryItemId).toBe('brown-250-api');
   });
 });

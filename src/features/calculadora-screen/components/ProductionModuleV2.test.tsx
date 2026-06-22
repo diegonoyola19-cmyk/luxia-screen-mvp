@@ -253,7 +253,7 @@ describe('ProductionModuleV2 - Fabric Substitution Alerts', () => {
     } as any);
 
     render(<ProductionModuleV2 />);
-    expect(screen.getByText(/Stock insuficiente en 2.50m. Se usará rollo de 3.00m./i)).toBeInTheDocument();
+    expect(screen.getByText(/No hay stock en ancho 2.50m. Se usará ancho 3.00m porque cubre el requerimiento./i)).toBeInTheDocument();
     expect(screen.getByText(/Requiere 5.50 yd². Disponible: 1.20 yd²./i)).toBeInTheDocument();
   });
 });

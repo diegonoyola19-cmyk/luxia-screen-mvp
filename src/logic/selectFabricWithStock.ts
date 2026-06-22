@@ -1,6 +1,12 @@
 import { FabricSelectionSnapshot } from '../lib/priceCatalog';
 import { InventoryItem } from '../domain/inventory/types';
 
+const ROLL_WIDTH_TOLERANCE_METERS = 0.01;
+
+export function areRollWidthsEquivalent(a: number, b: number): boolean {
+  return Math.abs(a - b) <= ROLL_WIDTH_TOLERANCE_METERS;
+}
+
 export type StockAwareFabricSelectionInput = {
   preferredFabric: FabricSelectionSnapshot | null;
   candidateFabrics: FabricSelectionSnapshot[];
@@ -82,7 +88,7 @@ export function selectFabricWithStock(
 
   const preferredMatch = validRolls.find(r => {
     const p = r.payload;
-    return Number(p.width_meters) === preferredWidth && Number(p.available_yd2) >= preferredRequiredYd2;
+    return areRollWidthsEquivalent(Number(p.width_meters), preferredWidth) && Number(p.available_yd2) >= preferredRequiredYd2;
   });
 
   if (preferredMatch) {
@@ -116,7 +122,7 @@ export function selectFabricWithStock(
 
     const candidateMatch = validRolls.find(r => {
       const p = r.payload;
-      return Number(p.width_meters) === candidateWidth && Number(p.available_yd2) >= candidateRequiredYd2;
+      return areRollWidthsEquivalent(Number(p.width_meters), candidateWidth) && Number(p.available_yd2) >= candidateRequiredYd2;
     });
 
     if (candidateMatch) {
@@ -132,7 +138,7 @@ export function selectFabricWithStock(
         reason: 'substituted_to_larger_width',
         warnings: [{
           code: 'FABRIC_SUBSTITUTED',
-          message: `Se usará rollo de ${candidateWidth}m porque no hay stock suficiente de ${preferredWidth}m.`,
+          message: `No hay stock en ancho ${preferredWidth}m. Se usará ancho ${candidateWidth}m porque cubre el requerimiento.`,
           severity: 'warning'
         }]
       };
@@ -150,7 +156,7 @@ export function selectFabricWithStock(
     item.payload?.family === targetFamily && 
     item.payload?.openness === targetOpenness && 
     item.payload?.color === targetColor && 
-    Number(item.payload?.width_meters) === preferredWidth &&
+    areRollWidthsEquivalent(Number(item.payload?.width_meters), preferredWidth) &&
     (item.payload?.available_yd2 === undefined || item.payload?.available_yd2 === null || isNaN(Number(item.payload?.available_yd2)))
   );
 

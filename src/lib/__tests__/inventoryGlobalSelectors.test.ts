@@ -28,6 +28,18 @@ describe('inventoryGlobalSelectors', () => {
         created_at: '2023-01-01',
         updated_at: '2023-01-01',
         payload: {}
+      },
+      {
+        id: '3',
+        category: 'fabric',
+        kind: 'roll',
+        code: 'API-ROLL',
+        status: 'available',
+        created_from_order_id: null,
+        source: 'vertilux_api',
+        created_at: '2023-01-01',
+        updated_at: '2023-01-01',
+        payload: { isVirtualRoll: true, family: 'Screen', color: 'White', width_meters: 3, length_meters: 20 }
       }
     ];
 

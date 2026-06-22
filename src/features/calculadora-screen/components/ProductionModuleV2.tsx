@@ -727,7 +727,7 @@ export function ProductionModuleV2() {
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
                 <div>
-                  <strong>Stock insuficiente en {formatNumber(displayResult.fabricSubstitution.originalWidthMeters ?? 0, 2)}m. Se usará rollo de {formatNumber(displayResult.fabricSubstitution.selectedWidthMeters ?? 0, 2)}m.</strong>
+                  <strong>No hay stock en ancho {formatNumber(displayResult.fabricSubstitution.originalWidthMeters ?? 0, 2)}m. Se usará ancho {formatNumber(displayResult.fabricSubstitution.selectedWidthMeters ?? 0, 2)}m porque cubre el requerimiento.</strong>
                   {displayResult.fabricSubstitution.requiredYd2 != null && displayResult.fabricSubstitution.availableYd2 != null && (
                     <p style={{ marginTop: '0.25rem' }}>
                       Requiere {formatNumber(displayResult.fabricSubstitution.requiredYd2, 2)} yd². Disponible: {formatNumber(displayResult.fabricSubstitution.availableYd2, 2)} yd².
