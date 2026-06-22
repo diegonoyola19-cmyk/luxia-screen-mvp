@@ -14,14 +14,25 @@ async function main() {
   const password = process.env.VERTILUX_API_PASSWORD;
   const country = process.env.VERTILUX_API_COUNTRY;
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!isDryRun) {
+    if (!supabaseKey || supabaseKey === anonKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for --commit. Refusing to write with anon key.');
+    }
+  } else {
+    if (!supabaseKey) {
+      supabaseKey = anonKey;
+    }
+  }
 
   if (!apiKey) throw new Error('Missing VERTILUX_API_KEY');
   if (!user) throw new Error('Missing VERTILUX_API_USER');
   if (!password) throw new Error('Missing VERTILUX_API_PASSWORD');
   if (!country) throw new Error('Missing VERTILUX_API_COUNTRY');
   if (!supabaseUrl) throw new Error('Missing VITE_SUPABASE_URL or SUPABASE_URL');
-  if (!supabaseKey) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseKey) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY');
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
