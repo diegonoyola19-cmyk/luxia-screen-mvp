@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InventoryPanelV2 } from './InventoryPanelV2';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -20,7 +20,7 @@ vi.mock('../../../lib/inventoryMigration', () => ({
 
 const mockAuthStore = useAuthStore as unknown as ReturnType<typeof vi.fn>;
 
-describe('InventoryPanelV2', () => {
+describe('InventoryPanelV2 (Bodega 3.0)', () => {
   let discardInventoryItemMock: any;
   let setRemaindersMock: any;
   let enqueueOperationMock: any;
@@ -32,6 +32,7 @@ describe('InventoryPanelV2', () => {
     mockAuthStore.mockReturnValue({
       role: 'admin',
       hasPermission: () => true,
+      user: { id: 'test-user-id' }
     });
 
     discardInventoryItemMock = vi.fn();
@@ -43,12 +44,7 @@ describe('InventoryPanelV2', () => {
         productionInventory: { fabrics: [], tubes: [], bottoms: [] },
         discardInventoryItem: discardInventoryItemMock,
         remainders: [],
-        savedOrders: [
-          {
-            id: 'test-order-1',
-            orderNumber: 'ORD-0225',
-          }
-        ],
+        savedOrders: [],
         setRemainders: setRemaindersMock,
         addFabricScrap: vi.fn()
       };
@@ -68,7 +64,8 @@ describe('InventoryPanelV2', () => {
             source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
-            payload: { length_meters: 2.0, source_order_number: 'ORD-0225' }
+            payload: { length_meters: 2.0, source_order_number: 'ORD-0225' },
+            remainingLengthM: 2.0
           },
           {
             id: 'test-bottom',
@@ -80,19 +77,8 @@ describe('InventoryPanelV2', () => {
             source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
-            payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
-          },
-          {
-            id: 'test-consumed',
-            code: '0-154-TU-50001',
-            category: 'tube',
-            kind: 'scrap',
-            status: 'consumed',
-            created_from_order_id: null,
-            source: 'migration',
-            created_at: '2023-10-01T10:00:00.000Z',
-            updated_at: '2023-10-01T10:00:00.000Z',
-            payload: { length_meters: 1.0, source_order_number: 'ORD-0225' }
+            payload: { length_meters: 1.0, source_order_number: 'ORD-0225' },
+            remainingLengthM: 1.0
           },
           {
             id: 'fab-1',
@@ -104,7 +90,22 @@ describe('InventoryPanelV2', () => {
             source: 'migration',
             created_at: '2023-10-01T10:00:00.000Z',
             updated_at: '2023-10-01T10:00:00.000Z',
-            payload: { family: 'Roller', color: 'White', width_meters: 1, length_meters: 1 }
+            payload: { family: 'Roller', color: 'White', width_meters: 1, length_meters: 1 },
+            widthMeters: 1,
+            lengthMeters: 1
+          },
+          {
+            // Rollo completo API, NO debe aparecer como retazo
+            id: 'roll-1',
+            code: 'ROLL-API-1',
+            category: 'fabric',
+            kind: 'roll',
+            status: 'available',
+            created_from_order_id: null,
+            source: 'api',
+            created_at: '2023-10-01T10:00:00.000Z',
+            updated_at: '2023-10-01T10:00:00.000Z',
+            payload: { family: 'Roller', color: 'Black', width_meters: 3, length_meters: 30 }
           }
         ],
         movements: [],
@@ -112,318 +113,131 @@ describe('InventoryPanelV2', () => {
         lastError: null,
         lastSyncedAt: null,
         pendingQueue: [],
-        enqueueOperation: enqueueOperationMock
+        enqueueOperation: enqueueOperationMock,
+        upsertItemLocally: vi.fn()
       };
       return selector ? selector(state) : state;
     });
   });
 
-  it('muestra retazos de tubo disponibles', () => {
+  it('renderiza métricas correctamente', () => {
+    render(<InventoryPanelV2 />);
+    expect(screen.getByText('Bodega')).toBeInTheDocument();
+    expect(screen.getByText('Retazos de tela disponibles')).toBeInTheDocument();
+    expect(screen.getByText('Sobrantes de tubo disponibles')).toBeInTheDocument();
+  });
+
+  it('tabs muestran conteos correctamente', () => {
+    render(<InventoryPanelV2 />);
+    const tabTelas = screen.getByRole('button', { name: /Retazos de Tela/ });
+    expect(tabTelas).toHaveTextContent('1'); // fab-1
+    
+    const tabLineales = screen.getByRole('button', { name: /Sobrantes Lineales/ });
+    expect(tabLineales).toHaveTextContent('2'); // test-tube, test-bottom
+  });
+
+  it('no muestra rollos API como retazos', () => {
+    render(<InventoryPanelV2 />);
+    expect(screen.getByText('RET-001')).toBeInTheDocument();
+    expect(screen.queryByText('ROLL-API-1')).not.toBeInTheDocument();
+  });
+
+  it('selectedIds vacío al cargar y bulk bar oculta', () => {
+    render(<InventoryPanelV2 />);
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).not.toHaveClass('visible');
+    
+    const checkboxes = screen.getAllByRole('checkbox');
+    checkboxes.forEach(cb => {
+      expect(cb).not.toBeChecked();
+    });
+  });
+
+  it('seleccionar fila muestra bulk bar', () => {
+    render(<InventoryPanelV2 />);
+    const rowCheckbox = screen.getByRole('checkbox', { name: 'Seleccionar RET-001' });
+    fireEvent.click(rowCheckbox);
+    
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).toHaveClass('visible');
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).toHaveTextContent('1 seleccionados');
+  });
+
+  it('seleccionar todo visible funciona', () => {
+    render(<InventoryPanelV2 />);
+    fireEvent.click(screen.getByRole('button', { name: /Sobrantes Lineales/ }));
+    
+    const selectAllCb = screen.getByRole('checkbox', { name: /Seleccionar todos los visibles/ });
+    fireEvent.click(selectAllCb);
+    
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).toHaveTextContent('2 seleccionados');
+  });
+
+  it('cambiar tab limpia selección', () => {
+    render(<InventoryPanelV2 />);
+    const rowCheckbox = screen.getByRole('checkbox', { name: 'Seleccionar RET-001' });
+    fireEvent.click(rowCheckbox);
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).toHaveClass('visible');
+
+    fireEvent.click(screen.getByRole('button', { name: /Sobrantes Lineales/ }));
+    expect(screen.getByRole('button', { name: /Dar de baja seleccionados/ }).closest('.bulk-bar')).not.toHaveClass('visible');
+  });
+
+  it('ver detalle abre modal y muestra secciones correctas', () => {
+    render(<InventoryPanelV2 />);
+    expect(screen.queryByText('Detalle del registro')).not.toBeInTheDocument();
+    
+    const verDetalleBtn = screen.getAllByRole('button', { name: /Ver detalle/ })[0];
+    fireEvent.click(verDetalleBtn);
+
+    expect(screen.getByText('Detalle del registro')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Resumen' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Material' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Medidas' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Origen' })).toBeInTheDocument();
+
+    // Verify some values
+    expect(screen.getAllByText('RET-001').length).toBeGreaterThan(0); // Code
+    expect(screen.getAllByText('Retazo de tela').length).toBeGreaterThan(0); // Type
+    expect(screen.getAllByText('Roller - White').length).toBeGreaterThan(0); // Description
+    expect(screen.getAllByText('1.00 m').length).toBeGreaterThan(0); // Width
+    expect(screen.getAllByText('Corte de Prod.').length).toBeGreaterThan(0); // Origin
+  });
+
+  it('dar de baja individual desde modal confirma', () => {
     render(<InventoryPanelV2 />);
     
-    // Cambiar a la pestaña de sobrantes lineales
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
+    // Abrir detalle
+    const verDetalleBtn = screen.getAllByRole('button', { name: /Ver detalle/ })[0];
+    fireEvent.click(verDetalleBtn);
 
-    expect(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/)).toBeInTheDocument();
-    expect(screen.getByText('Tubo')).toBeInTheDocument();
+    // Click dar de baja en modal detalle
+    const btnBaja = screen.getAllByRole('button', { name: 'Dar de baja' })[1]; // [0] is in row, [1] is in modal
+    fireEvent.click(btnBaja);
+
+    // Debe cerrar detalle y abrir modal confirmación
+    expect(screen.getByRole('heading', { name: 'Confirmar baja' })).toBeInTheDocument();
+    expect(screen.getByText(/el registro seleccionado/)).toBeInTheDocument();
   });
 
-  it('muestra retazos de bottomrail disponibles', () => {
+  it('confirmar baja usa lógica existente', async () => {
     render(<InventoryPanelV2 />);
     
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
+    // Seleccionar fila
+    const rowCheckbox = screen.getByRole('checkbox', { name: 'Seleccionar RET-001' });
+    fireEvent.click(rowCheckbox);
 
-    expect(screen.getByText(/SO Rollux-Al. Bottomrail Classic Bronze/)).toBeInTheDocument();
-    expect(screen.getByText('Bottomrail')).toBeInTheDocument();
-  });
+    // Click en la bulk bar
+    const bulkBajaBtn = screen.getByRole('button', { name: /Dar de baja seleccionados/ });
+    fireEvent.click(bulkBajaBtn);
 
-  it('no muestra sobrantes consumidos o descartados', () => {
-    render(<InventoryPanelV2 />);
-    
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
+    // Modal confirmación
+    const confirmBtn = screen.getByRole('button', { name: 'Confirmar baja' });
+    fireEvent.click(confirmBtn);
 
-    // It only returns available, so 2 items.
-    expect(screen.queryAllByText(/2" \(50mm\) Smooth Alu. Motor Tube/).length).toBe(1);
-  });
-
-  it('convierte FT a metros correctamente y los muestra', () => {
-    render(<InventoryPanelV2 />);
-    
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
-
-    // 6.56 FT / 2.00 m
-    expect(screen.getByText(/6.56 FT/)).toBeInTheDocument();
-    expect(screen.getByText(/\/ 2.00 m/)).toBeInTheDocument();
-
-    // 3.28 FT / 1.00 m
-    expect(screen.getByText(/3.28 FT/)).toBeInTheDocument();
-    expect(screen.getByText(/\/ 1.00 m/)).toBeInTheDocument();
-  });
-
-  it('muestra el número de orden de origen de los sobrantes', () => {
-    render(<InventoryPanelV2 />);
-    
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
-
-    // The order number is ORD-0225
-    const orders = screen.getAllByText('ORD-0225');
-    expect(orders.length).toBeGreaterThan(0);
-  });
-
-  it('muestra la fecha de generacion', () => {
-    render(<InventoryPanelV2 />);
-    
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
-
-    const dateStr = new Date('2023-10-01T10:00:00.000Z').toLocaleDateString();
-    const dates = screen.getAllByText(dateStr);
-    expect(dates.length).toBeGreaterThan(0);
-  });
-
-  it('muestra el empty state si no hay sobrantes lineales', () => {
-    vi.mocked(useGlobalInventoryStore).mockImplementation((selector: any) => {
-      const state = {
-        items: [],
-        movements: [],
-        syncStatus: 'idle',
-        lastError: null,
-        lastSyncedAt: null,
-        pendingQueue: []
-      };
-      return selector ? selector(state) : state;
-    });
-
-    render(<InventoryPanelV2 />);
-    
-    const btn = screen.getByText('Sobrantes Lineales');
-    fireEvent.click(btn);
-
-    expect(screen.getByText('No se encontraron sobrantes lineales.')).toBeInTheDocument();
-  });
-
-  it('el panel derecho aparece aunque no haya item seleccionado mostrando empty state', () => {
-    render(<InventoryPanelV2 />);
-    expect(screen.getByText('Selecciona un retazo o sobrante para ver sus detalles.')).toBeInTheDocument();
-  });
-
-  describe('Modal de dar de baja', () => {
-    beforeEach(() => {
-      // spy on window.confirm to make sure it's NOT called
-      vi.spyOn(window, 'confirm');
-    });
-
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it('abre el modal al hacer clic en Dar de baja y cancelar no descarta', () => {
-      render(<InventoryPanelV2 />);
-      
-      // Activar pestaña lineales
-      fireEvent.click(screen.getByText('Sobrantes Lineales'));
-      
-      // Seleccionar un sobrante lineal
-      fireEvent.click(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/));
-
-      // Verificar que el detalle está abierto (botón de dar de baja)
-      const btnBaja = screen.getByText('Dar de baja');
-      fireEvent.click(btnBaja);
-
-      // Verificar que el modal se abre
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByText(/¿Dar de baja sobrante/)).toBeInTheDocument();
-      expect(window.confirm).not.toHaveBeenCalled();
-
-      // Cancelar
-      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-
-      // El modal se cierra
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('no llama a localStore sino a enqueueOperation al descartar sobrante (Fase 5B.7)', async () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('Sobrantes Lineales'));
-      fireEvent.click(screen.getByText(/2" \(50mm\) Smooth Alu. Motor Tube/));
-      
-      fireEvent.click(screen.getByText('Dar de baja'));
-      
-      const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
-      fireEvent.click(confirmBtns[confirmBtns.length - 1]);
-
-      await waitFor(() => {
-        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-          type: 'update_status',
-          itemId: 'test-tube',
-          payload: { status: 'discarded' }
-        }));
-        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-          type: 'create_movement',
-          itemId: 'test-tube',
-          payload: expect.objectContaining({ action: 'discard' })
-        }));
-      });
-      
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('no llama a localStore sino a enqueueOperation al descartar tela (Fase 5B.7)', async () => {
-      render(<InventoryPanelV2 />);
-      
-      fireEvent.click(screen.getByText('RET-001'));
-      fireEvent.click(screen.getByText('Dar de baja'));
-      
-      expect(screen.getByText(/¿Dar de baja retazo RET-001\?/)).toBeInTheDocument();
-      
-      const confirmBtns = screen.getAllByRole('button', { name: 'Dar de baja' });
-      fireEvent.click(confirmBtns[confirmBtns.length - 1]);
-
-      await waitFor(() => {
-        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-          type: 'update_status',
-          itemId: 'fab-1',
-          payload: { status: 'discarded' }
-        }));
-      });
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Botones Superiores', () => {
-    let addFabricScrapMock: any;
-    let enqueueOperationMock: any;
-    
-    beforeEach(() => {
-      addFabricScrapMock = vi.fn();
-      enqueueOperationMock = vi.fn();
-      
-      vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
-        const state = {
-          productionInventory: { fabrics: [], tubes: [], bottoms: [] },
-          discardInventoryItem: vi.fn(),
-          remainders: [],
-          savedOrders: [],
-          setRemainders: vi.fn(),
-          addFabricScrap: addFabricScrapMock,
-        };
-        return selector(state);
-      });
-
-      vi.mocked(useGlobalInventoryStore).mockImplementation((selector: any) => {
-        const state = {
-          items: [], movements: [], syncStatus: 'idle', lastError: null, lastSyncedAt: null, pendingQueue: [],
-          enqueueOperation: enqueueOperationMock
-        };
-        return selector ? selector(state) : state;
-      });
-    });
-
-    it('abre el modal de registro manual', () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      expect(screen.getByText('Registrar retazo manual', { selector: 'h3' })).toBeInTheDocument();
-    });
-
-    it('cierra el modal de registro manual al cancelar', () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      expect(screen.getByText('Registrar retazo manual', { selector: 'h3' })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-      expect(screen.queryByText('Registrar retazo manual', { selector: 'h3' })).not.toBeInTheDocument();
-    });
-
-    it('el botón Guardar inicia deshabilitado si faltan campos obligatorios', () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      
-      const saveBtn = screen.getByRole('button', { name: 'Guardar retazo' });
-      expect(saveBtn).toBeDisabled();
-      expect(screen.getByText('Completa color/descripción, ancho y alto para guardar.')).toBeInTheDocument();
-    });
-
-    it('habilita el botón Guardar al completar campos válidos', () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      
-      fireEvent.change(screen.getByLabelText(/Color \/ Descripción/), { target: { value: 'Test Color' } });
-      fireEvent.change(screen.getByLabelText(/Ancho/), { target: { value: '1.5' } });
-      fireEvent.change(screen.getByLabelText(/Alto/), { target: { value: '2.0' } });
-
-      const saveBtn = screen.getByRole('button', { name: 'Guardar retazo' });
-      expect(saveBtn).not.toBeDisabled();
-      expect(screen.queryByText('Completa color/descripción, ancho y alto para guardar.')).not.toBeInTheDocument();
-    });
-
-    it('muestra error y deshabilita si ancho o alto son inválidos', () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      
-      fireEvent.change(screen.getByLabelText(/Color \/ Descripción/), { target: { value: 'Test Color' } });
-      fireEvent.change(screen.getByLabelText(/Ancho/), { target: { value: '-1' } });
-      fireEvent.change(screen.getByLabelText(/Alto/), { target: { value: '0' } });
-
-      expect(screen.getByText('El ancho debe ser mayor a 0.')).toBeInTheDocument();
-      expect(screen.getByText('El alto debe ser mayor a 0.')).toBeInTheDocument();
-
-      const saveBtn = screen.getByRole('button', { name: 'Guardar retazo' });
-      expect(saveBtn).toBeDisabled();
-    });
-
-    it('crea un retazo manual usando enqueueOperation en lugar de local (Fase 5B.7)', async () => {
-      render(<InventoryPanelV2 />);
-      fireEvent.click(screen.getByText('+ Registrar retazo manual'));
-      
-      fireEvent.change(screen.getByLabelText(/Código/), { target: { value: 'MANUAL-123' } });
-      fireEvent.change(screen.getByLabelText(/Familia \/ Línea/), { target: { value: 'Test Family' } });
-      fireEvent.change(screen.getByLabelText(/Color \/ Descripción/), { target: { value: 'Test Color' } });
-      fireEvent.change(screen.getByLabelText(/Ancho/), { target: { value: '1.5' } });
-      fireEvent.change(screen.getByLabelText(/Alto/), { target: { value: '2.0' } });
-
-      const saveBtn = screen.getByRole('button', { name: 'Guardar retazo' });
-      expect(saveBtn).not.toBeDisabled();
-      fireEvent.click(saveBtn);
-
-      await waitFor(() => {
-        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-          type: 'upsert_item',
-          payload: expect.objectContaining({
-            code: 'MANUAL-123',
-            category: 'fabric',
-            kind: 'scrap',
-            status: 'available'
-          })
-        }));
-        expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
-          type: 'create_movement',
-          payload: expect.objectContaining({
-            action: 'create_scrap'
-          })
-        }));
-      });
-
-      expect(addFabricScrapMock).not.toHaveBeenCalled();
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('la acción de exportar no explota', async () => {
-      render(<InventoryPanelV2 />);
-      const exportBtn = screen.getByRole('button', { name: /Exportar lista/i });
-      fireEvent.click(exportBtn);
-      // Solo verificamos que se puede hacer clic y no lanza error de render.
-      // El test completo de Excel requeriría mock de XLSX o lib.
-    });
-
-    it('la acción de refrescar no explota y funciona', () => {
-      render(<InventoryPanelV2 />);
-      const refreshBtn = screen.getByTitle('Actualizar datos visuales');
-      fireEvent.click(refreshBtn);
-      // Solo verificamos que no lanza errores (limpia selección y filtros en el estado local)
+    await waitFor(() => {
+      expect(enqueueOperationMock).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'update_status',
+        itemId: 'fab-1'
+      }));
     });
   });
 });

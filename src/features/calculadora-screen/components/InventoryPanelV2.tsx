@@ -1,11 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { animate } from 'framer-motion';
 import { toast } from 'sonner';
-import { useCalculatorStore } from '../store/useCalculatorStore';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { formatNumber, formatDate } from '../../../lib/format';
-import { YARD2_PER_M2 } from '../utils';
-import { componentCatalogBySku } from '../../../domain/inventory/componentCatalog';
+import { formatNumber } from '../../../lib/format';
 import fabricCatalogData from '../../../data/luxia-roller-catalog.json';
 import { useGlobalInventoryStore } from '../../../store/useGlobalInventoryStore';
 import { selectGlobalFabricsForBodega, selectGlobalLinearsForBodega } from '../../../lib/inventoryGlobalSelectors';
@@ -21,13 +18,6 @@ const getFabricSku = (family?: string, color?: string, openness?: string) => {
     i.family === family && i.color === color && i.openness === openness
   );
   return found?.itemCode || 'No registrado';
-};
-
-const getFabricImageUrl = (family?: string, color?: string, openness?: string) => {
-  const found = fabricCatalogData.items.find(i => 
-    i.family === family && i.color === color && i.openness === openness
-  );
-  return found?.imageUrl || null;
 };
 
 const getApproximateColor = (colorName?: string | null): string | null => {
@@ -64,22 +54,25 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 export function InventoryPanelV2() {
-  const globalItems = useGlobalInventoryStore((state) => state.items);
-  const syncStatus = useGlobalInventoryStore((state) => state.syncStatus);
+  const { items: globalItems, enqueueOperation, upsertItemLocally } = useGlobalInventoryStore();
   const syncError = useGlobalInventoryStore((state) => state.lastError);
-  
   const migrationStatus = getInventoryMigrationStatus();
 
-  const { role } = useAuthStore();
+  const { role, user } = useAuthStore();
   const isReadOnly = role === 'consulta';
 
-  const [activeTab, setActiveTab] = useState<'telas' | 'lineales'>('telas');
+  const [activeTab, setActiveTab] = useState<'fabric' | 'linear'>('fabric');
   const [searchQuery, setSearchQuery] = useState('');
-  const [familyFilter, setFamilyFilter] = useState('');
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [discardingItem, setDiscardingItem] = useState<any>(null);
-
+  const [statusFilter, setStatusFilter] = useState('available');
+  
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Modals state
+  const [detailItem, setDetailItem] = useState<any>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+
   const [manualForm, setManualForm] = useState({
     code: '',
     family: '',
@@ -91,29 +84,27 @@ export function InventoryPanelV2() {
     notes: ''
   });
 
+  // Clear selection on tab change
   useEffect(() => {
-    if (!discardingItem) return;
+    setSelectedIds([]);
+  }, [activeTab]);
+
+  // Escape key handler
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDiscardingItem(null);
+      if (e.key === 'Escape') {
+        setDetailItem(null);
+        setIsConfirmModalOpen(false);
+        setIsManualModalOpen(false);
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [discardingItem]);
-
-  // Clear selected item on tab change
-  useEffect(() => {
-    setSelectedItem(null);
-    setSearchQuery('');
-    setFamilyFilter('');
-  }, [activeTab]);
+  }, []);
 
   // Data from Global Store
   const availableScraps = useMemo(() => selectGlobalFabricsForBodega(globalItems), [globalItems]);
   const linearOffcuts = useMemo(() => selectGlobalLinearsForBodega(globalItems), [globalItems]);
-
-  if (import.meta.env.DEV) {
-    console.log("[Bodega] globalItems", globalItems);
-  }
 
   const tubeOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'tube').length, [linearOffcuts]);
   const bottomOffcutsCount = useMemo(() => linearOffcuts.filter(l => l.kind === 'bottom').length, [linearOffcuts]);
@@ -127,17 +118,11 @@ export function InventoryPanelV2() {
     return f.family;
   };
 
-  // Filtering
-  const uniqueFamilies = useMemo(() => {
-    const families = new Set(availableScraps.map(f => getDisplayName(f)).filter(Boolean) as string[]);
-    return Array.from(families).sort();
-  }, [availableScraps]);
-
   const filteredScraps = useMemo(() => {
     let result = availableScraps;
     
-    if (familyFilter) {
-      result = result.filter(f => getDisplayName(f) === familyFilter);
+    if (statusFilter !== 'all') {
+      result = result.filter(f => f.status === statusFilter);
     }
     
     if (searchQuery) {
@@ -151,43 +136,69 @@ export function InventoryPanelV2() {
     }
     
     return result;
-  }, [availableScraps, searchQuery, familyFilter]);
+  }, [availableScraps, searchQuery, statusFilter]);
 
   const filteredLinears = useMemo(() => {
-    if (!searchQuery) return linearOffcuts;
-    const q = searchQuery.toLowerCase();
-    return linearOffcuts.filter(
-      (l) => l.code.toLowerCase().includes(q) || 
-             (l.color && l.color.toLowerCase().includes(q))
-    );
-  }, [linearOffcuts, searchQuery]);
+    let result = linearOffcuts;
 
-  const { user } = useAuthStore();
-  const enqueueOperation = useGlobalInventoryStore((state) => state.enqueueOperation);
-
-  const handleDiscard = (id: string, category: 'fabric' | 'tube' | 'bottom') => {
-    if (isReadOnly) return toast.error('No tienes permisos para modificar el inventario');
-
-    const itemToDiscard = globalItems.find(i => i.id === id);
-    if (!itemToDiscard) {
-      toast.error('Ítem no encontrado en inventario global.');
-      setDiscardingItem(null);
-      return;
+    if (statusFilter !== 'all') {
+      result = result.filter(l => l.status === statusFilter);
     }
 
-    import('../../../lib/inventoryGlobalActions').then(({ createGlobalDiscardPayload }) => {
-      const { updatedStatus, movement } = createGlobalDiscardPayload(itemToDiscard, user?.id, 'Descartado manualmente desde Bodega');
-      
-      enqueueOperation({ type: 'update_status', itemId: id, payload: { status: updatedStatus } });
-      enqueueOperation({ type: 'create_movement', payload: movement, itemId: id });
-      
-      if (selectedItem?.id === id) setSelectedItem(null);
-      setDiscardingItem(null);
-      toast.success('Baja encolada correctamente. Se sincronizará pronto.');
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (l) => l.code.toLowerCase().includes(q) || 
+               (l.color && l.color.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [linearOffcuts, searchQuery, statusFilter]);
+
+  // Checkbox logic
+  const currentItems = activeTab === 'fabric' ? filteredScraps : filteredLinears;
+  
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(currentItems.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.target.checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const isAllSelected = currentItems.length > 0 && selectedIds.length === currentItems.length;
+  const isIndeterminate = selectedIds.length > 0 && !isAllSelected;
+
+  const performDiscard = (item: any) => {
+    return import('../../../lib/inventoryGlobalActions').then(({ createGlobalDiscardPayload }) => {
+      const { updatedStatus, movement } = createGlobalDiscardPayload(item, user?.id, 'Descartado manualmente desde Bodega');
+      enqueueOperation({ type: 'update_status', itemId: item.id, payload: { status: updatedStatus } });
+      enqueueOperation({ type: 'create_movement', payload: movement, itemId: item.id });
+      upsertItemLocally({ ...item, status: updatedStatus });
     });
   };
 
-  const toFT = (meters: number) => (meters * 3.28084).toFixed(2);
+  const handleBulkDiscardConfirm = () => {
+    if (isReadOnly) return toast.error('No tienes permisos para modificar el inventario');
+
+    const itemsToDiscard = globalItems.filter(i => selectedIds.includes(i.id));
+    if (itemsToDiscard.length === 0) return;
+
+    Promise.all(itemsToDiscard.map(item => performDiscard(item))).then(() => {
+      toast.success(`${itemsToDiscard.length} registros dados de baja.`);
+      setSelectedIds([]);
+      setIsConfirmModalOpen(false);
+    });
+  };
 
   const handleExport = () => {
     import('../../../lib/exportInventoryExcel').then(module => {
@@ -200,9 +211,9 @@ export function InventoryPanelV2() {
   };
 
   const handleRefresh = () => {
-    setSelectedItem(null);
+    setSelectedIds([]);
     setSearchQuery('');
-    setFamilyFilter('');
+    setStatusFilter('available');
     toast.success('Bodega actualizada');
   };
 
@@ -238,578 +249,383 @@ export function InventoryPanelV2() {
         code: '', family: '', sku: '', color: '', widthMeters: '', lengthMeters: '', orderNumber: 'Registro manual', notes: ''
       });
       toast.success('Retazo registrado globalmente.');
-      setActiveTab('telas');
+      setActiveTab('fabric');
     });
   };
 
+  const renderPill = (record: any) => {
+    const kind = record.kind || (record.family ? 'fabric' : 'linear');
+    if (kind === 'tube') return <span className="pill pill-tube">Tubo</span>;
+    if (kind === 'bottom') return <span className="pill pill-bottom">Bottomrail</span>;
+    return <span className="pill pill-fabric">Tela</span>;
+  };
+
+  const renderStatus = (status: string) => {
+    if (status === 'available') return <span className="pill pill-success">Disponible</span>;
+    if (status === 'discarded') return <span className="pill pill-discarded">Descartado</span>;
+    return <span className="pill pill-discarded">{status}</span>;
+  };
+
   return (
-    <section className="inventory-v2-page">
-      {/* HEADER */}
-      <div className="iv2-header">
-        <div className="iv2-header-title">
-          <h2>Bodega <span style={{fontSize: '0.6em', background: 'var(--primary-glow)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', verticalAlign: 'middle', marginLeft: '8px'}}>GLOBAL</span></h2>
-          <p>Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
+    <section className="page">
+      <div className="page-header">
+        <div>
+          <div className="eyebrow-row">
+            <h1>Bodega</h1>
+            <span className="global-badge">GLOBAL</span>
+          </div>
+          <p className="subtext">Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
         </div>
-        <div className="iv2-header-actions">
-          <button className="iv2-btn-secondary" onClick={() => setIsManualModalOpen(true)} disabled={isReadOnly}>
-            + Registrar retazo manual
+
+        <div className="header-actions">
+          <button className="btn btn-primary" type="button" onClick={() => setIsManualModalOpen(true)} disabled={isReadOnly}>
+            ＋ Registrar retazo manual
           </button>
-          <button className="iv2-btn-secondary" onClick={handleExport}>
-            <span className="material-symbols-outlined" style={{fontSize: 18}}>download</span> Exportar lista
+          <button className="btn" type="button" onClick={handleExport}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span> Exportar lista
           </button>
-          <button className="iv2-btn-secondary iv2-btn-icon" onClick={handleRefresh} title="Actualizar datos visuales">
-            <span className="material-symbols-outlined" style={{fontSize: 20}}>refresh</span>
+          <button className="btn btn-ghost" type="button" title="Refrescar" onClick={handleRefresh}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>refresh</span>
           </button>
         </div>
       </div>
 
       {migrationStatus.status !== 'completed' && (
-        <div className="alert alert--warning" style={{ margin: '0 2rem 1rem 2rem' }}>
-          ⚠️ <strong>Atención:</strong> Aún hay datos locales sin migrar. Dirígete a <em>Configuración</em> para empujar tu bodega local hacia la nube global.
+        <div className="alert">
+          <span className="material-symbols-outlined" style={{color: 'var(--color-warning)'}}>warning</span>
+          <span><strong>Atención:</strong> Aún hay datos locales sin migrar. Dirígete a Configuración para empujar tu bodega local hacia la nube global.</span>
         </div>
       )}
 
       {syncError && (
-        <div className="alert alert--error" style={{ margin: '0 2rem 1rem 2rem' }}>
-          ❌ <strong>Error de sincronización:</strong> {syncError}
+        <div className="alert" style={{ borderColor: 'rgba(220, 38, 38, 0.28)', borderLeftColor: 'var(--color-danger)', background: 'rgba(220, 38, 38, 0.05)' }}>
+          <span className="material-symbols-outlined" style={{color: 'var(--color-danger)'}}>error</span>
+          <span><strong>Error de sincronización:</strong> {syncError}</span>
         </div>
       )}
 
-      {/* KPIS */}
-      <div className="iv2-summary-grid">
-        <div className="iv2-metric-card">
-          <span className="iv2-metric-eyebrow">RETAZOS DE TELA DISPONIBLES</span>
-          <strong className="iv2-metric-value"><AnimatedNumber value={availableScraps.length} /> <span style={{fontSize:'1.2rem', fontWeight:400}}>retazos</span></strong>
-        </div>
-        <div className="iv2-metric-card">
-          <span className="iv2-metric-eyebrow">SOBRANTES DE TUBO DISPONIBLES</span>
-          <strong className="iv2-metric-value"><AnimatedNumber value={tubeOffcutsCount} /> <span style={{fontSize:'1.2rem', fontWeight:400}}>pz</span></strong>
-        </div>
-        <div className="iv2-metric-card">
-          <span className="iv2-metric-eyebrow">SOBRANTES DE BOTTOMRAIL</span>
-          <strong className="iv2-metric-value"><AnimatedNumber value={bottomOffcutsCount} /> <span style={{fontSize:'1.2rem', fontWeight:400}}>pz</span></strong>
-        </div>
+      <div className="metrics" aria-label="Resumen de bodega">
+        <article className="metric-card">
+          <div className="metric-label">Retazos de tela disponibles</div>
+          <div><span className="metric-value"><AnimatedNumber value={availableScraps.length} /></span><span className="metric-unit">retazos</span></div>
+        </article>
+        <article className="metric-card">
+          <div className="metric-label">Sobrantes de tubo disponibles</div>
+          <div><span className="metric-value"><AnimatedNumber value={tubeOffcutsCount} /></span><span className="metric-unit">pz</span></div>
+        </article>
+        <article className="metric-card">
+          <div className="metric-label">Sobrantes de bottomrail</div>
+          <div><span className="metric-value"><AnimatedNumber value={bottomOffcutsCount} /></span><span className="metric-unit">pz</span></div>
+        </article>
       </div>
 
-      <div className="iv2-workspace">
-        <div className="iv2-main-area">
-          {/* TABS */}
-          <div className="iv2-tabs-simple">
+      <section className="inventory-card">
+        <div className="tabs-toolbar">
+          <div className="tabs" role="tablist">
             <button 
-              className={`iv2-tab-simple ${activeTab === 'telas' ? 'iv2-tab-simple--active' : ''}`}
-              onClick={() => setActiveTab('telas')}
+              className={`tab ${activeTab === 'fabric' ? 'active' : ''}`} 
+              type="button" 
+              onClick={() => setActiveTab('fabric')}
             >
-              Retazos de Tela
+              Retazos de Tela <span className="count-pill">{availableScraps.length}</span>
             </button>
             <button 
-              className={`iv2-tab-simple ${activeTab === 'lineales' ? 'iv2-tab-simple--active' : ''}`}
-              onClick={() => setActiveTab('lineales')}
+              className={`tab ${activeTab === 'linear' ? 'active' : ''}`} 
+              type="button" 
+              onClick={() => setActiveTab('linear')}
             >
-              Sobrantes Lineales
+              Sobrantes Lineales <span className="count-pill">{linearOffcuts.length}</span>
             </button>
           </div>
+        </div>
 
-          <div className="iv2-filters">
-            <div className="iv2-search-bar">
-              <span className="material-symbols-outlined">search</span>
-              <input 
-                type="text" 
-                placeholder="Buscar por código, SKU o tela..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            {activeTab === 'telas' && (
-              <select 
-                className="iv2-btn-placeholder" 
-                style={{cursor: 'pointer', opacity: 1, appearance: 'auto', outline: 'none', minWidth: '150px'}}
-                value={familyFilter}
-                onChange={(e) => setFamilyFilter(e.target.value)}
-              >
-                <option value="">Todas las telas</option>
-                {uniqueFamilies.map(f => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
-            )}
-            <button className="iv2-btn-placeholder" title="Próximamente" disabled>Estado</button>
+        <div className="toolbar">
+          <input 
+            className="search" 
+            placeholder="Buscar por código, SKU, color o descripción..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <select 
+            className="select" 
+            aria-label="Estado"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="available">Disponible</option>
+            <option value="discarded">Descartado</option>
+            <option value="all">Todos los estados</option>
+          </select>
+        </div>
+
+        <div className={`bulk-bar ${selectedIds.length > 0 ? 'visible' : ''}`}>
+          <strong><span>{selectedIds.length}</span> seleccionados</strong>
+          <div className="bulk-actions">
+            <button className="btn btn-ghost" type="button" onClick={() => setSelectedIds([])}>Cancelar selección</button>
+            <button className="btn btn-danger" type="button" onClick={() => setIsConfirmModalOpen(true)}>Dar de baja seleccionados</button>
           </div>
+        </div>
 
-          <div className="iv2-table-container">
-            {activeTab === 'telas' && (
-              <>
-                <div className="iv2-table-header">
-                  <span>Código</span>
-                  <span>Tela / SKU</span>
-                  <span>Descripción / Color</span>
-                  <span>Medida</span>
-                  <span>Área</span>
-                  <span>Gen. Por Orden</span>
-                  <span>Fecha Gen.</span>
-                  <span>Estado</span>
-                </div>
-                <div className="iv2-table-body">
-                  {filteredScraps.length === 0 ? (
-                    <div className="iv2-empty">No se encontraron retazos de tela.</div>
-                  ) : (
-                    filteredScraps.map(fabric => (
-                      <div 
-                        key={fabric.id} 
-                        className={`iv2-table-row ${selectedItem?.id === fabric.id ? 'iv2-table-row--selected' : ''}`}
-                        onClick={() => setSelectedItem({...fabric, itemType: 'Tela'})}
-                      >
-                        <div className="iv2-cell" data-label="Código"><strong style={{color: 'var(--color-primary)'}}>{fabric.code}</strong></div>
-                        <div className="iv2-cell-main" data-label="Tela / SKU">
-                          <div>
-                            <strong>{fabric.family || 'Desconocida'}</strong><br/>
-                            <span style={{fontSize: '0.75rem', color: 'var(--color-text-muted)'}}>{getFabricSku(fabric.family, fabric.color, fabric.openness)}</span>
+        <div className="table-shell">
+          <div className="table-scroll">
+            <table className="inventory-table" aria-label="Inventario de bodega">
+              <colgroup>
+                <col style={{ width: '48px', minWidth: '48px' }} />
+                <col style={{ width: '150px', minWidth: '150px' }} />
+                <col style={{ width: '120px', minWidth: '120px' }} />
+                <col style={{ width: '300px', minWidth: '300px' }} />
+                <col style={{ width: '150px', minWidth: '150px' }} />
+                <col style={{ width: '160px', minWidth: '160px' }} />
+                <col style={{ width: '130px', minWidth: '130px' }} />
+                <col style={{ width: '130px', minWidth: '130px' }} />
+                <col style={{ width: '112px', minWidth: '112px' }} />
+              </colgroup>
+              <thead style={{ display: 'table-header-group' }}>
+                <tr style={{ display: 'table-row' }}>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>
+                    <input 
+                      type="checkbox" 
+                      aria-label="Seleccionar todos los visibles" 
+                      checked={isAllSelected}
+                      ref={input => { if (input) input.indeterminate = isIndeterminate; }}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Código</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Tipo</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Descripción</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Medida</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Origen</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Fecha</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Estado</th>
+                  <th style={{ display: 'table-cell', position: 'sticky', top: 0, zIndex: 5, background: 'var(--color-surface-dim, #f4f5f7)' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: 0 }}>
+                      <div className="empty-state">No se encontraron registros para esta vista.</div>
+                    </td>
+                  </tr>
+                ) : (
+                  currentItems.map(item => {
+                    const itemAsAny = item as any;
+                    const isTela = activeTab === 'fabric';
+                    const descripcion = isTela ? `${itemAsAny.family || ''} - ${itemAsAny.color || ''}`.replace(/^- | -$/g, '') : (itemAsAny.description || itemAsAny.family || itemAsAny.color || 'Sobrante Lineal');
+                    const medida = isTela ? `${formatNumber(itemAsAny.widthMeters)}m x ${formatNumber(itemAsAny.lengthMeters)}m` : `${toFT(itemAsAny.remainingLengthM)} FT / ${formatNumber(itemAsAny.remainingLengthM)}m`;
+                    const origen = isTela ? (itemAsAny.orderNumber || 'Corte de Prod.') : (itemAsAny.sourceOrderNumber || 'Corte de Prod.');
+                    const isSelected = selectedIds.includes(item.id);
+
+                    return (
+                      <tr key={item.id} className={isSelected ? 'selected' : ''}>
+                        <td>
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected} 
+                            onChange={(e) => handleSelectRow(item.id, e)}
+                            aria-label={`Seleccionar ${item.code}`} 
+                          />
+                        </td>
+                        <td className="code" title={item.code}>{item.code}</td>
+                        <td title={item.kind}>{renderPill(item)}</td>
+                        <td title={descripcion}>{descripcion}</td>
+                        <td title={medida}>{medida}</td>
+                        <td title={origen}>{origen}</td>
+                        <td title={item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}>
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td title={item.status}>{renderStatus(item.status)}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button 
+                              className="icon-btn" 
+                              type="button" 
+                              title="Ver detalle" 
+                              aria-label="Ver detalle"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setDetailItem({
+                                  ...item, 
+                                  _medida: medida, 
+                                  _descripcion: descripcion, 
+                                  _origen: origen,
+                                  _isTela: isTela,
+                                  _family: itemAsAny.family,
+                                  _color: itemAsAny.color,
+                                  _openness: itemAsAny.openness,
+                                  _width: itemAsAny.widthMeters,
+                                  _length: itemAsAny.lengthMeters,
+                                  _remainingLength: itemAsAny.remainingLengthM,
+                                  _order: itemAsAny.orderNumber || itemAsAny.sourceOrderNumber,
+                                  _sku: isTela ? getFabricSku(itemAsAny.family, itemAsAny.color, itemAsAny.openness) : undefined
+                                }); 
+                              }}
+                            >
+                              <span className="material-symbols-outlined">visibility</span>
+                            </button>
+                            <button 
+                              className="icon-btn" 
+                              type="button" 
+                              title="Dar de baja" 
+                              aria-label="Dar de baja"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setSelectedIds([item.id]); 
+                                setIsConfirmModalOpen(true); 
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{color: 'var(--color-danger)'}}>delete</span>
+                            </button>
                           </div>
-                        </div>
-                        <div className="iv2-cell" data-label="Color">
-                          {getApproximateColor(fabric.color) ? (
-                            <span className="color-swatch" style={{ backgroundColor: getApproximateColor(fabric.color)! }} />
-                          ) : null}
-                          {fabric.color || '-'}
-                        </div>
-                        <div className="iv2-cell" data-label="Medida">{formatNumber(fabric.widthMeters)}m x {formatNumber(fabric.lengthMeters)}m</div>
-                        <div className="iv2-cell" data-label="Área">{formatNumber(fabric.widthMeters * fabric.lengthMeters)} m²</div>
-                        <div className="iv2-cell" data-label="Gen. Por Orden">{(fabric as any).orderNumber || 'Corte de Prod.'}</div>
-                        <div className="iv2-cell" data-label="Fecha Gen.">{fabric.createdAt ? new Date(fabric.createdAt).toLocaleDateString() : '—'}</div>
-                        <div className="iv2-cell" data-label="Estado"><span className="iv2-badge iv2-badge--available">Disponible</span></div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
-
-            {activeTab === 'lineales' && (
-              <>
-                <div className="iv2-table-header iv2-table-header--linear">
-                  <span>Código</span>
-                  <span>Tipo</span>
-                  <span>SKU / Descripción</span>
-                  <span>Largo Disponible</span>
-                  <span>Gen. Por Orden</span>
-                  <span>Fecha Gen.</span>
-                  <span>Estado</span>
-                </div>
-                <div className="iv2-table-body">
-                  {filteredLinears.length === 0 ? (
-                    <div className="iv2-empty">No se encontraron sobrantes lineales.</div>
-                  ) : (
-                    filteredLinears.map(linear => (
-                      <div 
-                        key={linear.id} 
-                        className={`iv2-table-row iv2-table-row--linear ${selectedItem?.id === linear.id ? 'iv2-table-row--selected' : ''}`}
-                        onClick={() => setSelectedItem(linear)}
-                      >
-                        <div className="iv2-cell" data-label="Código"><strong style={{color: 'var(--color-primary)'}}>{linear.code}</strong></div>
-                        <div className="iv2-cell" data-label="Tipo">
-                          <span className={`iv2-badge ${linear.itemType === 'Tubo' ? 'iv2-badge--tube' : 'iv2-badge--bottom'}`}>
-                            {linear.itemType}
-                          </span>
-                        </div>
-                        <div className="iv2-cell" data-label="SKU / Desc.">{linear.color || 'Estándar'}</div>
-                        <div className="iv2-cell" data-label="Largo Disponible">
-                          <strong>{toFT(linear.remainingLengthM)} FT</strong> <span style={{color: 'var(--color-text-muted)'}}>/ {formatNumber(linear.remainingLengthM)} m</span>
-                        </div>
-                        <div className="iv2-cell" data-label="Gen. Por Orden">{linear.sourceOrderNumber}</div>
-                        <div className="iv2-cell" data-label="Fecha Gen.">{linear.createdAt ? new Date(linear.createdAt).toLocaleDateString() : '—'}</div>
-                        <div className="iv2-cell" data-label="Estado"><span className="iv2-badge iv2-badge--available">Disponible</span></div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+      </section>
 
-        {/* DETAILS PANEL */}
-        {/* DETAILS PANEL */}
-        <div className="iv2-details-panel">
-          {!selectedItem ? (
-            <div className="iv2-details-empty">
-              <span className="material-symbols-outlined">inventory_2</span>
-              <p>Selecciona un retazo o sobrante para ver sus detalles.</p>
+      {/* DETAIL MODAL */}
+      {detailItem && (
+        <div className="modal-backdrop visible" role="dialog" aria-modal="true" aria-labelledby="detailTitle" onClick={(e) => { if (e.target === e.currentTarget) setDetailItem(null); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2 id="detailTitle" style={{margin:0, fontSize:'20px'}}>Detalle del registro</h2>
+              <p style={{margin:'4px 0 0', color:'var(--color-text-muted)', fontSize:'14px', fontWeight:600}}>{detailItem.code}</p>
             </div>
-          ) : (
-            <>
-              <div className="iv2-details-header">
-                <h3>Detalle de Item</h3>
-                <button className="iv2-btn-close" onClick={() => setSelectedItem(null)}>
-                  <span className="material-symbols-outlined">close</span>
-                </button>
+            <div className="modal-body">
+              <div className="detail-section">
+                <h3>Resumen</h3>
+                <div className="detail-grid">
+                  <span>Código</span><strong>{detailItem.code}</strong>
+                  <span>Tipo</span><strong>{detailItem._isTela ? 'Retazo de tela' : (detailItem.kind === 'tube' ? 'Sobrante de Tubo' : 'Sobrante de Bottomrail')}</strong>
+                  <span>Estado</span><strong>{renderStatus(detailItem.status)}</strong>
+                  <span>Fecha gen.</span><strong>{detailItem.createdAt ? new Date(detailItem.createdAt).toLocaleDateString() : '—'}</strong>
+                </div>
               </div>
-              
-              <div className="iv2-details-body">
-                {selectedItem.itemType === 'Tela' ? (
-                  (selectedItem.imageUrl || getFabricImageUrl(selectedItem.family, selectedItem.color, selectedItem.openness)) ? (
-                    <div className="iv2-detail-preview iv2-detail-preview--image" style={{ border: 'none' }}>
-                      <img 
-                        src={selectedItem.imageUrl || getFabricImageUrl(selectedItem.family, selectedItem.color, selectedItem.openness)!} 
-                        alt={selectedItem.color || selectedItem.family || 'Material'} 
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    </div>
-                  ) : getApproximateColor(selectedItem.color) ? (
-                    <div className="iv2-detail-preview iv2-detail-preview--swatch" style={{ backgroundColor: getApproximateColor(selectedItem.color)! }}>
-                    </div>
+
+              <div className="detail-section">
+                <h3>Material</h3>
+                <div className="detail-grid">
+                  {detailItem._descripcion !== detailItem.code && (
+                    <><span>Descripción</span><strong>{detailItem._descripcion}</strong></>
+                  )}
+                  {detailItem._color && (
+                    <><span>Color / Tono</span><strong>{detailItem._color}</strong></>
+                  )}
+                  {detailItem._sku && detailItem._sku !== 'No registrado' && (
+                    <><span>SKU original</span><strong>{detailItem._sku}</strong></>
+                  )}
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h3>Medidas</h3>
+                <div className="detail-grid">
+                  {detailItem._isTela ? (
+                    <>
+                      {detailItem._width > 0 && <><span>Ancho</span><strong>{formatNumber(detailItem._width)} m</strong></>}
+                      {detailItem._length > 0 && <><span>Largo</span><strong>{formatNumber(detailItem._length)} m</strong></>}
+                      {(detailItem._width > 0 && detailItem._length > 0) && (
+                        <><span>Área</span><strong>{formatNumber(detailItem._width * detailItem._length)} m²</strong></>
+                      )}
+                    </>
                   ) : (
-                    <div className="iv2-detail-preview iv2-detail-preview--empty">
-                      <span className="material-symbols-outlined" style={{fontSize: 32, opacity: 0.7}}>texture</span>
-                      <span className="iv2-detail-preview__label" style={{opacity: 0.7}}>Sin imagen</span>
-                    </div>
-                  )
-                ) : (
-                  <div className="iv2-detail-preview iv2-detail-preview--empty">
-                    <span className="material-symbols-outlined" style={{fontSize: 48, opacity: 0.7}}>{selectedItem.itemType === 'Tubo' ? 'panorama_horizontal' : 'horizontal_rule'}</span>
-                    <span className="iv2-detail-preview__label" style={{opacity: 0.7}}>{selectedItem.itemType === 'Tubo' ? 'Sobrante lineal' : 'Sobrante lineal'}</span>
-                  </div>
-                )}
-
-                <div className="iv2-details-group">
-                  <span className="iv2-details-label">ID BODEGA</span>
-                  <strong className="iv2-details-title" style={{color: 'var(--color-primary)'}}>{selectedItem.code}</strong>
-                </div>
-
-                {selectedItem.itemType === 'Tela' ? (
-                  <>
-                    <div className="iv2-details-grid">
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">TELA / SKU</span>
-                        <span>
-                          {selectedItem.family || 'Desconocida'}<br/>
-                          <span style={{fontSize: '0.75rem', color: 'var(--color-text-muted)'}}>{getFabricSku(selectedItem.family, selectedItem.color, selectedItem.openness)}</span>
-                        </span>
-                      </div>
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">COLOR / DESC.</span>
-                        <span>{selectedItem.color || '-'}</span>
-                      </div>
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">ANCHO</span>
-                        <span>{formatNumber(selectedItem.widthMeters)} mts</span>
-                      </div>
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">ALTO (CAÍDA)</span>
-                        <span>{formatNumber(selectedItem.lengthMeters)} mts</span>
-                      </div>
-                    </div>
-                    <div className="iv2-details-group" style={{marginTop: '1rem'}}>
-                      <span className="iv2-details-label">ÁREA TOTAL</span>
-                      <strong>{formatNumber(selectedItem.widthMeters * selectedItem.lengthMeters)} m²</strong>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="iv2-details-grid">
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">TIPO</span>
-                        <span>{selectedItem.itemType}</span>
-                      </div>
-                      <div className="iv2-details-col">
-                        <span className="iv2-details-label">SKU / DESC.</span>
-                        <span>{selectedItem.color || 'Estándar'}</span>
-                      </div>
-                    </div>
-                    <div className="iv2-details-group" style={{marginTop: '1rem'}}>
-                      <span className="iv2-details-label">LARGO DISPONIBLE</span>
-                      <strong style={{fontSize: '1.2rem'}}>{toFT(selectedItem.remainingLengthM)} FT</strong> 
-                      <span style={{color: 'var(--color-text-muted)'}}> / {formatNumber(selectedItem.remainingLengthM)} m</span>
-                    </div>
-                  </>
-                )}
-
-                <hr className="iv2-details-divider" />
-
-                <div className="iv2-details-group">
-                  <span className="iv2-details-label">NOTAS DE ORIGEN</span>
-                  <p style={{fontSize: '0.85rem', color: 'var(--color-text-muted)', lineHeight: 1.4, margin:0}}>
-                    Generado a partir de la orden <strong>{selectedItem.itemType === 'Tela' ? (selectedItem as any).orderNumber || 'de producción general' : selectedItem.sourceOrderNumber}</strong> el {new Date(selectedItem.createdAt).toLocaleDateString()}.
-                    Corte remanente disponible en bodega.
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="iv2-details-actions">
-                <button 
-                  className="iv2-btn-danger" 
-                  style={{width: '100%', justifyContent: 'center', opacity: isReadOnly ? 0.5 : 1}}
-                  onClick={() => setDiscardingItem(selectedItem)}
-                  disabled={isReadOnly}
-                >
-                  {isReadOnly ? 'Dar de baja (🔒)' : 'Dar de baja'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {discardingItem && (
-        <div 
-          className="orders-delete-modal-overlay" 
-          role="dialog" 
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDiscardingItem(null);
-          }}
-        >
-          <div className="orders-delete-modal">
-            <div className="orders-delete-modal__header">
-              <div className="orders-delete-modal__title-area">
-                <div className="orders-delete-modal__icon">
-                  <span className="material-symbols-outlined" style={{ color: 'var(--color-danger, #d93025)' }}>delete_forever</span>
-                </div>
-                <div className="orders-delete-modal__texts">
-                  <h3>¿Dar de baja {discardingItem.itemType === 'Tela' ? 'retazo' : 'sobrante'} {discardingItem.code}?</h3>
-                  <p>Esta acción marcará el item como descartado y dejará de estar disponible para reutilización.</p>
+                    <>
+                      {detailItem._remainingLength > 0 && <><span>Longitud</span><strong>{toFT(detailItem._remainingLength)} FT / {formatNumber(detailItem._remainingLength)} m</strong></>}
+                    </>
+                  )}
                 </div>
               </div>
-              <button className="orders-delete-modal__close" onClick={() => setDiscardingItem(null)}>
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            
-            <div className="orders-delete-modal__body">
-              <p>No modificará órdenes ya generadas ni archivos exportados.</p>
-              
-              <div className="orders-delete-modal__warning" style={{ background: 'var(--surface-soft)', borderColor: 'var(--line)' }}>
-                <div className="orders-delete-modal__warning-texts" style={{ width: '100%' }}>
-                  {discardingItem.itemType === 'Tela' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'block' }}>TELA / SKU</span>
-                        <strong style={{ fontSize: '0.9rem' }}>{discardingItem.family || 'Desconocida'}</strong><br/>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{getFabricSku(discardingItem.family, discardingItem.color, discardingItem.openness)}</span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'block' }}>MEDIDA Y ÁREA</span>
-                        <strong style={{ fontSize: '0.9rem' }}>{formatNumber(discardingItem.widthMeters)}m x {formatNumber(discardingItem.lengthMeters)}m</strong><br/>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatNumber(discardingItem.widthMeters * discardingItem.lengthMeters)} m²</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'block' }}>SKU / DESC.</span>
-                        <strong style={{ fontSize: '0.9rem' }}>{discardingItem.color || 'Estándar'}</strong><br/>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{discardingItem.itemType}</span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'block' }}>LARGO DISPONIBLE</span>
-                        <strong style={{ fontSize: '0.9rem' }}>{toFT(discardingItem.remainingLengthM)} FT</strong><br/>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{formatNumber(discardingItem.remainingLengthM)} m</span>
-                      </div>
-                    </div>
+
+              <div className="detail-section">
+                <h3>Origen</h3>
+                <div className="detail-grid">
+                  <span>Generado por</span><strong>{detailItem._origen}</strong>
+                  {detailItem._order && detailItem._order !== 'Corte de Prod.' && detailItem._origen !== detailItem._order && (
+                    <><span>Orden</span><strong>{detailItem._order}</strong></>
                   )}
                 </div>
               </div>
             </div>
-            
-            <div className="orders-delete-modal__footer">
-              <button 
-                type="button" 
-                className="iv2-btn-placeholder"
-                style={{ opacity: 1, cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface)' }}
-                onClick={() => setDiscardingItem(null)}
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button" 
-                className="iv2-btn-danger"
-                onClick={() => handleDiscard(discardingItem.id, discardingItem.itemType === 'Tela' ? 'fabric' : (discardingItem.itemType === 'Tubo' ? 'tube' : 'bottom'))}
-                disabled={isReadOnly}
-              >
-                Dar de baja
-              </button>
+            <div className="modal-footer">
+              <button className="btn" type="button" onClick={() => setDetailItem(null)}>Cerrar</button>
+              <button className="btn btn-danger" type="button" onClick={() => {
+                setSelectedIds([detailItem.id]);
+                setDetailItem(null);
+                setIsConfirmModalOpen(true);
+              }}>Dar de baja</button>
             </div>
           </div>
         </div>
       )}
 
-      {isManualModalOpen && (
-        <div 
-          className="orders-delete-modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsManualModalOpen(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setIsManualModalOpen(false);
-          }}
-        >
-          <div className="orders-delete-modal" style={{ maxWidth: '640px', width: '90%', padding: '0', overflow: 'hidden' }}>
-            <div className="orders-delete-modal__header" style={{ padding: '1.5rem', borderBottom: '1px solid var(--line)' }}>
-              <div className="orders-delete-modal__title-area">
-                <div className="orders-delete-modal__icon" style={{ background: 'var(--surface-dim)', color: 'var(--text)' }}>
-                  <span className="material-symbols-outlined">inventory_2</span>
-                </div>
-                <div className="orders-delete-modal__texts">
-                  <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Registrar retazo manual</h3>
-                  <p style={{ margin: '0.25rem 0 0', color: 'var(--muted)', fontSize: '0.85rem' }}>Ingresa los detalles para registrar un retazo físico en Bodega.</p>
-                </div>
-              </div>
-              <button className="orders-delete-modal__close" onClick={() => setIsManualModalOpen(false)}>
-                <span className="material-symbols-outlined">close</span>
-              </button>
+      {/* CONFIRM DISCARD MODAL */}
+      {isConfirmModalOpen && (
+        <div className="modal-backdrop visible" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" onClick={(e) => { if (e.target === e.currentTarget) setIsConfirmModalOpen(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2 id="confirmTitle" style={{margin:0, fontSize:'20px'}}>Confirmar baja</h2>
             </div>
-            
+            <div className="modal-body">
+              <p style={{margin:0}}>
+                ¿Dar de baja {selectedIds.length === 1 ? 'el registro seleccionado' : `los ${selectedIds.length} registros seleccionados`}? Esta acción lo(s) marcará como descartado(s) y no lo(s) eliminará físicamente.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn" type="button" onClick={() => setIsConfirmModalOpen(false)}>Cancelar</button>
+              <button className="btn btn-danger" type="button" onClick={handleBulkDiscardConfirm} disabled={isReadOnly}>Confirmar baja</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MANUAL RECORD MODAL (Re-styled) */}
+      {isManualModalOpen && (
+        <div className="modal-backdrop visible" role="dialog" aria-modal="true" aria-labelledby="manualTitle" onClick={(e) => { if (e.target === e.currentTarget) setIsManualModalOpen(false); }}>
+          <div className="modal" style={{maxWidth: '640px'}}>
+            <div className="modal-header">
+              <h2 id="manualTitle" style={{margin:0, fontSize:'20px'}}>Registrar retazo manual</h2>
+              <p style={{margin:'4px 0 0', color:'var(--color-text-muted)', fontSize:'14px'}}>Ingresa los detalles para registrar un retazo físico en Bodega.</p>
+            </div>
             <form onSubmit={handleManualSubmit}>
-              <div className="orders-delete-modal__body" style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Código</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.code} 
-                      onChange={e => setManualForm({...manualForm, code: e.target.value})} 
-                      placeholder="Se generará automáticamente si queda vacío" 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
+              <div className="modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Código</span>
+                    <input type="text" className="search" value={manualForm.code} onChange={e => setManualForm({...manualForm, code: e.target.value})} placeholder="Autogenerado si está vacío" />
                   </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Familia / Línea</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.family} 
-                      onChange={e => setManualForm({...manualForm, family: e.target.value})} 
-                      placeholder="Ej. Screen, Rollux..." 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Familia / Línea</span>
+                    <input type="text" className="search" value={manualForm.family} onChange={e => setManualForm({...manualForm, family: e.target.value})} placeholder="Ej. Screen, Rollux..." />
                   </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>SKU (Opcional)</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.sku} 
-                      onChange={e => setManualForm({...manualForm, sku: e.target.value})} 
-                      placeholder="Ej. 0-111-..." 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Color / Descripción *</span>
+                    <input type="text" className="search" value={manualForm.color} onChange={e => setManualForm({...manualForm, color: e.target.value})} placeholder="Color o descripción" required />
                   </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Color / Descripción *</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.color} 
-                      onChange={e => setManualForm({...manualForm, color: e.target.value})} 
-                      required 
-                      placeholder="Requerido" 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
-                    {!manualForm.color.trim() && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-danger, #d93025)', marginTop: '2px' }}>Este campo es obligatorio.</span>
-                    )}
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Ancho (Mts) *</span>
+                    <input type="number" step="0.01" className="search" value={manualForm.widthMeters} onChange={e => setManualForm({...manualForm, widthMeters: e.target.value})} placeholder="Ej. 1.5" required />
                   </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Ancho (m) *</span>
-                    <input 
-                      type="number" 
-                      step="0.001" 
-                      value={manualForm.widthMeters} 
-                      onChange={e => setManualForm({...manualForm, widthMeters: e.target.value})} 
-                      required 
-                      placeholder="0.00" 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
-                    {(Number(manualForm.widthMeters) <= 0 || isNaN(Number(manualForm.widthMeters))) && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-danger, #d93025)', marginTop: '2px' }}>El ancho debe ser mayor a 0.</span>
-                    )}
-                  </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Alto (m) *</span>
-                    <input 
-                      type="number" 
-                      step="0.001" 
-                      value={manualForm.lengthMeters} 
-                      onChange={e => setManualForm({...manualForm, lengthMeters: e.target.value})} 
-                      required 
-                      placeholder="0.00" 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
-                    {(Number(manualForm.lengthMeters) <= 0 || isNaN(Number(manualForm.lengthMeters))) && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-danger, #d93025)', marginTop: '2px' }}>El alto debe ser mayor a 0.</span>
-                    )}
-                  </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Orden Origen</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.orderNumber} 
-                      onChange={e => setManualForm({...manualForm, orderNumber: e.target.value})} 
-                      placeholder="Registro manual" 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
-                  </label>
-                  
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)' }}>Notas</span>
-                    <input 
-                      type="text" 
-                      value={manualForm.notes} 
-                      onChange={e => setManualForm({...manualForm, notes: e.target.value})} 
-                      placeholder="Observaciones extra..." 
-                      className="iv2-input" 
-                      style={{ height: '40px' }}
-                    />
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Alto (Mts) *</span>
+                    <input type="number" step="0.01" className="search" value={manualForm.lengthMeters} onChange={e => setManualForm({...manualForm, lengthMeters: e.target.value})} placeholder="Ej. 2.0" required />
                   </label>
                 </div>
               </div>
-
-              <div className="orders-delete-modal__footer" style={{ borderTop: '1px solid var(--line)', flexDirection: 'column', alignItems: 'stretch' }}>
-                {(!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) && (
-                  <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'right' }}>
-                    Completa color/descripción, ancho y alto para guardar.
-                  </p>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                  <button 
-                    type="button" 
-                    className="iv2-btn-placeholder" 
-                    style={{ opacity: 1, cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface)' }} 
-                    onClick={() => setIsManualModalOpen(false)}
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="iv2-btn-secondary" 
-                    style={{ 
-                      background: isReadOnly ? 'var(--line-strong)' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--line-strong)' : 'var(--color-primary)'), 
-                      color: isReadOnly ? 'var(--muted)' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'var(--muted)' : 'white'), 
-                      border: 'none',
-                      cursor: isReadOnly ? 'not-allowed' : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? 'not-allowed' : 'pointer')
-                    }}
-                    disabled={isReadOnly || !manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0}
-                    title={isReadOnly ? "No tienes permisos de escritura" : ((!manualForm.color.trim() || Number(manualForm.widthMeters) <= 0 || Number(manualForm.lengthMeters) <= 0) ? "Faltan campos obligatorios" : "")}
-                  >
-                    Guardar retazo
-                  </button>
-                </div>
+              <div className="modal-footer">
+                <button type="button" className="btn" onClick={() => setIsManualModalOpen(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar retazo</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
     </section>
   );
 }
