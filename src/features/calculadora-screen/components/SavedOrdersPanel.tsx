@@ -15,6 +15,7 @@ import { MaterialReviewModal } from './MaterialReviewModal';
 import { validateOrderBeforeSage } from '../../../domain/orders/validateOrderBeforeSage';
 import { normalizeOrderStatus, SavedOrderStatus } from '../../../domain/orders/orderStatus';
 import { supabase } from '../../../lib/supabase';
+import './SavedOrdersTable.css';
 
 // ── BOM display helpers ──────────────
 const M_TO_FT = 3.28084;
@@ -170,7 +171,7 @@ function StatusBadge({ status }: { status: SavedOrderStatus | string }) {
   return <span className={`badge-status ${badgeClass}`}>{label}</span>;
 }
 
-export function inventoryErrorLabel(code: string): string {
+function inventoryErrorLabel(code: string): string {
   switch (code) {
     case 'INSUFFICIENT_STOCK':   return 'Stock insuficiente en bodega';
     case 'ITEM_NOT_AVAILABLE':   return 'Material o retazo no disponible';
@@ -230,10 +231,20 @@ export function SavedOrdersPanel() {
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
   const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrderModal, setSelectedOrderModal] = useState<OrderReportRow | null>(null);
+  const [actionMenuOpenId, setActionMenuOpenId] = useState<string | null>(null);
+  const ITEMS_PER_PAGE = 10;
+  
   const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const reviewingOrder = useMemo(() => store.savedOrders.find(o => o.id === reviewingOrderId) ?? null, [store.savedOrders, reviewingOrderId]);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deferredQuery, sortMode, dateRange, statusFilter]);
 
   useEffect(() => {
     if (!deletingOrderId) return;
@@ -261,12 +272,16 @@ export function SavedOrdersPanel() {
       if (dateRange === 'week' && orderDate < startOfWeek) return false;
       if (dateRange === 'month' && orderDate < startOfMonth) return false;
 
+      const orderStatus = getOrderStatus(row.order);
+      if (statusFilter !== 'all' && orderStatus !== statusFilter) return false;
+
       if (!deferredQuery) {
         return true;
       }
 
       const searchable = [
-        row.order.orderNumber,
+        row.order.orderNumber || '',
+        row.order.id,
         getOrderStatusLabel(row.order),
         row.order.items.length.toString(),
         row.order.items
@@ -291,11 +306,14 @@ export function SavedOrdersPanel() {
           return right.summary.totalOrderCost - left.summary.totalOrderCost;
         case 'curtains':
           return right.summary.curtains - left.summary.curtains;
-        default:
-          return new Date(right.order.createdAt).getTime() - new Date(left.order.createdAt).getTime();
+        default: {
+          const lDate = new Date(left.order.createdAt || 0).getTime();
+          const rDate = new Date(right.order.createdAt || 0).getTime();
+          return (isNaN(rDate) ? 0 : rDate) - (isNaN(lDate) ? 0 : lDate);
+        }
       }
     });
-  }, [deferredQuery, reportRows, sortMode, dateRange]);
+  }, [deferredQuery, reportRows, sortMode, dateRange, statusFilter]);
 
   const filteredOrders = useMemo(() => filteredRows.map((r) => r.order), [filteredRows]);
   const globalSummary = useMemo(() => summarizeOrdersProduction(filteredOrders), [filteredOrders]);
@@ -420,363 +438,396 @@ export function SavedOrdersPanel() {
     }
   };
 
-  const status = selectedRow ? getOrderStatus(selectedRow.order) : 'draft';
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / ITEMS_PER_PAGE));
+  const paginatedRows = filteredRows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const getClientReference = (order: SavedOrder) => {
+    // clientName y clientReference no existen en el modelo base actual.
+    // Usamos orderNumber u otro identificador si lo hubiera.
+    return order.orderNumber || 'Sin referencia';
+  };
+
+  const getMainFabricLabel = (order: SavedOrder) => {
+    const fabrics = Array.from(new Set(order.items.map(i => i.result.selectedFabric?.color).filter(Boolean)));
+    if (fabrics.length === 0) return 'Sin tela';
+    if (fabrics.length === 1) return `Tela: ${fabrics[0]}`;
+    return 'Múltiples telas';
+  };
+
+  // Helper for rendering modal details
+  const renderOrderDetails = () => {
+    if (!selectedOrderModal) return null;
+    const row = selectedOrderModal;
+    const orderStatus = getOrderStatus(row.order);
+
+    return (
+      <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrderModal(null); }}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h2>Detalles: {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}</h2>
+            <button className="modal-close-btn" onClick={() => setSelectedOrderModal(null)}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="order-kpi-row" style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div className="order-kpi-card" style={{ flex: 1, padding: '16px', background: 'var(--surface-container)', borderRadius: '8px' }}>
+                <span className="label" style={{ fontSize: '12px', color: 'var(--muted)' }}>Piezas</span>
+                <span className="val" style={{ display: 'block', fontSize: '24px', fontWeight: 700 }}>{row.summary.curtains}</span>
+              </div>
+              <div className="order-kpi-card" style={{ flex: 1, padding: '16px', background: 'var(--surface-container)', borderRadius: '8px' }}>
+                <span className="label" style={{ fontSize: '12px', color: 'var(--muted)' }}>Costo Mat.</span>
+                <span className="val" style={{ display: 'block', fontSize: '24px', fontWeight: 700 }}>${formatNumber(row.summary.totalOrderCost)}</span>
+              </div>
+              <div className={`order-kpi-card ${row.wastePercentage > 40 ? 'order-kpi-card--critical' : ''}`} style={{ flex: 1, padding: '16px', background: 'var(--surface-container)', borderRadius: '8px' }}>
+                <span className="label" style={{ fontSize: '12px', color: 'var(--muted)' }}>Merma ✂️</span>
+                <span className="val" style={{ display: 'block', fontSize: '24px', fontWeight: 700, color: row.wastePercentage > 40 ? 'var(--danger)' : 'inherit' }}>{formatNumber(row.wastePercentage)}%</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined">build</span> Herrajes / BOM
+              </h3>
+              {orderBOM.length > 0 ? (
+                <table className="orders-data-table" style={{ fontSize: '13px' }}>
+                  <thead>
+                    <tr>
+                      <th>Componente</th>
+                      <th>SKU</th>
+                      <th style={{ textAlign: 'right' }}>Cant.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderBOM.map((item: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 600 }}>{bomDisplayLabel(item.componente, item.skuFinal)}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{item.skuFinal}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {item.unidad === 'm' ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft` : `${item.cantidadCalculada} EA`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p style={{ color: 'var(--muted)' }}>No hay componentes calculados.</p>
+              )}
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined">straighten</span> Dimensiones de Piezas
+              </h3>
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {row.order.items.map((item: any, index: number) => (
+                  <div key={item.id} style={{ border: '1px solid var(--line)', padding: '12px', borderRadius: '8px', background: 'var(--surface-container)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                      Cortina {index + 1} - {formatNumber(item.input.widthMeters)} x {formatNumber(item.input.heightMeters)} m
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                      {item.result.selectedFabric ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.color}` : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '13px' }}>
+                      {item.reusedWastePiece ? (
+                        <span style={{ color: '#059669', fontWeight: 600 }}>✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)</span>
+                      ) : (
+                        <span>Rollo: {formatNumber(item.result.recommendedRollWidthMeters)}m | Merma: {formatNumber(item.result.wastePercentage)}%</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <Button type="button" variant="secondary" onClick={async () => {
+              try {
+                const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+                await generateOrderMaterialsPdf(row.order, store.productionInventory, store.inventoryMovements);
+                if (isReadOnly) return;
+                let newStatus = orderStatus;
+                if (orderStatus === 'ready_for_production') {
+                  newStatus = 'in_production';
+                } else if (orderStatus === 'draft') {
+                  const hasValidMaterialLines = row.order.items.some(
+                    (item) => item.materialLines && item.materialLines.length > 0
+                  );
+                  if (hasValidMaterialLines) {
+                    newStatus = 'in_production';
+                  }
+                }
+                if (newStatus !== orderStatus) {
+                  store.updateSavedOrderStatus(row.order.id, newStatus as any, {
+                    productionStartedAt: new Date().toISOString(),
+                    productionStartTrigger: 'materials_pdf_generated'
+                  });
+                }
+              } catch (err: any) { alert(err.message); }
+            }}>
+              📄 PDF
+            </Button>
+            {orderStatus === 'ready_for_production' && (
+              <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(row.order.id, 'in_production')} disabled={isReadOnly}>
+                Pasar a Producción
+              </Button>
+            )}
+            {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(orderStatus) && (
+              <Button type="button" variant="secondary" onClick={() => setReviewingOrderId(row.order.id)}>
+                👀 Materiales
+              </Button>
+            )}
+            {orderStatus === 'sent_to_sage' && (
+              <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(row.order.id, 'materials_checked')} disabled={isReadOnly}>
+                🔙 Revertir a Revisado
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <section className="orders-layout-split">
-      
-      {/* ── LEFT PANEL ── */}
-      <div className="orders-panel-left">
-        <div className="orders-panel-left__header">
+    <div className="orders-table-container" onClick={() => setActionMenuOpenId(null)}>
+      <div className="orders-table-header">
+        <div className="orders-table-title">
           <h1>Órdenes de Producción</h1>
-          <p>Gestiona, revisa y exporta órdenes a producción o Sage.</p>
-
-          {isReadOnly && (
-            <div className="alert alert--neutral" style={{ padding: '8px 12px', marginTop: '10px', marginBottom: '10px', fontSize: '0.82rem' }}>
-              🔒 <strong>Solo Lectura:</strong> Las acciones de modificación y exportación están deshabilitadas.
-            </div>
-          )}
-
-          <div className="orders-global-actions">
-            <button onClick={async () => {
-              try {
-                const { generateSubstitutionPdf } = await import('../../../lib/pdf/generateSubstitutionPdf');
-                await generateSubstitutionPdf();
-              } catch (err: any) {
-                alert(err.message || 'Error al generar la hoja de sustituciones.');
-              }
-            }}>
-              <span>📄</span> Hoja Sustituciones
-            </button>
-            <button onClick={() => downloadCsvReport(filteredOrders)} disabled={filteredOrders.length === 0}>
-              <span>📊</span> CSV
-            </button>
-            <button onClick={onExportSage} disabled={isReadOnly || exportableSageOrders.length === 0}>
-              <span>📦</span> Sage ({exportableSageOrders.length})
-            </button>
-            <button onClick={() => fileInputRef.current?.click()} disabled={isReadOnly}>
-              <span>📥</span> Importar
-            </button>
-            <button onClick={() => downloadSavedOrders(store.savedOrders)} disabled={store.savedOrders.length === 0}>
-              <span>💾</span> Backup
-            </button>
-          </div>
-
-          <div className="orders-global-filters">
-            <div className="filter-row">
-              <input 
-                type="text" 
-                placeholder="Buscar por # de orden..." 
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}
-              />
-            </div>
-            <div className="filter-row">
-              <select value={dateRange} onChange={e => setDateRange(e.target.value as DateRange)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}>
-                <option value="all">Cualquier Fecha</option>
-                <option value="today">Hoy</option>
-                <option value="week">Esta semana</option>
-                <option value="month">Este mes</option>
-              </select>
-              <select value={sortMode} onChange={e => setSortMode(e.target.value as OrderSortMode)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)', background: 'var(--surface-soft)', color: 'var(--text)' }}>
-                <option value="recent">Más recientes</option>
-                <option value="waste">Mayor Merma</option>
-                <option value="cost">Mayor Costo</option>
-              </select>
-            </div>
-          </div>
         </div>
-
-        <div className="orders-global-kpis">
-          <div className="kpi-col">
-            <span>Órdenes</span>
-            <span>{filteredOrders.length}</span>
+        <div className="orders-table-actions">
+          <div className="orders-search-bar">
+            <span className="material-symbols-outlined" style={{color: 'var(--muted)'}}>search</span>
+            <input 
+              type="text" 
+              placeholder="Buscar órdenes..." 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
           </div>
-          <div className="kpi-divider"></div>
-          <div className="kpi-col">
-            <span>Piezas Totales</span>
-            <span>{globalSummary.curtains}</span>
-          </div>
-          <div className="kpi-divider"></div>
-          <div className="kpi-col">
-            <span>Costo Total</span>
-            <span>${formatNumber(globalSummary.totalOrderCost)}</span>
-          </div>
-        </div>
-
-        <div className="orders-list-scroll">
-          {filteredRows.length === 0 ? (
-            <p style={{ color: 'var(--muted)', textAlign: 'center', marginTop: '32px' }}>No hay órdenes que coincidan con los filtros.</p>
-          ) : (
-            filteredRows.map((row) => (
-              <OrderListItem 
-                key={row.order.id} 
-                row={row} 
-                isActive={selectedRow?.order.id === row.order.id} 
-                syncStatus={store.syncMetadata[row.order.id]}
-                onClick={() => store.setSelectedOrderId(row.order.id)} 
-              />
-            ))
-          )}
+          <select 
+            className="orders-filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+          >
+            <option value="all">Todos los estados</option>
+            <option value="draft">Borrador</option>
+            <option value="ready_for_production">Lista para prod.</option>
+            <option value="in_production">En producción</option>
+            <option value="materials_checked">Revisada</option>
+            <option value="sent_to_sage">Sage</option>
+            <option value="completed">Completada</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+          <Button variant="secondary" onClick={onExportSage} disabled={exportableSageOrders.length === 0 || isReadOnly}>
+            Exportar a Sage ({exportableSageOrders.length})
+          </Button>
+          <Button variant="primary" onClick={() => {
+            alert('Para nueva orden, navega a la pestaña de Cotizador e ingresa los datos.');
+          }}>
+            <span className="material-symbols-outlined" style={{fontSize: 18, marginRight: 4}}>add</span>
+            Nueva Orden
+          </Button>
         </div>
       </div>
 
-      {/* ── RIGHT PANEL ── */}
-      <div className="orders-panel-right">
-        {selectedRow ? (
-          <>
-            <div className="orders-detail-header">
-              <div className="orders-detail-header__title">
-                <h2>{selectedRow.order.orderNumber || `#${selectedRow.order.id.slice(0, 6)}`}</h2>
-                <StatusBadge status={status} />
-              </div>
-            </div>
+      <div className="orders-data-table-wrapper">
+        <table className="orders-data-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Cliente / Referencia</th>
+              <th>Quantity</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th style={{textAlign: 'right'}}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedRows.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  No hay órdenes que coincidan con los filtros.
+                </td>
+              </tr>
+            ) : (
+              paginatedRows.map((row) => {
+                const status = getOrderStatus(row.order);
+                const isMenuOpen = actionMenuOpenId === row.order.id;
 
-            <div className="orders-detail-scroll">
-              {status === 'sent_to_sage' && (
-                <div className="sage-alert">
-                  <span className="icon">✓</span>
-                  <div>
-                    <p>Ya enviada a Sage</p>
-                    <p className="sub">Esta orden ya fue exportada para facturación. Si necesitas re-exportar, regresa su estado.</p>
-                  </div>
-                </div>
-              )}
+                let syncIcon = null;
+                const syncStatus = store.syncMetadata[row.order.id];
+                if (syncStatus) {
+                  if (syncStatus.status === 'pending') syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '14px' }}>⏳</span>;
+                  else if (syncStatus.status === 'error') syncIcon = <span title="Error al sincronizar" style={{ marginLeft: 6, fontSize: '14px' }}>🔴</span>;
+                }
 
-              <div className="order-kpi-row">
-                <div className="order-kpi-card">
-                  <span className="label">Piezas</span>
-                  <span className="val">{selectedRow.summary.curtains}</span>
-                </div>
-                <div className="order-kpi-card">
-                  <span className="label">Costo Mat.</span>
-                  <span className="val">${formatNumber(selectedRow.summary.totalOrderCost)}</span>
-                </div>
-                <div className={`order-kpi-card ${selectedRow.wastePercentage > 40 ? 'order-kpi-card--critical' : ''}`}>
-                  <span className="label">Merma <span className="icon">✂️</span></span>
-                  <span className="val">{formatNumber(selectedRow.wastePercentage)}%</span>
-                </div>
-                <div className="order-kpi-card">
-                  <span className="label">Retazos</span>
-                  <span className="val">{selectedRow.summary.reusedWasteCurtains}</span>
-                </div>
-              </div>
+                return (
+                  <tr key={row.order.id}>
+                    <td className="cell-order-id">
+                      {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}
+                      {syncIcon}
+                    </td>
+                    <td className="cell-client">
+                      <span className="cell-client-name">{getClientReference(row.order)}</span>
+                      <span className="cell-client-sub">{row.summary.curtains} persianas · {getMainFabricLabel(row.order)}</span>
+                    </td>
+                    <td>{row.summary.curtains}</td>
+                    <td className="cell-date">{formatDate(row.order.createdAt)}</td>
+                    <td>
+                      <span className={`status-pill status-${status}`}>
+                        {getOrderStatusLabel(row.order)}
+                      </span>
+                    </td>
+                    <td className="cell-actions">
+                      <button 
+                        className="action-menu-btn" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActionMenuOpenId(isMenuOpen ? null : row.order.id);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">more_horiz</span>
+                      </button>
+                      
+                      {isMenuOpen && (
+                        <div className="action-dropdown" onClick={(e) => e.stopPropagation()}>
+                          <button className="action-dropdown-item" onClick={() => {
+                            setSelectedOrderModal(row);
+                            store.setSelectedOrderId(row.order.id);
+                            setActionMenuOpenId(null);
+                          }}>
+                            <span className="material-symbols-outlined">visibility</span> Ver detalles
+                          </button>
+                          
+                          {status === 'draft' && (
+                            <button className="action-dropdown-item" onClick={() => {
+                              store.setOrderDraft(() => ({
+                                orderNumber: row.order.orderNumber,
+                                items: row.order.items
+                              }));
+                              alert('Orden cargada. Por favor navega a la pestaña de Cotizador para continuar.');
+                              setActionMenuOpenId(null);
+                            }} disabled={isReadOnly}>
+                              <span className="material-symbols-outlined">edit</span> Editar orden
+                            </button>
+                          )}
 
-              <div className="order-accordions">
-                <button className="order-accordion-btn" onClick={() => setAccBOM(!accBOM)}>
-                  <div className="order-accordion-btn__left">
-                    <span>🔩</span> Herrajes / BOM
-                  </div>
-                  <div className="order-accordion-btn__right">
-                    <span className="accordion-badge">{orderBOM.length}</span>
-                    <span>{accBOM ? '▲' : '▼'}</span>
-                  </div>
-                </button>
-                <AnimatePresence initial={false}>
-                  {accBOM && (
-                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
-                      <div>
-                        {orderBOM.length > 0 ? (
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                            <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                              <tr>
-                                <th style={{ padding: '16px 12px 8px 24px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>Componente</th>
-                                <th style={{ padding: '16px 12px 8px 12px', textAlign: 'left', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>SKU</th>
-                                <th style={{ padding: '16px 24px 8px 12px', textAlign: 'right', color: 'var(--muted)', fontWeight: 600, background: 'var(--surface-soft)' }}>Cant.</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {orderBOM.map((item, i) => (
-                                <tr key={i} style={{ borderTop: '1px solid var(--line)' }}>
-                                  <td style={{ padding: '8px 12px 8px 24px' }}>
-                                    <div style={{ fontWeight: 600 }}>{bomDisplayLabel(item.componente, item.skuFinal)}</div>
-                                  </td>
-                                  <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{item.skuFinal}</td>
-                                  <td style={{ padding: '8px 24px 8px 12px', textAlign: 'right', fontWeight: 600 }}>
-                                    {item.unidad === 'm' ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft` : `${item.cantidadCalculada} EA`}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        ) : (
-                          <p style={{ color: 'var(--muted)', padding: '16px 24px' }}>No hay componentes calculados.</p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                          <button className="action-dropdown-item" onClick={async () => {
+                            setActionMenuOpenId(null);
+                            try {
+                              const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+                              await generateOrderMaterialsPdf(row.order, store.productionInventory, store.inventoryMovements);
+                              if (isReadOnly) return;
+                              let newStatus = status;
+                              if (status === 'ready_for_production') {
+                                newStatus = 'in_production';
+                              } else if (status === 'draft') {
+                                const hasValidMaterialLines = row.order.items.some(
+                                  (item) => item.materialLines && item.materialLines.length > 0
+                                );
+                                if (hasValidMaterialLines) {
+                                  newStatus = 'in_production';
+                                }
+                              }
+                              if (newStatus !== status) {
+                                store.updateSavedOrderStatus(row.order.id, newStatus as any, {
+                                  productionStartedAt: new Date().toISOString(),
+                                  productionStartTrigger: 'materials_pdf_generated'
+                                });
+                              }
+                            } catch (err: any) { alert(err.message); }
+                          }}>
+                            <span className="material-symbols-outlined">picture_as_pdf</span> Ver PDF
+                          </button>
 
-                <button className="order-accordion-btn" onClick={() => setAccPieces(!accPieces)}>
-                  <div className="order-accordion-btn__left">
-                    <span>📏</span> Dimensiones de Piezas
-                  </div>
-                  <div className="order-accordion-btn__right">
-                    <span className="accordion-badge">{selectedRow.order.items.length}</span>
-                    <span>{accPieces ? '▲' : '▼'}</span>
-                  </div>
-                </button>
-                <AnimatePresence initial={false}>
-                  {accPieces && (
-                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} style={{ overflow: 'hidden' }}>
-                      <div style={{ padding: '16px 24px', display: 'grid', gap: '12px' }}>
-                        {selectedRow.order.items.map((item, index) => (
-                          <div key={item.id} style={{ border: '1px solid var(--line)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
-                            <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                              Cortina {index + 1} - {formatNumber(item.input.widthMeters)} x {formatNumber(item.input.heightMeters)} m
-                            </div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                              {item.result.selectedFabric ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.color}` : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
-                            </div>
-                            <div style={{ marginTop: '8px', fontSize: '0.85rem' }}>
-                              {item.reusedWastePiece ? (
-                                <span style={{ color: '#059669', fontWeight: 600 }}>✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)</span>
-                              ) : (
-                                <span>Rollo: {formatNumber(item.result.recommendedRollWidthMeters)}m | Merma: {formatNumber(item.result.wastePercentage)}%</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
+                          {status === 'ready_for_production' && (
+                            <button className="action-dropdown-item" onClick={() => {
+                              store.updateSavedOrderStatus(row.order.id, 'in_production');
+                              setActionMenuOpenId(null);
+                            }} disabled={isReadOnly}>
+                              <span className="material-symbols-outlined">play_arrow</span> Pasar a Producción
+                            </button>
+                          )}
 
-            <div className="orders-bottom-bar">
-              <Button type="button" variant="secondary" onClick={async () => {
-                try {
-                  const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
-                  await generateOrderMaterialsPdf(selectedRow.order, store.productionInventory, store.inventoryMovements);
-                  
-                  if (isReadOnly) return;
+                          {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(status) && (
+                            <button className="action-dropdown-item" onClick={() => {
+                              setReviewingOrderId(row.order.id);
+                              setActionMenuOpenId(null);
+                            }}>
+                              <span className="material-symbols-outlined">inventory</span> Confirmar Materiales
+                            </button>
+                          )}
 
-                  let newStatus = status;
-                  if (status === 'ready_for_production') {
-                    newStatus = 'in_production';
-                  } else if (status === 'draft') {
-                    const hasValidMaterialLines = selectedRow.order.items.some(
-                      (item) => item.materialLines && item.materialLines.length > 0
-                    );
-                    if (hasValidMaterialLines) {
-                      newStatus = 'in_production';
-                    }
-                  }
-
-                  if (newStatus !== status) {
-                    store.updateSavedOrderStatus(selectedRow.order.id, newStatus as any, {
-                      productionStartedAt: new Date().toISOString(),
-                      productionStartTrigger: 'materials_pdf_generated'
-                    });
-                  }
-                } catch (err: any) { alert(err.message); }
-              }}>
-                📄 PDF
-              </Button>
-
-              {status === 'ready_for_production' && (
-                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'in_production')} disabled={isReadOnly}>
-                  Pasar a Producción
-                </Button>
-              )}
-
-              {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(status) && (
-                <Button type="button" variant="secondary" onClick={() => setReviewingOrderId(selectedRow.order.id)}>
-                  👀 Materiales
-                </Button>
-              )}
-
-              {status === 'sent_to_sage' && (
-                <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')} disabled={isReadOnly}>
-                  🔙 Revertir a Revisado
-                </Button>
-              )}
-
-              <Button 
-                type="button" 
-                variant="danger" 
-                style={{ color: '#ef4444', borderColor: '#ef4444' }} 
-                onClick={async () => {
-                  // Validar dependencias de retazos
-                  const { data, error } = await supabase
-                    .from('inventory_items')
-                    .select('id, code, status')
-                    .eq('created_from_order_id', selectedRow.order.id)
-                    .eq('status', 'used')
-                    .limit(1);
-
-                  if (error) {
-                    alert('Error al verificar dependencias del inventario. Intente nuevamente.');
-                    return;
-                  }
-
-                  if (data && data.length > 0) {
-                    alert('⚠️ BLOQUEO DE INTEGRIDAD\n\nNo se puede eliminar o modificar esta orden porque generó un retazo (' + data[0].code + ') que actualmente está siendo utilizado en OTRA orden.\n\nPara continuar, primero debes modificar o eliminar la orden hija que consumió este retazo para liberarlo.');
-                    return;
-                  }
-
-                  setDeletingOrderId(selectedRow.order.id);
-                }}
-                disabled={isReadOnly}
-              >
-                🗑️ Eliminar orden
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)' }}>
-            Selecciona una orden para ver detalles
+                          {status === 'sent_to_sage' && (
+                            <button className="action-dropdown-item" onClick={() => {
+                              store.updateSavedOrderStatus(row.order.id, 'materials_checked');
+                              setActionMenuOpenId(null);
+                            }} disabled={isReadOnly}>
+                              <span className="material-symbols-outlined">undo</span> Revertir a Revisado
+                            </button>
+                          )}
+                          
+                          <button className="action-dropdown-item danger" onClick={() => {
+                            setDeletingOrderId(row.order.id);
+                            setActionMenuOpenId(null);
+                          }} disabled={isReadOnly}>
+                            <span className="material-symbols-outlined">delete</span> Eliminar
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+        
+        <div className="orders-pagination">
+          <span>Mostrando {filteredRows.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} – {Math.min(currentPage * ITEMS_PER_PAGE, filteredRows.length)} de {filteredRows.length}</span>
+          <div className="pagination-controls">
+            <button 
+              className="pagination-btn" 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <span className="material-symbols-outlined" style={{fontSize: 18}}>chevron_left</span>
+            </button>
+            <button 
+              className="pagination-btn" 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              <span className="material-symbols-outlined" style={{fontSize: 18}}>chevron_right</span>
+            </button>
           </div>
-        )}
+        </div>
       </div>
+
+      {renderOrderDetails()}
 
       {reviewingOrder && (
         <MaterialReviewModal order={reviewingOrder} onClose={() => setReviewingOrderId(null)} />
       )}
-      
+
       {deletingOrderId && (
         <div 
-          className="orders-delete-modal-overlay" 
-          role="dialog" 
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDeletingOrderId(null);
-          }}
+          className="modal-overlay" 
+          onClick={(e) => { if (e.target === e.currentTarget) setDeletingOrderId(null); }}
         >
-          <div className="orders-delete-modal">
-            <div className="orders-delete-modal__header">
-              <div className="orders-delete-modal__title-area">
-                <div className="orders-delete-modal__icon">
-                  🗑️
-                </div>
-                <div className="orders-delete-modal__texts">
-                  <h3>¿Eliminar orden {store.savedOrders.find(o => o.id === deletingOrderId)?.orderNumber}?</h3>
-                  <p>Esta acción eliminará la orden del historial local.</p>
-                </div>
-              </div>
-              <button className="orders-delete-modal__close" onClick={() => setDeletingOrderId(null)}>×</button>
+          <div className="modal-content" style={{maxWidth: 400}}>
+            <div className="modal-header">
+              <h2>¿Eliminar orden {store.savedOrders.find(o => o.id === deletingOrderId)?.orderNumber}?</h2>
+              <button className="modal-close-btn" onClick={() => setDeletingOrderId(null)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
-            
-            <div className="orders-delete-modal__body">
+            <div className="modal-body">
+              <p>Esta acción eliminará la orden del historial local.</p>
               <p>No modificará Sage ni los archivos ya exportados.</p>
-              
-              {store.savedOrders.find(o => o.id === deletingOrderId)?.status === 'sent_to_sage' && (
-                <div className="orders-delete-modal__warning">
-                  <span className="icon">⚠️</span>
-                  <div className="orders-delete-modal__warning-texts">
-                    <p>Orden ya enviada a Sage</p>
-                    <p className="sub">Eliminarla de Luxia no revierte el descargo en Sage.</p>
-                  </div>
-                </div>
-              )}
             </div>
-            
-            <div className="orders-delete-modal__footer">
-              <Button type="button" variant="secondary" onClick={() => setDeletingOrderId(null)}>
-                Cancelar
-              </Button>
+            <div className="modal-footer">
+              <Button type="button" variant="secondary" onClick={() => setDeletingOrderId(null)}>Cancelar</Button>
               <Button 
                 type="button" 
                 variant="danger" 
@@ -787,7 +838,7 @@ export function SavedOrdersPanel() {
                 }}
                 disabled={isReadOnly}
               >
-                Eliminar orden
+                Eliminar
               </Button>
             </div>
           </div>
@@ -798,23 +849,17 @@ export function SavedOrdersPanel() {
         ref={fileInputRef}
         type="file"
         accept=".json,application/json"
-        className="visually-hidden"
         style={{ display: 'none' }}
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) {
             importSavedOrdersFile(file)
               .then((imported) => store.importOrders(imported))
-              .catch(() =>
-                store.setErrors((prev) => ({
-                  ...prev,
-                  general: 'No se pudo importar el archivo de ordenes.',
-                })),
-              );
+              .catch(() => store.setErrors((prev) => ({ ...prev, general: 'Error importando.' })));
             event.target.value = '';
           }
         }}
       />
-    </section>
+    </div>
   );
 }
