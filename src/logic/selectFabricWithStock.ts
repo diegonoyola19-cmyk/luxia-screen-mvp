@@ -12,6 +12,7 @@ export type StockAwareFabricSelectionInput = {
   candidateFabrics: FabricSelectionSnapshot[];
   inventoryItems: InventoryItem[];
   cutLengthMeters: number;
+  requiredCutWidthMeters?: number;
 };
 
 export type StockAwareFabricSelectionResult = {
@@ -24,9 +25,11 @@ export type StockAwareFabricSelectionResult = {
   originalWidthMeters?: number;
   substitutedWidthMeters?: number;
   reason?:
+    | 'optimal_width_available'
     | 'preferred_width_available'
     | 'preferred_width_insufficient_stock'
     | 'substituted_to_larger_width'
+    | 'preferred_width_not_carried'
     | 'no_stock_available'
     | 'invalid_input';
   warnings: Array<{
@@ -36,6 +39,36 @@ export type StockAwareFabricSelectionResult = {
     payload?: Record<string, unknown>;
   }>;
 };
+
+export function getAvailableFabricWidths(
+  family: string,
+  openness: string,
+  color: string,
+  inventoryItems: InventoryItem[],
+  candidateFabrics: FabricSelectionSnapshot[]
+): number[] {
+  const rolls = inventoryItems.filter(item => 
+    item.category === 'fabric' && 
+    item.kind === 'roll' && 
+    item.payload?.source === 'vertilux_api' &&
+    item.payload?.family === family && 
+    item.payload?.openness === openness && 
+    item.payload?.color === color
+  );
+
+  const widths = rolls
+    .map(r => Number(r.payload?.width_meters))
+    .filter(w => !isNaN(w) && w > 0);
+
+  const uniqueNormalized: number[] = [];
+  for (const w of widths) {
+    if (!uniqueNormalized.some(uw => areRollWidthsEquivalent(uw, w))) {
+      uniqueNormalized.push(w);
+    }
+  }
+
+  return uniqueNormalized.sort((a, b) => a - b);
+}
 
 export function selectFabricWithStock(
   input: StockAwareFabricSelectionInput
@@ -82,42 +115,61 @@ export function selectFabricWithStock(
     return true;
   });
 
-  // Intentar con el preferredFabric primero
-  const preferredWidth = preferredFabric.widthMeters;
-  const preferredRequiredYd2 = preferredWidth * cutLengthMeters * 1.1959900463;
+  const carriedWidths = getAvailableFabricWidths(targetFamily, targetOpenness, targetColor, inventoryItems, candidateFabrics);
 
-  const preferredMatch = validRolls.find(r => {
-    const p = r.payload;
-    return areRollWidthsEquivalent(Number(p.width_meters), preferredWidth) && Number(p.available_yd2) >= preferredRequiredYd2;
-  });
+  // Determinar el ancho mínimo requerido
+  const minRequiredWidth = input.requiredCutWidthMeters ?? preferredFabric.widthMeters;
 
-  if (preferredMatch) {
+  // Filtrar anchos reales que cubran el requerimiento
+  const coveringWidths = carriedWidths.filter(w => w >= minRequiredWidth || areRollWidthsEquivalent(w, minRequiredWidth));
+
+  if (coveringWidths.length === 0) {
     return {
       selectedFabric: preferredFabric,
-      selectedInventoryItemId: preferredMatch.id,
-      selectedWidthMeters: preferredWidth,
-      requiredYd2: preferredRequiredYd2,
-      availableYd2: Number(preferredMatch.payload.available_yd2),
       wasSubstituted: false,
-      originalWidthMeters: preferredWidth,
-      reason: 'preferred_width_available',
-      warnings: []
+      reason: 'no_stock_available',
+      warnings: [{
+        code: 'NO_SUITABLE_WIDTH',
+        message: `Ningún ancho histórico disponible cubre la medida requerida de ${minRequiredWidth}m.`,
+        severity: 'error'
+      }]
     };
   }
 
-  // Si no hay suficiente stock del preferido, buscar equivalentes superiores
-  // Buscar en el catálogo variantes que sean de mayor ancho
-  const largerCandidates = candidateFabrics
-    .filter(c => 
-      c.family === targetFamily && 
-      c.openness === targetOpenness && 
-      c.color === targetColor && 
-      c.widthMeters > preferredWidth
-    )
-    .sort((a, b) => a.widthMeters - b.widthMeters);
+  // El Ancho Óptimo Real es el menor de los que cubren
+  const optimalRealWidth = coveringWidths[0];
+  const optimalRequiredYd2 = optimalRealWidth * cutLengthMeters * 1.1959900463;
 
-  for (const candidate of largerCandidates) {
-    const candidateWidth = candidate.widthMeters;
+  let optimalCandidate = candidateFabrics.find(c => 
+    c.family === targetFamily && c.openness === targetOpenness && c.color === targetColor && 
+    areRollWidthsEquivalent(c.widthMeters, optimalRealWidth)
+  ) || preferredFabric;
+
+  const optimalMatch = validRolls.find(r => {
+    const p = r.payload;
+    return areRollWidthsEquivalent(Number(p.width_meters), optimalRealWidth) && Number(p.available_yd2) >= optimalRequiredYd2;
+  });
+
+  if (optimalMatch) {
+    // Encontramos stock para el Ancho Óptimo Real
+    const isDifferentFromPreferred = !areRollWidthsEquivalent(optimalRealWidth, preferredFabric.widthMeters);
+    return {
+      selectedFabric: optimalCandidate,
+      selectedInventoryItemId: optimalMatch.id,
+      selectedWidthMeters: optimalRealWidth,
+      requiredYd2: optimalRequiredYd2,
+      availableYd2: Number(optimalMatch.payload.available_yd2),
+      wasSubstituted: isDifferentFromPreferred,
+      originalWidthMeters: preferredFabric.widthMeters,
+      substitutedWidthMeters: isDifferentFromPreferred ? optimalRealWidth : undefined,
+      reason: 'optimal_width_available',
+      warnings: [] // NUNCA emitimos warning si se usa el Ancho Óptimo Real
+    };
+  }
+
+  // Si no hay stock para el Ancho Óptimo Real, iterar los siguientes anchos superiores
+  for (let i = 1; i < coveringWidths.length; i++) {
+    const candidateWidth = coveringWidths[i];
     const candidateRequiredYd2 = candidateWidth * cutLengthMeters * 1.1959900463;
 
     const candidateMatch = validRolls.find(r => {
@@ -126,19 +178,24 @@ export function selectFabricWithStock(
     });
 
     if (candidateMatch) {
+      const candidateFabric = candidateFabrics.find(c => 
+        c.family === targetFamily && c.openness === targetOpenness && c.color === targetColor && 
+        areRollWidthsEquivalent(c.widthMeters, candidateWidth)
+      ) || optimalCandidate;
+
       return {
-        selectedFabric: candidate,
+        selectedFabric: candidateFabric,
         selectedInventoryItemId: candidateMatch.id,
         selectedWidthMeters: candidateWidth,
         requiredYd2: candidateRequiredYd2,
         availableYd2: Number(candidateMatch.payload.available_yd2),
         wasSubstituted: true,
-        originalWidthMeters: preferredWidth,
+        originalWidthMeters: preferredFabric.widthMeters,
         substitutedWidthMeters: candidateWidth,
         reason: 'substituted_to_larger_width',
         warnings: [{
           code: 'FABRIC_SUBSTITUTED',
-          message: `No hay stock en ancho ${preferredWidth}m. Se usará ancho ${candidateWidth}m porque cubre el requerimiento.`,
+          message: `No hay stock suficiente en ancho ${optimalRealWidth}m. Se usará ancho ${candidateWidth}m porque cubre el requerimiento.`,
           severity: 'warning'
         }]
       };
@@ -156,7 +213,7 @@ export function selectFabricWithStock(
     item.payload?.family === targetFamily && 
     item.payload?.openness === targetOpenness && 
     item.payload?.color === targetColor && 
-    areRollWidthsEquivalent(Number(item.payload?.width_meters), preferredWidth) &&
+    areRollWidthsEquivalent(Number(item.payload?.width_meters), optimalRealWidth ?? preferredFabric.widthMeters) &&
     (item.payload?.available_yd2 === undefined || item.payload?.available_yd2 === null || isNaN(Number(item.payload?.available_yd2)))
   );
 
@@ -169,17 +226,17 @@ export function selectFabricWithStock(
   if (hadItemsWithoutYd2) {
     warnings.push({
       code: 'MISSING_AVAILABLE_YD2',
-      message: `Existen rollos de ${preferredWidth}m pero no tienen el campo available_yd2 calculado.`,
+      message: `Existen rollos de ${optimalRealWidth ?? preferredFabric.widthMeters}m pero no tienen el campo available_yd2 calculado.`,
       severity: 'warning'
     });
   }
 
   return {
     selectedFabric: preferredFabric, // Mantenemos el original para que el flow no rompa del todo
-    selectedWidthMeters: preferredWidth,
-    requiredYd2: preferredRequiredYd2,
+    selectedWidthMeters: optimalRealWidth ?? preferredFabric.widthMeters,
+    requiredYd2: optimalRealWidth ? (optimalRealWidth * cutLengthMeters * 1.1959900463) : undefined,
     wasSubstituted: false,
-    originalWidthMeters: preferredWidth,
+    originalWidthMeters: preferredFabric.widthMeters,
     reason: 'no_stock_available',
     warnings
   };

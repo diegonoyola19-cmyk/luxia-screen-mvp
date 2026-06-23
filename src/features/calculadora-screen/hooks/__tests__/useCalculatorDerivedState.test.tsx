@@ -89,6 +89,7 @@ describe('useCalculatorDerivedState - Fabric Substitution', () => {
           status: 'available',
           code: 'TEST-250',
           payload: {
+            source: 'vertilux_api',
             family: 'Screen',
             openness: 'Screen',
             color: '3101-1% White',
@@ -109,7 +110,7 @@ describe('useCalculatorDerivedState - Fabric Substitution', () => {
     // Al haber 2.50 disponible, escoge 2.50. (La tela ideal para 1.5 de ancho es 2.50)
     expect(displayResult?.selectedFabric?.widthMeters).toBe(2.5);
     expect(displayResult?.fabricSubstitution?.wasSubstituted).toBe(false);
-    expect(displayResult?.fabricSubstitution?.reason).toBe('preferred_width_available');
+    expect(displayResult?.fabricSubstitution?.reason).toBe('optimal_width_available');
   });
 
   it('sustituye a 3.00m si 2.50m no tiene stock, aumentando fabricDownloadedYd2 y wasteYd2', async () => {
@@ -123,6 +124,7 @@ describe('useCalculatorDerivedState - Fabric Substitution', () => {
           status: 'available',
           code: 'TEST-250',
           payload: {
+            source: 'vertilux_api',
             family: 'Screen',
             openness: 'Screen',
             color: '3101-1% White',
@@ -139,6 +141,7 @@ describe('useCalculatorDerivedState - Fabric Substitution', () => {
           status: 'available',
           code: 'TEST-300',
           payload: {
+            source: 'vertilux_api',
             family: 'Screen',
             openness: 'Screen',
             color: '3101-1% White',
@@ -179,7 +182,7 @@ describe('useCalculatorDerivedState - Fabric Substitution', () => {
     expect(displayResult?.fabricSubstitution?.wasSubstituted).toBe(false);
     expect(displayResult?.fabricSubstitution?.reason).toBe('no_stock_available');
     
-    const warning = displayResult?.fabricSubstitution?.warnings?.find(w => w.code === 'INSUFFICIENT_STOCK');
+    const warning = displayResult?.fabricSubstitution?.warnings?.find(w => w.code === 'NO_SUITABLE_WIDTH');
     expect(warning).toBeDefined();
     expect(warning?.severity).toBe('error');
   });

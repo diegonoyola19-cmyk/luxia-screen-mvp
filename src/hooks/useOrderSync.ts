@@ -9,8 +9,10 @@ import {
   InsufficientStockError,
   InvalidConsumptionPlanError,
   InventoryItemUnavailableError,
-  OrderInventoryRpcError
+  OrderInventoryRpcError,
+  commitIssueSnapshotToInventory
 } from '../lib/supabaseOrderInventory';
+import { toast } from 'sonner';
 
 export function useOrderSync() {
   const isMigrating = useRef(false);
@@ -74,6 +76,12 @@ export function useOrderSync() {
 
               // Llamar al RPC (que ya hace UPSERT de work_orders internamente)
               await processOrderInventoryTransaction(orderToSync, plan);
+              
+              // Inyectar tubos/bottoms en Bodega Global (Fase 5B.8 Option A)
+              if (orderToSync.productionReview?.issueSnapshot) {
+                await commitIssueSnapshotToInventory(orderToSync);
+              }
+              
               useCalculatorStore.getState().markOrderSynced(orderId, { inventorySynced: true });
 
             } else if (status.pendingAction === 'delete') {
@@ -90,18 +98,21 @@ export function useOrderSync() {
                 err.message || 'Permiso denegado para sincronizar esta orden.',
                 err instanceof OrderInventoryPermissionError ? 'PERMISSION_DENIED' : undefined
               );
+              toast.error(`Orden ${orderId.substring(0,6)}: Sin permisos para inventario`);
             } else if (err instanceof InsufficientStockError) {
               useCalculatorStore.getState().markOrderSyncError(
                 orderId,
                 err.message,
                 'INSUFFICIENT_STOCK'
               );
+              toast.error(`Falta inventario para la orden ${orderId.substring(0,6)}: ${err.message}`, { duration: 8000 });
             } else if (err instanceof InventoryItemUnavailableError) {
               useCalculatorStore.getState().markOrderSyncError(
                 orderId,
                 err.message,
                 'ITEM_NOT_AVAILABLE'
               );
+              toast.error(`Error de inventario orden ${orderId.substring(0,6)}: ${err.message}`, { duration: 8000 });
             } else if (err instanceof InvalidConsumptionPlanError) {
               useCalculatorStore.getState().markOrderSyncError(
                 orderId,
@@ -114,6 +125,7 @@ export function useOrderSync() {
                 err.message || 'Error de RPC de inventario',
                 err.code
               );
+              toast.error(`Error de inventario orden ${orderId.substring(0,6)}: ${err.message}`, { duration: 8000 });
             } else if (err?.status && err.status >= 400 && err.status < 500) {
               useCalculatorStore.getState().markOrderSyncError(orderId, err.message || 'Error de sincronización');
             } else {

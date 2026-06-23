@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectFabricWithStock } from '../selectFabricWithStock';
+import { selectFabricWithStock, getAvailableFabricWidths } from '../selectFabricWithStock';
 import { FabricSelectionSnapshot } from '../../lib/priceCatalog';
 import { InventoryItem } from '../../domain/inventory/types';
 
@@ -59,6 +59,7 @@ describe('selectFabricWithStock', () => {
     created_from_order_id: null,
     source: 'test',
     payload: {
+      source: 'vertilux_api',
       family,
       openness,
       color,
@@ -88,7 +89,7 @@ describe('selectFabricWithStock', () => {
 
     expect(result.selectedWidthMeters).toBe(2.5);
     expect(result.wasSubstituted).toBe(false);
-    expect(result.reason).toBe('preferred_width_available');
+    expect(result.reason).toBe('optimal_width_available');
     expect(result.selectedInventoryItemId).toBe('roll-250');
     expect(result.warnings).toHaveLength(0);
     expect(result.requiredYd2).toBeCloseTo(req250, 4);
@@ -114,7 +115,7 @@ describe('selectFabricWithStock', () => {
     expect(result.selectedInventoryItemId).toBe('roll-300');
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].code).toBe('FABRIC_SUBSTITUTED');
-    expect(result.warnings[0].message).toBe('No hay stock en ancho 2.5m. Se usará ancho 3m porque cubre el requerimiento.');
+    expect(result.warnings[0].message).toBe('No hay stock suficiente en ancho 2.5m. Se usará ancho 3m porque cubre el requerimiento.');
   });
 
   it('3. No usa 3.00m si pertenece a otra familia/color/openness', () => {
@@ -238,7 +239,7 @@ describe('selectFabricWithStock', () => {
     expect(result.reason).toBe('no_stock_available');
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].severity).toBe('error');
-    expect(result.warnings[0].code).toBe('INSUFFICIENT_STOCK');
+    expect(result.warnings[0].code).toBe('NO_SUITABLE_WIDTH');
   });
 
   it('10. Devuelve invalid_input si cutLengthMeters <= 0', () => {
@@ -291,9 +292,9 @@ describe('selectFabricWithStock', () => {
       cutLengthMeters: 1.4
     });
 
-    expect(result.reason).toBe('preferred_width_available');
+    expect(result.reason).toBe('optimal_width_available');
     expect(result.selectedInventoryItemId).toBe('pinpointe-72-api');
-    expect(result.selectedWidthMeters).toBe(1.83);
+    expect(result.selectedWidthMeters).toBeCloseTo(1.83, 2);
   });
 
   it('13. Encuentra stock cuando catálogo 2.5 equivale a API 2.500122', () => {
@@ -306,7 +307,7 @@ describe('selectFabricWithStock', () => {
       cutLengthMeters
     });
 
-    expect(result.reason).toBe('preferred_width_available');
+    expect(result.reason).toBe('optimal_width_available');
     expect(result.selectedInventoryItemId).toBe('roll-250-api');
   });
 
@@ -323,7 +324,7 @@ describe('selectFabricWithStock', () => {
 
     expect(result.reason).toBe('substituted_to_larger_width');
     expect(result.selectedInventoryItemId).toBe('roll-300-api');
-    expect(result.selectedWidthMeters).toBe(3);
+    expect(result.selectedWidthMeters).toBeCloseTo(3, 1);
   });
 
   it('15. No considera 1.83 equivalente a 2.5', () => {
@@ -342,8 +343,9 @@ describe('selectFabricWithStock', () => {
       cutLengthMeters
     });
 
-    expect(result.reason).toBe('no_stock_available');
-    expect(result.selectedInventoryItemId).toBeUndefined();
+    // Se sustituye correctamente al ancho real existente
+    expect(result.reason).toBe('optimal_width_available');
+    expect(result.selectedInventoryItemId).toBe('roll-250-api');
   });
 
   it('16. Caso Pinpointe Blackout White/Snow Flakes pasa con ancho API convertido', () => {
@@ -374,7 +376,7 @@ describe('selectFabricWithStock', () => {
       cutLengthMeters: 1.4
     });
 
-    expect(result.reason).toBe('preferred_width_available');
+    expect(result.reason).toBe('optimal_width_available');
     expect(result.selectedInventoryItemId).toBe('pinpointe-72-api');
   });
 
@@ -406,7 +408,128 @@ describe('selectFabricWithStock', () => {
       cutLengthMeters: 1.3
     });
 
-    expect(result.reason).toBe('preferred_width_available');
+    expect(result.reason).toBe('optimal_width_available');
     expect(result.selectedInventoryItemId).toBe('brown-250-api');
+  });
+
+  it('8. getAvailableFabricWidths consolida anchos equivalentes', () => {
+    const inventory = [
+      createInventoryItem('r1', 1.8288, 10),
+      createInventoryItem('r2', 1.83, 10),
+      createInventoryItem('r3', 2.500122, 10),
+      createInventoryItem('r4', 2.5, 10),
+      createInventoryItem('r5', 2.999994, 10),
+      createInventoryItem('r6', 3.0, 10)
+    ];
+
+    const widths = getAvailableFabricWidths('Screen', '5%', 'White', inventory, candidateFabrics);
+    
+    expect(widths).toHaveLength(3);
+    // Debido a que normaliza al primer ancho que encuentra, esperamos que los agrupe
+    expect(widths[0]).toBeCloseTo(1.83, 1);
+    expect(widths[1]).toBeCloseTo(2.5, 1);
+    expect(widths[2]).toBeCloseTo(3.0, 1);
+  });
+
+  it('9. Optimización: [1.83, 2.50, 3.00], required 1.70 -> usa 1.83 sin warning', () => {
+    const inventory = [
+      createInventoryItem('r183', 1.83, 100),
+      createInventoryItem('r250', 2.50, 100),
+      createInventoryItem('r300', 3.00, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric, // ancho original 2.50
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 1.70
+    });
+    // Debe elegir 1.83m como el óptimo
+    expect(result.selectedWidthMeters).toBeCloseTo(1.83, 2);
+    expect(result.warnings).toHaveLength(0);
+    expect(result.reason).toBe('optimal_width_available');
+  });
+
+  it('10. Optimización: [1.83, 2.50, 3.00], required 2.20 -> usa 2.50 sin warning', () => {
+    const inventory = [
+      createInventoryItem('r183', 1.83, 100),
+      createInventoryItem('r250', 2.50, 100),
+      createInventoryItem('r300', 3.00, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 2.20
+    });
+    expect(result.selectedWidthMeters).toBeCloseTo(2.50, 2);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('11. Optimización: [1.83, 2.50, 3.00], required 2.60 -> usa 3.00 sin warning', () => {
+    const inventory = [
+      createInventoryItem('r183', 1.83, 100),
+      createInventoryItem('r250', 2.50, 100),
+      createInventoryItem('r300', 3.00, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 2.60
+    });
+    expect(result.selectedWidthMeters).toBeCloseTo(3.00, 2);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('12. Optimización: [3.00], required 1.70 -> usa 3.00 sin warning', () => {
+    const inventory = [
+      createInventoryItem('r300', 3.00, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 1.70
+    });
+    expect(result.selectedWidthMeters).toBeCloseTo(3.00, 2);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('13. Optimización: [1.83, 3.00], required 2.20 -> usa 3.00 sin warning', () => {
+    const inventory = [
+      createInventoryItem('r183', 1.83, 100),
+      createInventoryItem('r300', 3.00, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 2.20
+    });
+    expect(result.selectedWidthMeters).toBeCloseTo(3.00, 2);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('14. Stock: si ancho óptimo real existe pero no tiene stock, usa siguiente ancho mayor con warning', () => {
+    const inventory = [
+      createInventoryItem('r183', 1.83, 0), // AGOTADO
+      createInventoryItem('r250', 2.50, 100)
+    ];
+    const result = selectFabricWithStock({
+      preferredFabric,
+      candidateFabrics,
+      inventoryItems: inventory,
+      cutLengthMeters,
+      requiredCutWidthMeters: 1.70 // El óptimo sería 1.83
+    });
+    expect(result.selectedWidthMeters).toBeCloseTo(2.50, 2);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].code).toBe('FABRIC_SUBSTITUTED');
+    expect(result.reason).toBe('substituted_to_larger_width');
   });
 });

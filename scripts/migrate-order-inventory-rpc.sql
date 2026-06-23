@@ -102,7 +102,7 @@ BEGIN
                   AND code = v_item_code 
                   AND status = 'available'
                   AND kind = 'roll'
-                  AND (payload->>'width_meters')::numeric = v_width_meters
+                  AND ABS((payload->>'width_meters')::numeric - v_width_meters) <= 0.01
                   AND (payload->>'available_yd2')::numeric >= v_req_qty
                 ORDER BY created_at ASC
                 LIMIT 1

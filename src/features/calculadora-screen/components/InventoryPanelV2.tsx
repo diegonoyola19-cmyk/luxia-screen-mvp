@@ -84,6 +84,45 @@ export function InventoryPanelV2() {
     notes: ''
   });
 
+  const [isSyncingApi, setIsSyncingApi] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(() => {
+    const saved = localStorage.getItem('last_api_sync_time');
+    return saved ? Number(saved) : null;
+  });
+
+  const handleSyncApi = async (silent = false) => {
+    if (isReadOnly) {
+      if (!silent) toast.error('No tienes permisos');
+      return;
+    }
+    setIsSyncingApi(true);
+    let toastId;
+    if (!silent) toastId = toast.loading('Sincronizando catálogo de telas con Bodega...');
+    try {
+      const { syncApiCatalogToSupabase } = await import('../../../logic/syncApiCatalogToSupabase');
+      const count = await syncApiCatalogToSupabase();
+      
+      const now = Date.now();
+      localStorage.setItem('last_api_sync_time', now.toString());
+      setLastSyncTime(now);
+      
+      if (!silent) toast.success(`Sincronización completa (${count} ítems empujados).`, { id: toastId });
+      window.dispatchEvent(new Event('sync-inventory'));
+    } catch (err: any) {
+      if (!silent) toast.error(`Error de sincronización: ${err.message}`, { id: toastId });
+      console.error(err);
+    } finally {
+      setIsSyncingApi(false);
+    }
+  };
+
+  // Auto-sync once per day automatically on mount
+  useEffect(() => {
+    if (!isReadOnly && (!lastSyncTime || Date.now() - lastSyncTime > 24 * 60 * 60 * 1000)) {
+      handleSyncApi(true);
+    }
+  }, []);
+
   // Clear selection on tab change
   useEffect(() => {
     setSelectedIds([]);
@@ -269,24 +308,50 @@ export function InventoryPanelV2() {
   return (
     <section className="page">
       <div className="page-header">
-        <div>
-          <div className="eyebrow-row">
-            <h1>Bodega</h1>
-            <span className="global-badge">GLOBAL</span>
+        <div className="InventoryPanelV2__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="InventoryPanelV2__title">
+            <h2>Bodega <span>GLOBAL</span></h2>
+            <p>Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
           </div>
-          <p className="subtext">Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
-        </div>
-
-        <div className="header-actions">
-          <button className="btn btn-primary" type="button" onClick={() => setIsManualModalOpen(true)} disabled={isReadOnly}>
-            ＋ Registrar retazo manual
-          </button>
-          <button className="btn" type="button" onClick={handleExport}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span> Exportar lista
-          </button>
-          <button className="btn btn-ghost" type="button" title="Refrescar" onClick={handleRefresh}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>refresh</span>
-          </button>
+          <div className="InventoryPanelV2__actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {!isReadOnly && (
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => handleSyncApi(false)}
+                  disabled={isSyncingApi}
+                  title="Sincroniza los rollos oficiales de Vertilux hacia la Bodega local para que puedan ser consumidos"
+                >
+                  <span className={`material-symbols-outlined ${isSyncingApi ? 'spin' : ''}`} style={{ fontSize: 18 }}>
+                    sync
+                  </span>
+                  {isSyncingApi ? 'Sincronizando...' : 'Sincronizar API'}
+                </button>
+                <span style={{ 
+                  position: 'absolute', 
+                  top: 'calc(100% + 4px)', 
+                  right: 0, 
+                  whiteSpace: 'nowrap',
+                  fontSize: '11px', 
+                  color: 'var(--text-tertiary)', 
+                  fontWeight: 500 
+                }}>
+                  {lastSyncTime ? `Última sincr: ${new Date(lastSyncTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'No sincronizado'}
+                </span>
+              </div>
+            )}
+            {!isReadOnly && (
+              <button className="btn btn-primary" onClick={() => setIsManualModalOpen(true)}>
+                + Registrar manual
+              </button>
+            )}
+            <button className="btn" type="button" onClick={handleExport}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span> Exportar lista
+            </button>
+            <button className="btn btn-ghost" type="button" title="Refrescar" onClick={handleRefresh}>
+              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 

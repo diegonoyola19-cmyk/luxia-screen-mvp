@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { toast } from 'sonner';
 import type { SavedOrder } from '../domain/curtains/types';
 import type { ConsumptionPlan } from '../logic/buildConsumptionPlan';
 
@@ -82,3 +83,56 @@ export async function processOrderInventoryTransaction(
 
   return true;
 }
+
+export async function commitIssueSnapshotToInventory(order: SavedOrder): Promise<void> {
+  if (!order.productionReview?.issueSnapshot) return;
+
+  const snapshot = order.productionReview.issueSnapshot;
+  if (!snapshot.createdRemainders || snapshot.createdRemainders.length === 0) return;
+
+  // Insert linear remainders as kind='unit' in inventory_items
+  const itemsToInsert = snapshot.createdRemainders.map(r => {
+    // Generate an ID if needed, or use the one from remainder
+    const itemId = r.id.startsWith('rem-') ? crypto.randomUUID() : r.id;
+    return {
+      id: itemId,
+      category: r.sku.includes('TU-') ? 'tube' : 'bottom',
+      kind: 'unit',
+      code: r.sku,
+      status: 'available',
+      created_from_order_id: order.id,
+      source: 'production_cut',
+      payload: {
+        length_feet: r.remainingLengthFt,
+        length_meters: r.remainingLengthFt / 3.28084,
+        available_quantity: 1, // It's a single unit of this specific length
+        unit: 'FT',
+        code: r.sku,
+        description: r.description
+      }
+    };
+  });
+
+  const { error } = await supabase.from('inventory_items').insert(itemsToInsert);
+
+  if (error) {
+    console.error('[commitIssueSnapshotToInventory] Error inserting remainders:', error);
+    toast.error(`No se pudieron guardar los tubos en Bodega: ${error.message}`);
+    // Not throwing here to avoid breaking the Sage export entirely if just one remainder fails
+    // or if RLS has issues, but ideally it should succeed.
+  } else {
+    // Insert movements
+    const movements = itemsToInsert.map(item => ({
+      inventory_item_id: item.id,
+      order_id: order.id,
+      category: item.category,
+      action: 'create_scrap',
+      item_code: item.code,
+      quantity: item.payload.length_feet,
+      unit: 'FT',
+      notes: 'Sobrante generado desde corte de producción'
+    }));
+    await supabase.from('inventory_movements').insert(movements);
+  }
+}
+

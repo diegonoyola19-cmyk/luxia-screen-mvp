@@ -542,7 +542,7 @@ export const createOrderSlice: StateCreator<
     }));
 
     // Encolar offline con consumo global
-    get().markOrderPending(savedOrder.id, 'upsert_with_inventory');
+    get().markOrderPending(savedOrder.id, 'upsert');
     window.dispatchEvent(new Event('sync-orders'));
   },
   deleteSavedOrder: (id) => {
@@ -633,7 +633,7 @@ export const createOrderSlice: StateCreator<
     });
 
     if (updatedOrders.length > 0) {
-      updatedOrders.forEach(o => get().markOrderPending(o.id, 'upsert'));
+      updatedOrders.forEach(o => get().markOrderPending(o.id, 'upsert_with_inventory'));
       window.dispatchEvent(new Event('sync-orders'));
     }
   },

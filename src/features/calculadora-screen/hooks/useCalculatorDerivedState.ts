@@ -236,7 +236,8 @@ export function useCalculatorDerivedState(isAutoMode: boolean = false) {
         preferredFabric: selectedFabric,
         candidateFabrics: relatedFabricVariants,
         inventoryItems: globalInventoryItems,
-        cutLengthMeters
+        cutLengthMeters,
+        requiredCutWidthMeters: rollAdjustedResult.occupiedRollWidthMeters
       });
 
       if (selection.wasSubstituted && selection.selectedWidthMeters) {

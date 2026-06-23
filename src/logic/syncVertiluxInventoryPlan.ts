@@ -36,20 +36,25 @@ export function planSyncForItem(
 }
 
 export function buildUpsertPayload(plan: SyncPlanResult, existingItem?: InventoryItemRecord) {
+  const basePayload = {
+    category: plan.item?.item?.category,
+    kind: plan.item?.item?.kind,
+    status: plan.item?.item?.status,
+    code: plan.item?.item?.code,
+    source: 'vertilux_api',
+  };
+
   if (plan.action === 'insert') {
     return {
-      category: plan.item.item.category,
-      kind: plan.item.item.kind,
-      status: plan.item.item.status,
-      code: plan.item.item.code,
+      ...basePayload,
       payload: plan.item.item.payload,
     };
   }
 
   if (plan.action === 'update') {
     return {
+      ...basePayload,
       id: plan.id,
-      status: plan.item.item.status,
       payload: plan.item.item.payload,
     };
   }
@@ -71,6 +76,7 @@ export function buildUpsertPayload(plan: SyncPlanResult, existingItem?: Inventor
     newPayload.reconciliationReason = 'LOCAL_MOVEMENTS_EXIST';
 
     return {
+      ...basePayload,
       id: plan.id,
       payload: newPayload,
     };
