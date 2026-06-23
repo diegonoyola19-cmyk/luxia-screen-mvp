@@ -389,6 +389,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-text);
+  text-align: center;
+}
+
+.inventory-table th:first-child, .inventory-table td:first-child {
+  padding-left: 18px;
+}
+
+.inventory-table th:last-child, .inventory-table td:last-child {
+  padding-right: 18px;
 }
 
 .inventory-table tr:hover td {

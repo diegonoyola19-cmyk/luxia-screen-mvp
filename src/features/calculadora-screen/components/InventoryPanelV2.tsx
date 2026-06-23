@@ -90,6 +90,11 @@ export function InventoryPanelV2() {
     return saved ? Number(saved) : null;
   });
 
+  const [imageError, setImageError] = useState(false);
+  useEffect(() => {
+    setImageError(false);
+  }, [detailItem?.id]);
+
   const handleSyncApi = async (silent = false) => {
     if (isReadOnly) {
       if (!silent) toast.error('No tienes permisos');
@@ -155,6 +160,13 @@ export function InventoryPanelV2() {
       return `${f.family} ${f.openness}`;
     }
     return f.family;
+  };
+
+  const formatCode = (code: string) => {
+    if (code && code.length === 11 && !code.includes('-')) {
+      return `${code.substring(0, 1)}-${code.substring(1, 4)}-${code.substring(4, 6)}-${code.substring(6)}`;
+    }
+    return code;
   };
 
   const filteredScraps = useMemo(() => {
@@ -249,11 +261,19 @@ export function InventoryPanelV2() {
     });
   };
 
-  const handleRefresh = () => {
-    setSelectedIds([]);
-    setSearchQuery('');
-    setStatusFilter('available');
-    toast.success('Bodega actualizada');
+  const handleRefresh = async () => {
+    const toastId = toast.loading('Actualizando bodega desde el servidor...');
+    try {
+      const { fetchActiveInventoryItems } = await import('../../../lib/supabaseInventory');
+      const remoteItems = await fetchActiveInventoryItems();
+      useGlobalInventoryStore.getState().setItems(remoteItems);
+      setSelectedIds([]);
+      setSearchQuery('');
+      setStatusFilter('available');
+      toast.success('Bodega sincronizada con el servidor', { id: toastId });
+    } catch (err: any) {
+      toast.error('Error al actualizar la bodega: ' + err.message, { id: toastId });
+    }
   };
 
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -307,15 +327,15 @@ export function InventoryPanelV2() {
 
   return (
     <section className="page">
-      <div className="page-header">
-        <div className="InventoryPanelV2__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header" style={{ alignItems: 'flex-start' }}>
+        <div className="InventoryPanelV2__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '20px', flexWrap: 'wrap' }}>
           <div className="InventoryPanelV2__title">
             <h2>Bodega <span>GLOBAL</span></h2>
-            <p>Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
+            <p className="subtext">Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
           </div>
-          <div className="InventoryPanelV2__actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="InventoryPanelV2__actions" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
             {!isReadOnly && (
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                 <button 
                   className="btn btn-secondary"
                   onClick={() => handleSyncApi(false)}
@@ -327,15 +347,7 @@ export function InventoryPanelV2() {
                   </span>
                   {isSyncingApi ? 'Sincronizando...' : 'Sincronizar API'}
                 </button>
-                <span style={{ 
-                  position: 'absolute', 
-                  top: 'calc(100% + 4px)', 
-                  right: 0, 
-                  whiteSpace: 'nowrap',
-                  fontSize: '11px', 
-                  color: 'var(--text-tertiary)', 
-                  fontWeight: 500 
-                }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
                   {lastSyncTime ? `Última sincr: ${new Date(lastSyncTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'No sincronizado'}
                 </span>
               </div>
@@ -477,10 +489,26 @@ export function InventoryPanelV2() {
                   currentItems.map(item => {
                     const itemAsAny = item as any;
                     const isTela = activeTab === 'fabric';
-                    const descripcion = isTela ? `${itemAsAny.family || ''} - ${itemAsAny.color || ''}`.replace(/^- | -$/g, '') : (itemAsAny.description || itemAsAny.family || itemAsAny.color || 'Sobrante Lineal');
-                    const medida = isTela ? `${formatNumber(itemAsAny.widthMeters)}m x ${formatNumber(itemAsAny.lengthMeters)}m` : `${toFT(itemAsAny.remainingLengthM)} FT / ${formatNumber(itemAsAny.remainingLengthM)}m`;
-                    const origen = isTela ? (itemAsAny.orderNumber || 'Corte de Prod.') : (itemAsAny.sourceOrderNumber || 'Corte de Prod.');
+                    const family = itemAsAny.payload?.family || itemAsAny.family || '';
+                    const color = itemAsAny.payload?.color || itemAsAny.color || '';
+                    const descPayload = itemAsAny.description || itemAsAny.payload?.description || '';
+                    const descripcion = descPayload || (isTela ? `${family} - ${color}`.replace(/^- | -$/g, '') : (itemAsAny.description || family || color || 'Sobrante Lineal'));
+                    let medida = '';
+                    if (isTela) {
+                      medida = `${formatNumber(itemAsAny.payload?.width_meters || itemAsAny.widthMeters)}m x ${formatNumber(itemAsAny.payload?.length_meters || itemAsAny.lengthMeters)}m`;
+                    } else {
+                      if (itemAsAny.payload?.length_feet) {
+                        const ft = itemAsAny.payload.length_feet;
+                        const m = ft * 0.3048;
+                        medida = `${formatNumber(ft)} FT / ${formatNumber(m)}m`;
+                      } else {
+                        const m = itemAsAny.remainingLengthM || 0;
+                        medida = `${toFT(m)} FT / ${formatNumber(m)}m`;
+                      }
+                    }
+                    const origen = itemAsAny.payload?.source_order || (isTela ? (itemAsAny.orderNumber || 'Corte de Prod.') : (itemAsAny.sourceOrderNumber || 'Corte de Prod.'));
                     const isSelected = selectedIds.includes(item.id);
+                    const formattedCode = formatCode(item.code);
 
                     return (
                       <tr key={item.id} className={isSelected ? 'selected' : ''}>
@@ -492,7 +520,7 @@ export function InventoryPanelV2() {
                             aria-label={`Seleccionar ${item.code}`} 
                           />
                         </td>
-                        <td className="code" title={item.code}>{item.code}</td>
+                        <td className="code" title={formattedCode}>{formattedCode}</td>
                         <td title={item.kind}>{renderPill(item)}</td>
                         <td title={descripcion}>{descripcion}</td>
                         <td title={medida}>{medida}</td>
@@ -517,13 +545,15 @@ export function InventoryPanelV2() {
                                   _origen: origen,
                                   _isTela: isTela,
                                   _family: itemAsAny.family,
-                                  _color: itemAsAny.color,
-                                  _openness: itemAsAny.openness,
-                                  _width: itemAsAny.widthMeters,
-                                  _length: itemAsAny.lengthMeters,
-                                  _remainingLength: itemAsAny.remainingLengthM,
-                                  _order: itemAsAny.orderNumber || itemAsAny.sourceOrderNumber,
-                                  _sku: isTela ? getFabricSku(itemAsAny.family, itemAsAny.color, itemAsAny.openness) : undefined
+                                  _color: color,
+                                  _openness: itemAsAny.payload?.openness || itemAsAny.openness,
+                                  _width: itemAsAny.payload?.width_meters || itemAsAny.widthMeters,
+                                  _length: itemAsAny.payload?.length_meters || itemAsAny.lengthMeters,
+                                  _remainingLength: itemAsAny.payload?.length_feet ? itemAsAny.payload.length_feet : (itemAsAny.remainingLengthM || 0),
+                                  _isRemainingLengthInFt: !!itemAsAny.payload?.length_feet,
+                                  _order: origen,
+                                  _imageUrl: itemAsAny.imageUrl || itemAsAny.payload?.image_url,
+                                  _sku: isTela ? getFabricSku(family, color, itemAsAny.payload?.openness || itemAsAny.openness) : undefined
                                 }); 
                               }}
                             >
@@ -560,60 +590,53 @@ export function InventoryPanelV2() {
           <div className="modal">
             <div className="modal-header">
               <h2 id="detailTitle" style={{margin:0, fontSize:'20px'}}>Detalle del registro</h2>
-              <p style={{margin:'4px 0 0', color:'var(--color-text-muted)', fontSize:'14px', fontWeight:600}}>{detailItem.code}</p>
+              <p style={{margin:'4px 0 0', color:'var(--color-text-muted)', fontSize:'14px', fontWeight:600}}>{formatCode(detailItem.code)}</p>
             </div>
-            <div className="modal-body">
-              <div className="detail-section">
-                <h3>Resumen</h3>
-                <div className="detail-grid">
-                  <span>Código</span><strong>{detailItem.code}</strong>
-                  <span>Tipo</span><strong>{detailItem._isTela ? 'Retazo de tela' : (detailItem.kind === 'tube' ? 'Sobrante de Tubo' : 'Sobrante de Bottomrail')}</strong>
-                  <span>Estado</span><strong>{renderStatus(detailItem.status)}</strong>
-                  <span>Fecha gen.</span><strong>{detailItem.createdAt ? new Date(detailItem.createdAt).toLocaleDateString() : '—'}</strong>
+            <div className="modal-body" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+              <div style={{ flexShrink: 0, width: '160px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                {!imageError ? (
+                  <img 
+                    src={detailItem._imageUrl || `https://vertilux-website.s3.amazonaws.com/public/original/${detailItem.code.replace(/-/g, '')}.jpg`} 
+                    alt={detailItem._descripcion}
+                    onError={() => setImageError(true)}
+                    style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: '#fff' }} 
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '160px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface-dim)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--color-text-muted)' }}>
+                      {detailItem.kind === 'tube' ? 'cylinder' : (detailItem.kind === 'bottom' ? 'width' : 'image_not_supported')}
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '8px' }}>Sin imagen</span>
+                  </div>
+                )}
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 800 }}>{detailItem._isTela ? 'Retazo de Tela' : (detailItem.kind === 'tube' ? 'Sobrante de Tubo' : 'Sobrante de Bottomrail')}</span>
                 </div>
               </div>
 
-              <div className="detail-section">
-                <h3>Material</h3>
-                <div className="detail-grid">
+              <div style={{ flexGrow: 1 }}>
+                <div className="detail-grid" style={{ gridTemplateColumns: '90px minmax(0, 1fr)' }}>
+                  
                   {detailItem._descripcion !== detailItem.code && (
-                    <><span>Descripción</span><strong>{detailItem._descripcion}</strong></>
+                    <><span>Material</span><strong>{detailItem._descripcion}</strong></>
                   )}
-                  {detailItem._color && (
-                    <><span>Color / Tono</span><strong>{detailItem._color}</strong></>
+                  
+                  <span>Medida</span>
+                  <strong>
+                    {detailItem._isTela ? (
+                      `${formatNumber(detailItem._width)}m x ${formatNumber(detailItem._length)}m`
+                    ) : (
+                      detailItem._isRemainingLengthInFt ? `${formatNumber(detailItem._remainingLength)} FT / ${formatNumber(detailItem._remainingLength * 0.3048)} m` : `${toFT(detailItem._remainingLength)} FT / ${formatNumber(detailItem._remainingLength)} m`
+                    )}
+                  </strong>
+                  
+                  {detailItem._isTela && (detailItem._width > 0 && detailItem._length > 0) && (
+                    <><span>Área</span><strong>{formatNumber(detailItem._width * detailItem._length)} m²</strong></>
                   )}
-                  {detailItem._sku && detailItem._sku !== 'No registrado' && (
-                    <><span>SKU original</span><strong>{detailItem._sku}</strong></>
-                  )}
-                </div>
-              </div>
 
-              <div className="detail-section">
-                <h3>Medidas</h3>
-                <div className="detail-grid">
-                  {detailItem._isTela ? (
-                    <>
-                      {detailItem._width > 0 && <><span>Ancho</span><strong>{formatNumber(detailItem._width)} m</strong></>}
-                      {detailItem._length > 0 && <><span>Largo</span><strong>{formatNumber(detailItem._length)} m</strong></>}
-                      {(detailItem._width > 0 && detailItem._length > 0) && (
-                        <><span>Área</span><strong>{formatNumber(detailItem._width * detailItem._length)} m²</strong></>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {detailItem._remainingLength > 0 && <><span>Longitud</span><strong>{toFT(detailItem._remainingLength)} FT / {formatNumber(detailItem._remainingLength)} m</strong></>}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="detail-section">
-                <h3>Origen</h3>
-                <div className="detail-grid">
-                  <span>Generado por</span><strong>{detailItem._origen}</strong>
-                  {detailItem._order && detailItem._order !== 'Corte de Prod.' && detailItem._origen !== detailItem._order && (
-                    <><span>Orden</span><strong>{detailItem._order}</strong></>
-                  )}
+                  <span>Origen</span><strong>{detailItem._order || 'Corte de Prod.'}</strong>
+                  <span>Fecha gen.</span><strong>{detailItem.createdAt ? new Date(detailItem.createdAt).toLocaleDateString() : '—'}</strong>
+                  <span>Estado</span><strong>{renderStatus(detailItem.status)}</strong>
                 </div>
               </div>
             </div>

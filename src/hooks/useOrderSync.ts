@@ -83,6 +83,7 @@ export function useOrderSync() {
               }
               
               useCalculatorStore.getState().markOrderSynced(orderId, { inventorySynced: true });
+              window.dispatchEvent(new Event('sync-inventory'));
 
             } else if (status.pendingAction === 'delete') {
               // ─── Comportamiento previo intacto: soft delete ───────────────────────────

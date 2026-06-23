@@ -63,7 +63,7 @@ describe('syncVertiluxInventoryPlan', () => {
     expect(plan.action).toBe('update');
     
     const upsertPayload = buildUpsertPayload(plan, existing);
-    expect(upsertPayload!.id).toBe('uuid-1');
+    expect((upsertPayload as any)!.id).toBe('uuid-1');
     expect(upsertPayload!.payload.available_yd2).toBe(120); // API overwrites
   });
 
@@ -79,7 +79,7 @@ describe('syncVertiluxInventoryPlan', () => {
     expect(plan.action).toBe('reconcile');
     
     const upsertPayload = buildUpsertPayload(plan, existing);
-    expect(upsertPayload!.id).toBe('uuid-2');
+    expect((upsertPayload as any)!.id).toBe('uuid-2');
     // Important: available_yd2 is NOT overwritten
     expect(upsertPayload!.payload.available_yd2).toBe(50);
     expect(upsertPayload!.payload.local_custom_field).toBe('keep');

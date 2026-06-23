@@ -36,49 +36,46 @@ export function planSyncForItem(
 }
 
 export function buildUpsertPayload(plan: SyncPlanResult, existingItem?: InventoryItemRecord) {
+  if (plan.action === 'skip') return null;
+  const p = plan as Exclude<SyncPlanResult, {action: 'skip'}>;
+
   const basePayload = {
-    category: plan.item?.item?.category,
-    kind: plan.item?.item?.kind,
-    status: plan.item?.item?.status,
-    code: plan.item?.item?.code,
+    category: p.item?.item?.category,
+    kind: p.item?.item?.kind,
+    status: p.item?.item?.status,
+    code: p.item?.item?.code,
     source: 'vertilux_api',
   };
 
   if (plan.action === 'insert') {
     return {
       ...basePayload,
-      payload: plan.item.item.payload,
+      payload: p.item.item.payload,
     };
   }
 
   if (plan.action === 'update') {
     return {
       ...basePayload,
-      id: plan.id,
-      payload: plan.item.item.payload,
+      id: (p as any).id,
+      payload: p.item.item.payload,
     };
   }
 
   if (plan.action === 'reconcile' && existingItem) {
-    const newPayload = { ...existingItem.payload };
-    newPayload.apiQtyOnHand = plan.item.item.payload.apiQtyOnHand;
-    newPayload.apiQtySalesOrder = plan.item.item.payload.apiQtySalesOrder;
-    newPayload.apiQtyOnOrder = plan.item.item.payload.apiQtyOnOrder;
-    newPayload.apiQtyOffset = plan.item.item.payload.apiQtyOffset;
-    newPayload.apiAvailableRaw = plan.item.item.payload.apiAvailableRaw;
-    
-    if ('apiAvailableYd2' in plan.item.item.payload) {
-      newPayload.apiAvailableYd2 = plan.item.item.payload.apiAvailableYd2;
-    }
-    
-    newPayload.lastApiSyncAt = plan.item.item.payload.lastApiSyncAt;
-    newPayload.syncNeedsReconciliation = true;
-    newPayload.reconciliationReason = 'LOCAL_MOVEMENTS_EXIST';
+    const existingPayload = existingItem.payload || {};
+    const newApiPayload = p.item.item.payload;
 
     return {
       ...basePayload,
-      id: plan.id,
-      payload: newPayload,
+      id: (p as any).id,
+      payload: {
+        ...existingPayload, // Keep local fields (e.g., local movements available_yd2)
+        ...newApiPayload,   // Overlay new API data (e.g., apiAvailableYd2)
+        available_yd2: existingPayload.available_yd2, // Force keep local available_yd2
+        syncNeedsReconciliation: true,
+        reconciliationReason: 'LOCAL_MOVEMENTS_EXIST'
+      },
     };
   }
 

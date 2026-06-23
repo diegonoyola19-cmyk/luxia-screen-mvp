@@ -55,14 +55,16 @@ export async function syncApiCatalogToSupabase() {
     
     if (plan.action !== 'skip') {
       const payload = buildUpsertPayload(plan, existing);
-      if (userId && !payload.created_by) {
-         payload.created_by = userId;
-      }
-      
-      if (plan.action === 'insert') {
-        inserts.push(payload);
-      } else {
-        updates.push(payload);
+      if (payload) {
+        if (userId && !(payload as any).created_by) {
+           (payload as any).created_by = userId;
+        }
+        
+        if (plan.action === 'insert') {
+          inserts.push(payload);
+        } else {
+          updates.push(payload);
+        }
       }
     }
   }

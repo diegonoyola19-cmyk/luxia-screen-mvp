@@ -21,6 +21,7 @@ DECLARE
     v_unit text;
     v_width_meters numeric;
     v_specific_id uuid;
+    v_req_qty_ft numeric;
     
     v_inv_item_id uuid;
     v_inv_length numeric;
@@ -137,10 +138,73 @@ BEGIN
                 -- Si sí hay, haríamos update. Pero en base de datos `inventory_items` solo tiene 'roll' y 'scrap' para fabrics (según esquemas que vimos, o 'bar'/'offcut' para tubo).
                 -- Para tubo linear:
                 IF v_category IN ('tube', 'bottom') THEN
-                    -- No bloqueamos producción por tubo si no hay tracking físico estricto, o restamos de una barra.
-                    -- Por simplicidad en Fase 5B.8, generamos el consumo ciego si no hay un item específico.
-                    INSERT INTO public.inventory_movements (order_id, category, action, item_code, quantity, unit, notes, created_by)
-                    VALUES (v_order_id, v_category, 'consume', v_item_code, v_req_qty, v_unit, v_item->>'notes', v_user_id);
+                    -- Convertir a pies si es necesario
+                    v_req_qty_ft := v_req_qty;
+                    IF v_unit = 'm' THEN
+                        v_req_qty_ft := v_req_qty * 3.28084;
+                    END IF;
+
+                    -- Buscamos el retazo más pequeño que nos sirva
+                    SELECT id, (payload->>'length_feet')::numeric, payload
+                    INTO v_inv_item_id, v_inv_length, v_inv_payload
+                    FROM public.inventory_items
+                    WHERE category = v_category
+                      AND code = v_item_code 
+                      AND status = 'available'
+                      AND (payload->>'length_feet')::numeric >= v_req_qty_ft
+                    ORDER BY (payload->>'length_feet')::numeric ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED;
+
+                    IF v_inv_item_id IS NOT NULL THEN
+                        -- Si encontramos un retazo, lo actualizamos o usamos
+                        v_inv_length := v_inv_length - v_req_qty_ft;
+                        
+                        IF v_inv_length >= 1.0 THEN -- mínimo 1 pie utilizable
+                            v_inv_payload := jsonb_set(v_inv_payload, '{length_feet}', to_jsonb(v_inv_length));
+                            v_inv_payload := jsonb_set(v_inv_payload, '{length_meters}', to_jsonb(v_inv_length / 3.28084));
+                            UPDATE public.inventory_items
+                            SET payload = v_inv_payload, updated_at = timezone('utc', now()), updated_by = v_user_id
+                            WHERE id = v_inv_item_id;
+                        ELSE
+                            -- Ya no sirve, se descarta (marca usado)
+                            UPDATE public.inventory_items
+                            SET status = 'used', updated_at = timezone('utc', now()), updated_by = v_user_id
+                            WHERE id = v_inv_item_id;
+                        END IF;
+
+                        INSERT INTO public.inventory_movements (inventory_item_id, order_id, category, action, item_code, quantity, unit, notes, created_by)
+                        VALUES (v_inv_item_id, v_order_id, v_category, 'consume', v_item_code, v_req_qty, v_unit, v_item->>'notes', v_user_id);
+                    ELSE
+                        -- No hay retazo que sirva. Asumimos una barra nueva de 19 pies.
+                        INSERT INTO public.inventory_movements (order_id, category, action, item_code, quantity, unit, notes, created_by)
+                        VALUES (v_order_id, v_category, 'consume', v_item_code, v_req_qty, v_unit, 'Corte de barra nueva 19ft: ' || COALESCE(v_item->>'notes', ''), v_user_id);
+                        
+                        -- Generamos el retazo restante
+                        v_inv_length := 19.0 - v_req_qty_ft;
+                        IF v_inv_length >= 1.0 THEN
+                            INSERT INTO public.inventory_items (category, kind, code, status, payload, created_from_order_id, source, created_by)
+                            VALUES (
+                                v_category, 
+                                'unit', 
+                                v_item_code, 
+                                'available', 
+                                jsonb_build_object(
+                                    'length_feet', v_inv_length,
+                                    'length_meters', v_inv_length / 3.28084,
+                                    'available_quantity', 1,
+                                    'unit', 'FT',
+                                    'source_order', v_order_number
+                                ),
+                                v_order_id, 
+                                'production_cut',
+                                v_user_id
+                            ) RETURNING id INTO v_inv_item_id;
+
+                            INSERT INTO public.inventory_movements (inventory_item_id, order_id, category, action, item_code, quantity, unit, notes, created_by)
+                            VALUES (v_inv_item_id, v_order_id, v_category, 'create_scrap', v_item_code, v_inv_length, 'ft', 'Sobrante automático de barra 19ft', v_user_id);
+                        END IF;
+                    END IF;
                 ELSE
                     -- Componente
                     INSERT INTO public.inventory_movements (order_id, category, action, item_code, quantity, unit, notes, created_by)
@@ -177,12 +241,13 @@ BEGIN
                 'scrap', 
                 v_item_code, 
                 'available', 
-                jsonb_build_object(
+                (COALESCE(v_item->'payload', '{}'::jsonb) || jsonb_build_object(
                     'width_meters', v_width_meters, 
                     'length_meters', v_req_qty / (v_width_meters * 1.1959900463),
                     'available_yd2', v_req_qty,
-                    'area_meters', v_width_meters * (v_req_qty / (v_width_meters * 1.1959900463))
-                ),
+                    'area_meters', v_width_meters * (v_req_qty / (v_width_meters * 1.1959900463)),
+                    'source_order', v_order_number
+                )),
                 v_order_id, 
                 'production_cut',
                 v_user_id

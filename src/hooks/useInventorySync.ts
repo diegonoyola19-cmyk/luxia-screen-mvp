@@ -137,14 +137,15 @@ export function useInventorySync() {
     }
 
     const handleNetworkChange = () => flushQueue();
+    const handleSyncInventory = () => initSync();
     window.addEventListener('online', handleNetworkChange);
-    window.addEventListener('sync-inventory', handleNetworkChange);
+    window.addEventListener('sync-inventory', handleSyncInventory);
 
     initSync();
 
     return () => {
       window.removeEventListener('online', handleNetworkChange);
-      window.removeEventListener('sync-inventory', handleNetworkChange);
+      window.removeEventListener('sync-inventory', handleSyncInventory);
       if (isSubscribed.current) {
         supabase.channel('inventory_realtime').unsubscribe();
         isSubscribed.current = false;

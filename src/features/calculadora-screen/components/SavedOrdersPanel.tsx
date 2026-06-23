@@ -14,6 +14,7 @@ import { getHWDesc, type Tone } from '../../../logic/rollerEngineV3';
 import { MaterialReviewModal } from './MaterialReviewModal';
 import { validateOrderBeforeSage } from '../../../domain/orders/validateOrderBeforeSage';
 import { normalizeOrderStatus, SavedOrderStatus } from '../../../domain/orders/orderStatus';
+import { supabase } from '../../../lib/supabase';
 
 // ── BOM display helpers ──────────────
 const M_TO_FT = 3.28084;
@@ -697,7 +698,27 @@ export function SavedOrdersPanel() {
                 type="button" 
                 variant="danger" 
                 style={{ color: '#ef4444', borderColor: '#ef4444' }} 
-                onClick={() => setDeletingOrderId(selectedRow.order.id)}
+                onClick={async () => {
+                  // Validar dependencias de retazos
+                  const { data, error } = await supabase
+                    .from('inventory_items')
+                    .select('id, code, status')
+                    .eq('created_from_order_id', selectedRow.order.id)
+                    .eq('status', 'used')
+                    .limit(1);
+
+                  if (error) {
+                    alert('Error al verificar dependencias del inventario. Intente nuevamente.');
+                    return;
+                  }
+
+                  if (data && data.length > 0) {
+                    alert('⚠️ BLOQUEO DE INTEGRIDAD\n\nNo se puede eliminar o modificar esta orden porque generó un retazo (' + data[0].code + ') que actualmente está siendo utilizado en OTRA orden.\n\nPara continuar, primero debes modificar o eliminar la orden hija que consumió este retazo para liberarlo.');
+                    return;
+                  }
+
+                  setDeletingOrderId(selectedRow.order.id);
+                }}
                 disabled={isReadOnly}
               >
                 🗑️ Eliminar orden

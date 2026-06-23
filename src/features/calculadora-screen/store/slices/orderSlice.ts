@@ -542,7 +542,7 @@ export const createOrderSlice: StateCreator<
     }));
 
     // Encolar offline con consumo global
-    get().markOrderPending(savedOrder.id, 'upsert');
+    get().markOrderPending(savedOrder.id, 'upsert_with_inventory');
     window.dispatchEvent(new Event('sync-orders'));
   },
   deleteSavedOrder: (id) => {
@@ -577,7 +577,11 @@ export const createOrderSlice: StateCreator<
       }),
     }));
     if (updatedOrder) {
-      get().markOrderPending(updatedOrder.id, 'upsert');
+      const meta = get().syncMetadata[updatedOrder.id];
+      const pendingAction = (!meta?.inventorySynced || meta?.pendingAction === 'upsert_with_inventory') 
+        ? 'upsert_with_inventory' 
+        : 'upsert';
+      get().markOrderPending(updatedOrder.id, pendingAction);
       window.dispatchEvent(new Event('sync-orders'));
     }
   },
@@ -598,7 +602,11 @@ export const createOrderSlice: StateCreator<
       })
     }));
     if (updatedOrder) {
-      get().markOrderPending(updatedOrder.id, 'upsert');
+      const meta = get().syncMetadata[updatedOrder.id];
+      const pendingAction = (!meta?.inventorySynced || meta?.pendingAction === 'upsert_with_inventory') 
+        ? 'upsert_with_inventory' 
+        : 'upsert';
+      get().markOrderPending(updatedOrder.id, pendingAction);
       window.dispatchEvent(new Event('sync-orders'));
     }
   },

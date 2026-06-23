@@ -84,7 +84,7 @@ export function buildConsumptionPlan(savedOrder: SavedOrder): ConsumptionPlan {
         plan.items.push({
           action: 'consume',
           category: 'fabric',
-          itemCode: (result.selectedFabric.itemCode || result.selectedFabric.code || '').replace(/-/g, ''),
+          itemCode: result.selectedFabric.itemCode || '',
           requiredQuantity: consumedAreaYd2,
           unit: 'yd2',
           widthMeters: result.recommendedRollWidthMeters,
@@ -124,7 +124,12 @@ export function buildConsumptionPlan(savedOrder: SavedOrder): ConsumptionPlan {
           notes: `Sobrante generado de cortina ${index + 1}`,
           payload: {
             width_meters: result.wastePieceWidthMeters,
-            length_meters: result.wastePieceHeightMeters
+            length_meters: result.wastePieceHeightMeters,
+            family: result.selectedFabric.family || '',
+            color: result.selectedFabric.color || '',
+            description: result.selectedFabric.description || '',
+            image_url: result.selectedFabric.imageUrl || '',
+            source_order: savedOrder.orderNumber || ''
           }
         });
       }
@@ -159,8 +164,14 @@ export function buildConsumptionPlan(savedOrder: SavedOrder): ConsumptionPlan {
           return;
         }
 
-        const isTube = line.category === 'tube';
-        const isBottom = line.category === 'bottom';
+        const cat = (line.category || '').toLowerCase();
+        const itemCode = ((line as any).itemCode || (line as any).sku || '').toUpperCase();
+        const unit = (line.unit || '').toLowerCase();
+        const isLength = unit === 'm' || unit === 'ft';
+        
+        // Respetamos los códigos exactos de componente según las reglas (ej: 0-154-TU-* para tubos, 0-151-AL-* para bottomrails)
+        const isTube = isLength && (itemCode.startsWith('0-154-TU') || cat === 'tube');
+        const isBottom = isLength && (itemCode.startsWith('0-151-AL') || cat === 'bottom');
         let actionCat: 'tube' | 'bottom' | 'component' = 'component';
         if (isTube) actionCat = 'tube';
         else if (isBottom) actionCat = 'bottom';

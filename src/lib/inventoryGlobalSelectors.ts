@@ -9,10 +9,12 @@ export const selectGlobalFabricsForBodega = (items: InventoryItem[]) => {
       code: i.code || i.id.substring(0, 8).toUpperCase(),
       family: i.payload?.family,
       color: i.payload?.color,
+      description: i.payload?.description,
+      imageUrl: i.payload?.image_url,
       openness: i.payload?.openness || 'N/A',
       widthMeters: (i.payload?.width_meters as number) || (i.payload?.widthMeters as number) || 0,
       lengthMeters: (i.payload?.length_meters as number) || (i.payload?.lengthMeters as number) || 0,
-      orderNumber: i.payload?.source_order_number || 'Corte de Prod.',
+      orderNumber: (i.payload?.source_order as string) || (i.payload?.source_order_number as string) || 'Corte de Prod.',
       createdAt: i.created_at,
       status: i.status,
       kind: 'scrap'
@@ -32,10 +34,11 @@ export const selectGlobalLinearsForBodega = (items: InventoryItem[]) => {
         sku: i.code,
         description: (i.payload?.description as string) || catalogEntry?.marketName || 'Sin descripción',
         remainingLengthM: (i.payload?.length_meters as number) || (i.payload?.lengthMeters as number) || 0,
-        sourceOrderNumber: i.payload?.source_order_number || 'Corte de Prod.',
+        sourceOrderNumber: (i.payload?.source_order as string) || (i.payload?.source_order_number as string) || 'Corte de Prod.',
         createdAt: i.created_at,
         status: i.status,
-        color: (i.payload?.color as string) || catalogEntry?.marketName || i.code
+        color: (i.payload?.color as string) || catalogEntry?.marketName || i.code,
+        imageUrl: (i.payload?.image_url as string) || undefined
       };
     });
 };
