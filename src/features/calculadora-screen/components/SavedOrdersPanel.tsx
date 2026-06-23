@@ -15,6 +15,7 @@ import { MaterialReviewModal } from './MaterialReviewModal';
 import { validateOrderBeforeSage } from '../../../domain/orders/validateOrderBeforeSage';
 import { normalizeOrderStatus, SavedOrderStatus } from '../../../domain/orders/orderStatus';
 import { supabase } from '../../../lib/supabase';
+import { logAppActivity } from '../../../lib/logAppActivity';
 import './SavedOrdersTable.css';
 
 // ── BOM display helpers ──────────────
@@ -712,6 +713,18 @@ export function SavedOrdersPanel() {
                             </button>
                           )}
 
+                          {/*
+                          <button className="action-dropdown-item" onClick={async () => {
+                            setActionMenuOpenId(null);
+                            try {
+                              const { generateWorkOrderPdf } = await import('../../../lib/pdf/generateWorkOrderPdf');
+                              await generateWorkOrderPdf(row.order);
+                            } catch (err: any) { alert(err.message); }
+                          }}>
+                            <span className="material-symbols-outlined">print</span> Imprimir Orden
+                          </button>
+                          */}
+
                           <button className="action-dropdown-item" onClick={async () => {
                             setActionMenuOpenId(null);
                             try {
@@ -832,9 +845,23 @@ export function SavedOrdersPanel() {
                 type="button" 
                 variant="danger" 
                 style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
-                onClick={() => {
+                onClick={async () => {
+                  const orderToDelete = store.savedOrders.find(o => o.id === deletingOrderId);
                   store.deleteSavedOrder(deletingOrderId);
                   setDeletingOrderId(null);
+                  
+                  if (orderToDelete) {
+                    logAppActivity({
+                      event_type: 'order.deleted',
+                      entity_type: 'order',
+                      entity_id: orderToDelete.id,
+                      metadata: {
+                        orderNumber: orderToDelete.orderNumber,
+                        curtainCount: orderToDelete.items.length,
+                        status: orderToDelete.status,
+                      }
+                    });
+                  }
                 }}
                 disabled={isReadOnly}
               >

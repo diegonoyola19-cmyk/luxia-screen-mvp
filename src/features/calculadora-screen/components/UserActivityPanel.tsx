@@ -20,6 +20,8 @@ interface ActivityEvent {
   event_type: string;
   event_label: string;
   metadata: Record<string, unknown>;
+  entity_type?: string;
+  entity_id?: string;
   created_at: string;
 }
 
@@ -34,6 +36,8 @@ const EVENT_LABELS: Record<string, string> = {
   'user.role_changed': 'Cambio de rol',
   'role.permissions_changed': 'Permisos de rol actualizados',
   'admin.error': 'Error administrativo',
+  'user.login': 'Inicio de sesión',
+  'order.deleted': 'Orden eliminada',
 };
 
 export function UserActivityPanel({ profiles }: UserActivityPanelProps) {
@@ -139,7 +143,7 @@ export function UserActivityPanel({ profiles }: UserActivityPanelProps) {
   }
 
   return (
-    <Card className="rules-panel user-activity-panel">
+    <Card className="user-activity-panel">
       <div className="user-activity-header">
         <div>
           <span className="section-heading__eyebrow">Auditoría</span>
@@ -193,13 +197,11 @@ export function UserActivityPanel({ profiles }: UserActivityPanelProps) {
           {events.map((event) => (
             <article key={event.id} className="user-activity-event">
               <time>{formatDate(event.created_at)}</time>
-              <div>
-                <h3>{formatEventType(event.event_type, event.event_label)}</h3>
-                <p>{describeEvent(event)}</p>
-                <small>
-                  Hecho por {event.actor_email || 'Sistema'}.
-                </small>
-              </div>
+              <h3>{formatEventType(event.event_type, event.event_label)}</h3>
+              <p>{describeEvent(event)}</p>
+              <small>
+                Hecho por {event.actor_email || 'Sistema'}
+              </small>
             </article>
           ))}
         </div>
@@ -220,6 +222,16 @@ function formatDate(value: string) {
 }
 
 function describeEvent(event: ActivityEvent) {
+  if (event.event_type === 'user.login') {
+    return 'El usuario ha iniciado sesión.';
+  }
+
+  if (event.event_type === 'order.deleted') {
+    const orderNum = event.metadata?.orderNumber;
+    const clientRef = event.metadata?.clientReference;
+    return `Orden eliminada: ${orderNum || 'N/A'}${clientRef ? ` (${clientRef})` : ''}.`;
+  }
+
   const target = event.target_email || 'Sin usuario afectado';
 
   if (event.event_type === 'user.role_changed') {

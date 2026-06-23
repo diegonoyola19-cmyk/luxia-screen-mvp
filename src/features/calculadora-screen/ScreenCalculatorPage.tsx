@@ -404,7 +404,7 @@ export function ScreenCalculatorPage() {
           </div>
         </header>
 
-        <div className={`page-content${['production-v2', 'orders', 'inventory'].includes(activeView as string) ? ' page-content--fullwidth' : ''}`}>
+        <div className={`page-content${['production-v2', 'orders', 'inventory', 'users'].includes(activeView as string) ? ' page-content--fullwidth' : ''}`}>
           {allowedTabs.length === 0 ? (
             <section className="content-grid">
               <div className="card">
