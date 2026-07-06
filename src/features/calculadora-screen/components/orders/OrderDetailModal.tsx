@@ -27,7 +27,8 @@ export function OrderDetailModal({ selectedRow, onClose, isReadOnly, onReviewMat
   const context: OrderWorkflowContext = {
     isReadOnly,
     hasInventoryError: syncStatus?.status === 'error',
-    hasMaterialReview: selectedRow.order.productionReview?.status === 'completed'
+    hasMaterialReview: selectedRow.order.productionReview?.status === 'completed',
+    inventoryAvailabilityResult: syncStatus?.inventoryAvailabilityResult,
   };
 
   const orderBOM = useMemo((): BOMItem[] => {

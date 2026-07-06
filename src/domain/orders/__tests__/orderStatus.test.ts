@@ -1,62 +1,113 @@
 import { describe, it, expect } from 'vitest';
 import { normalizeOrderStatus, getNextStatusAfterPdfGeneration } from '../orderStatus';
 
-describe('orderStatus normalization', () => {
-  it('normalizes "pending" to "ready_for_production"', () => {
-    expect(normalizeOrderStatus('pending')).toBe('ready_for_production');
+// ─── normalizeOrderStatus ──────────────────────────────────────────────────
+
+describe('normalizeOrderStatus', () => {
+  describe('Estados legacy', () => {
+    it('"pending" (legacy BD) -> "ready_for_production"', () => {
+      expect(normalizeOrderStatus('pending')).toBe('ready_for_production');
+    });
   });
 
-  it('preserves valid states like "sent_to_sage"', () => {
-    expect(normalizeOrderStatus('sent_to_sage')).toBe('sent_to_sage');
+  describe('Estados válidos se conservan', () => {
+    it('preserva "draft"', () => {
+      expect(normalizeOrderStatus('draft')).toBe('draft');
+    });
+
+    it('preserva "ready_for_production"', () => {
+      expect(normalizeOrderStatus('ready_for_production')).toBe('ready_for_production');
+    });
+
+    it('preserva "in_production"', () => {
+      expect(normalizeOrderStatus('in_production')).toBe('in_production');
+    });
+
+    it('preserva "materials_checked"', () => {
+      expect(normalizeOrderStatus('materials_checked')).toBe('materials_checked');
+    });
+
+    it('preserva "sent_to_sage"', () => {
+      expect(normalizeOrderStatus('sent_to_sage')).toBe('sent_to_sage');
+    });
+
+    it('preserva "completed"', () => {
+      expect(normalizeOrderStatus('completed')).toBe('completed');
+    });
+
+    it('preserva "cancelled"', () => {
+      expect(normalizeOrderStatus('cancelled')).toBe('cancelled');
+    });
   });
 
-  it('normalizes invalid or unknown states to "ready_for_production"', () => {
-    expect(normalizeOrderStatus('unknown_status')).toBe('ready_for_production');
-    expect(normalizeOrderStatus(null)).toBe('ready_for_production');
-    expect(normalizeOrderStatus(undefined)).toBe('ready_for_production');
-    expect(normalizeOrderStatus('')).toBe('ready_for_production');
-  });
+  describe('Fallback seguro a "draft" (NO a ready_for_production)', () => {
+    it('null -> "draft"', () => {
+      expect(normalizeOrderStatus(null)).toBe('draft');
+    });
 
-  it('preserves newly added valid states', () => {
-    expect(normalizeOrderStatus('materials_checked')).toBe('materials_checked');
-    expect(normalizeOrderStatus('in_production')).toBe('in_production');
-    expect(normalizeOrderStatus('draft')).toBe('draft');
-    expect(normalizeOrderStatus('completed')).toBe('completed');
-    expect(normalizeOrderStatus('cancelled')).toBe('cancelled');
+    it('undefined -> "draft"', () => {
+      expect(normalizeOrderStatus(undefined)).toBe('draft');
+    });
+
+    it('cadena vacía -> "draft"', () => {
+      expect(normalizeOrderStatus('')).toBe('draft');
+    });
+
+    it('estado desconocido -> "draft"', () => {
+      expect(normalizeOrderStatus('unknown_status')).toBe('draft');
+    });
+
+    it('número -> "draft"', () => {
+      expect(normalizeOrderStatus(42)).toBe('draft');
+    });
+
+    it('objeto -> "draft"', () => {
+      expect(normalizeOrderStatus({})).toBe('draft');
+    });
   });
 });
 
+// ─── getNextStatusAfterPdfGeneration ──────────────────────────────────────
+
 describe('getNextStatusAfterPdfGeneration', () => {
-  it('returns in_production for ready_for_production', () => {
-    expect(getNextStatusAfterPdfGeneration('ready_for_production', false)).toBe('in_production');
+  it('ready_for_production con líneas válidas -> in_production', () => {
     expect(getNextStatusAfterPdfGeneration('ready_for_production', true)).toBe('in_production');
   });
 
-  it('returns in_production for draft if hasValidMaterialLines is true', () => {
-    expect(getNextStatusAfterPdfGeneration('draft', true)).toBe('in_production');
+  it('ready_for_production sin líneas válidas -> null (PDF no procede)', () => {
+    expect(getNextStatusAfterPdfGeneration('ready_for_production', false)).toBeNull();
   });
 
-  it('returns null for draft if hasValidMaterialLines is false', () => {
+  it('draft con líneas válidas -> null (no puede saltar directo a in_production)', () => {
+    // draft ya NO puede saltar a in_production directamente
+    expect(getNextStatusAfterPdfGeneration('draft', true)).toBeNull();
+  });
+
+  it('draft sin líneas válidas -> null', () => {
     expect(getNextStatusAfterPdfGeneration('draft', false)).toBeNull();
   });
 
-  it('returns null for in_production', () => {
+  it('in_production -> null', () => {
     expect(getNextStatusAfterPdfGeneration('in_production', true)).toBeNull();
   });
 
-  it('returns null for materials_checked', () => {
+  it('materials_checked -> null', () => {
     expect(getNextStatusAfterPdfGeneration('materials_checked', true)).toBeNull();
   });
 
-  it('returns null for sent_to_sage', () => {
+  it('sent_to_sage -> null', () => {
     expect(getNextStatusAfterPdfGeneration('sent_to_sage', true)).toBeNull();
   });
 
-  it('returns null for completed', () => {
+  it('completed -> null', () => {
     expect(getNextStatusAfterPdfGeneration('completed', true)).toBeNull();
   });
 
-  it('returns null for cancelled', () => {
+  it('cancelled -> null', () => {
     expect(getNextStatusAfterPdfGeneration('cancelled', true)).toBeNull();
+  });
+
+  it('null status -> null (sin líneas válidas de fallback draft)', () => {
+    expect(getNextStatusAfterPdfGeneration(null, true)).toBeNull();
   });
 });

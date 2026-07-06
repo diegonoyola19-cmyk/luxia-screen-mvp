@@ -83,22 +83,41 @@ describe('OrderDetailModal', () => {
   });
 
   it('Pasar a Produccion cambia estado si el workflow lo permite', async () => {
-    const readyOrder = { ...mockOrder, status: 'ready_for_production' };
+    // productionReview.status = 'completed' → hasMaterialReview = true en el componente
+    // inventoryAvailabilityResult se inyecta via syncMetadata con canProceed: true
+    const readyOrder = {
+      ...mockOrder,
+      status: 'ready_for_production',
+      productionReview: { status: 'completed' },
+    };
     const readySelectedRow = { ...mockSelectedRow, order: readyOrder };
-    
+
+    // El componente lee syncMetadata[order.id] para construir el contexto de workflow.
+    // Añadimos inventoryAvailabilityResult requerido por canPerformOrderAction('send_to_production').
+    const mockStoreReady = {
+      ...mockStore,
+      syncMetadata: {
+        'test-order-1': {
+          status: 'ok',
+          inventoryAvailabilityResult: { canProceed: true, reasons: [] },
+        },
+      },
+    };
+    (useCalculatorStore as any).mockReturnValue(mockStoreReady);
+
     render(
-      <OrderDetailModal 
-        selectedRow={readySelectedRow as any} 
-        onClose={vi.fn()} 
-        isReadOnly={false} 
-        onReviewMaterials={vi.fn()} 
+      <OrderDetailModal
+        selectedRow={readySelectedRow as any}
+        onClose={vi.fn()}
+        isReadOnly={false}
+        onReviewMaterials={vi.fn()}
       />
     );
 
     const startBtn = screen.getByRole('button', { name: /Pasar a Producción/i });
     fireEvent.click(startBtn);
 
-    expect(mockStore.updateSavedOrderStatus).toHaveBeenCalledWith('test-order-1', 'in_production');
+    expect(mockStoreReady.updateSavedOrderStatus).toHaveBeenCalledWith('test-order-1', 'in_production');
     expect(orderActivityMetadata.logOrderSentToProduction).toHaveBeenCalledWith(readyOrder, 'order_detail_modal');
   });
 });

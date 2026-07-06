@@ -21,19 +21,38 @@ export type OrderWorkflowContext = {
   isSageReady?: boolean;
 };
 
+/**
+ * Tabla de transiciones de estado válidas.
+ * Solo las rutas listadas aquí están permitidas.
+ * Cualquier transición no listada está BLOQUEADA por defecto.
+ *
+ * Estados terminales:
+ *   - completed: ninguna transición de salida
+ *   - cancelled: solo puede ir a draft (reactivar) — NO a in_production ni completed
+ */
+const ALLOWED_TRANSITIONS: Record<SavedOrderStatus, ReadonlyArray<SavedOrderStatus>> = {
+  draft: ['ready_for_production'],
+  ready_for_production: ['in_production', 'draft'],
+  in_production: ['completed', 'sent_to_sage'],
+  materials_checked: ['sent_to_sage', 'draft', 'ready_for_production'],
+  sent_to_sage: ['materials_checked'],   // única transición: revertir
+  completed: [],                          // estado terminal: sin salida
+  cancelled: ['draft'],                  // sólo reactivar a draft; nunca a in_production/completed
+};
+
 export function canPerformOrderAction(
   order: SavedOrder,
   action: OrderAction,
   context: OrderWorkflowContext
 ): { allowed: boolean; reason?: string } {
   const status = normalizeOrderStatus(order.status);
-  
+
   if (action === 'view_details') {
     return { allowed: true };
   }
 
   if (action === 'export_pdf') {
-    return { allowed: true }; // Currently PDF export is allowed for all
+    return { allowed: true };
   }
 
   if (context.isReadOnly) {
@@ -48,37 +67,56 @@ export function canPerformOrderAction(
       return { allowed: true };
 
     case 'delete':
-      // TODO: Determinar si el borrado debe estar bloqueado por ciertos estados (ej. completed)
+      // Bloquear borrado cuando la orden ya está en producción o terminada
+      if (status === 'in_production') {
+        return { allowed: false, reason: 'No se puede eliminar una orden que está en producción' };
+      }
+      if (status === 'completed') {
+        return { allowed: false, reason: 'No se puede eliminar una orden completada' };
+      }
       return { allowed: true };
 
     case 'export_sage':
-      // El workflow masivo lo decide OrdersFilterBar, pero a nivel de orden:
       if (status !== 'materials_checked') {
-         return { allowed: false, reason: 'La orden debe estar revisada para exportarse a Sage' };
+        return { allowed: false, reason: 'La orden debe estar revisada para exportarse a Sage' };
       }
       return { allowed: true };
 
-    case 'send_to_production':
+    case 'send_to_production': {
       if (status !== 'ready_for_production') {
         return { allowed: false, reason: 'La orden no está en estado Lista para Producción' };
       }
-      if (context.inventoryAvailabilityResult && !context.inventoryAvailabilityResult.canProceed) {
-        return { allowed: false, reason: context.inventoryAvailabilityResult.reasons[0] || 'Error de inventario' };
-      } else if (context.hasInventoryError && !context.inventoryAvailabilityResult) {
-        return { allowed: false, reason: 'La orden tiene errores de inventario' };
-      }
-      // TODO: Añadir validación de hasMaterialReview cuando el contexto esté implementado en los componentes
-      return { allowed: true };
 
-    case 'confirm_materials':
-      const validStatusesForReview: SavedOrderStatus[] = ['draft', 'ready_for_production', 'in_production', 'materials_checked'];
+      // Materiales confirmados son obligatorios
+      if (!context.hasMaterialReview) {
+        return { allowed: false, reason: 'La orden debe tener materiales confirmados antes de pasar a producción' };
+      }
+
+      // inventoryAvailabilityResult es obligatorio (no puede ser undefined)
+      if (!context.inventoryAvailabilityResult) {
+        return { allowed: false, reason: 'Se requiere verificar disponibilidad de inventario antes de pasar a producción' };
+      }
+
+      if (!context.inventoryAvailabilityResult.canProceed) {
+        return {
+          allowed: false,
+          reason: context.inventoryAvailabilityResult.reasons[0] || 'Inventario insuficiente para proceder'
+        };
+      }
+
+      return { allowed: true };
+    }
+
+    case 'confirm_materials': {
+      // Solo estados previos a producción son válidos para confirmar materiales
+      const validStatusesForReview: SavedOrderStatus[] = ['draft', 'ready_for_production', 'materials_checked'];
       if (!validStatusesForReview.includes(status)) {
-        return { allowed: false, reason: 'Estado no válido para revisar materiales' };
+        return { allowed: false, reason: `No se pueden confirmar materiales en estado "${status}"` };
       }
       return { allowed: true };
+    }
 
     case 'revert_to_draft':
-      // En la UI actual esto revierte de sent_to_sage a materials_checked. Mapearemos esto aquí.
       if (status !== 'sent_to_sage') {
         return { allowed: false, reason: 'Solo se puede revertir órdenes enviadas a Sage' };
       }
@@ -110,38 +148,40 @@ export function canTransitionOrderStatus(
   context: OrderWorkflowContext
 ): { allowed: boolean; reason?: string } {
   const currentStatus = normalizeOrderStatus(order.status);
-  
+
+  // Misma posición: no hay transición real
   if (currentStatus === nextStatus) {
     return { allowed: true };
   }
 
-  // Reglas básicas (TODO: expandir y auditar en Fase 2C)
+  // Verificar que la transición existe en la allowlist
+  const allowedNext = ALLOWED_TRANSITIONS[currentStatus];
+  if (!allowedNext.includes(nextStatus)) {
+    return {
+      allowed: false,
+      reason: `Transición inválida: "${currentStatus}" → "${nextStatus}" no está permitida`
+    };
+  }
+
+  // Restricciones adicionales de contexto sobre transiciones permitidas
   if (nextStatus === 'in_production') {
     if (context.isReadOnly) {
       return { allowed: false, reason: 'Permisos insuficientes' };
     }
     if (context.inventoryAvailabilityResult && !context.inventoryAvailabilityResult.canProceed) {
       return { allowed: false, reason: 'Error de inventario bloquea producción' };
-    } else if (context.hasInventoryError && !context.inventoryAvailabilityResult) {
+    }
+    if (!context.inventoryAvailabilityResult && context.hasInventoryError) {
       return { allowed: false, reason: 'Error de inventario bloquea producción' };
     }
-    if (currentStatus === 'ready_for_production' || currentStatus === 'draft') {
-      return { allowed: true }; // Flujo de PDF o directo
-    }
-    return { allowed: false, reason: 'Transición inválida hacia in_production' };
   }
 
   if (nextStatus === 'materials_checked') {
     if (context.isReadOnly) {
       return { allowed: false, reason: 'Permisos insuficientes' };
     }
-    if (currentStatus === 'sent_to_sage') {
-      return { allowed: true }; // Revert
-    }
   }
 
-  // Por ahora permitimos las demás transiciones si no están específicamente bloqueadas
-  // para no romper la aplicación.
   return { allowed: true };
 }
 
