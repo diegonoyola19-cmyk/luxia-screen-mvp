@@ -88,6 +88,8 @@ export interface ResolvedMaterialLine {
   unitCost: number;
   totalCost: number;
   source: string;
+  specificInventoryItemId?: string;
+  requiredWidthMeters?: number;
 }
 
 export type DriveType = 'manual' | 'motorized';

@@ -3,6 +3,7 @@ export type SageMaterialLine = {
   description: string;
   quantity: number;
   unit: string;
+  width_meters?: number;
 };
 
 export type ProductionMaterialAdjustmentAction = 

@@ -83,12 +83,12 @@ BEGIN
          ), 'finalFabricLines', '[]'::jsonb)),
      now(), now()),
 
-    -- T4 (regresión CR-1): segunda orden que pide 8 M sobre la misma barra (solo quedan ~2.8 M)
+    -- T4 (regresión CR-1): segunda orden que pide 4 M sobre la misma barra (solo quedan ~9.16 FT)
     (ORD_LINEAR_B, 'VERIFY-T4', 'ready_for_production',
      jsonb_build_object('id', ORD_LINEAR_B, 'status', 'ready_for_production',
        'productionReview', jsonb_build_object('status', 'completed',
          'finalMaterialLines', jsonb_build_array(
-           jsonb_build_object('sku','VERIFY-BAR-01','quantity',8.0,'unit','M','description','Barra en M grande')
+           jsonb_build_object('sku','VERIFY-BAR-01','quantity',4.0,'unit','M','description','Barra en M grande')
          ), 'finalFabricLines', '[]'::jsonb)),
      now(), now()),
 
@@ -152,14 +152,14 @@ BEGIN
   -- ════════════════════════════════════════════════════════════════════════
   -- T4 (regresión CR-1): segunda orden sobre misma barra, qty > remanente → falla
   --   La barra tiene 19 FT, T1 reservó ~9.84 FT → remanente efectivo ~9.16 FT
-  --   T4 pide 8 M = ~26.25 FT → no hay barra suficiente → INSUFFICIENT_STOCK
+  --   T4 pide 4 M = ~13.12 FT → no hay barra suficiente → INSUFFICIENT_STOCK
   -- ════════════════════════════════════════════════════════════════════════
   PERFORM set_config('request.jwt.claims',
     '{"sub":"CC000000-0000-0000-0001-000000000001","role":"authenticated"}', true);
 
   BEGIN
     v_result := public.reserve_order_inventory(ORD_LINEAR_B, ACTOR_PERM);
-    RAISE WARNING 'T4 FAIL: no lanzó excepción (8 M > remanente de barra de 19 FT con ~9.84 FT reservados)';
+    RAISE WARNING 'T4 FAIL: no lanzó excepción (4 M > remanente de barra de 19 FT con ~9.84 FT reservados)';
     v_fail := v_fail + 1;
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE 'INSUFFICIENT_STOCK%' THEN

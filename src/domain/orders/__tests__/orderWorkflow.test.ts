@@ -20,13 +20,21 @@ const baseOrder: SavedOrder = {
 const order = (status: string): SavedOrder => ({ ...baseOrder, status: status as any });
 
 const inventoryOk: OrderWorkflowContext['inventoryAvailabilityResult'] = {
+  status: 'available',
   canProceed: true,
   reasons: [],
+  missingItems: [],
+  insufficientItems: [],
+  warnings: [],
 };
 
 const inventoryFail: OrderWorkflowContext['inventoryAvailabilityResult'] = {
+  status: 'insufficient_stock',
   canProceed: false,
   reasons: ['Stock insuficiente para SKU 0-154-TU-38111'],
+  missingItems: [],
+  insufficientItems: [],
+  warnings: [],
 };
 
 const defaultCtx: OrderWorkflowContext = {

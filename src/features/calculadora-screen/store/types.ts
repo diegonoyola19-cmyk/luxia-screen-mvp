@@ -29,6 +29,7 @@ import type {
 } from '../../../domain/curtains/types';
 import type { SavedOrderStatus } from '../../../domain/orders/orderStatus';
 import type { ProductionMaterialReview } from '../../../domain/orders/materialReview';
+import type { InventoryAvailabilityResult } from '../../../domain/orders/orderInventoryAvailability';
 import { CuttingGroup } from '../../../domain/curtains/CuttingGroup';
 
 export interface SyncStatus {
@@ -41,6 +42,7 @@ export interface SyncStatus {
   inventoryErrorCode?: string;
   lastAttempt?: string;
   errorMessage?: string;
+  inventoryAvailabilityResult?: InventoryAvailabilityResult;
 }
 
 export type SyncMetadata = Record<string, SyncStatus>;
