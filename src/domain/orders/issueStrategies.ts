@@ -80,6 +80,49 @@ export interface IssueEngineResult {
   discardedLinearRemainders: DiscardedLinearRemainder[];
 }
 
+/**
+ * Normaliza aliases de unidades a una categoría canónica para determinar
+ * el modo de consumo (issueMode).
+ *
+ * Categorías:
+ *   'area'   → telas/rollos medidos en YD² o equivalentes
+ *   'linear' → barras/tubos medidos en FT, M o equivalentes
+ *   'each'   → componentes fungibles contados en unidades
+ *   'unknown'→ unidad no reconocida → fallback conservador 'exact_each'
+ */
+export function normalizeIssueUnit(unit: string): 'area' | 'linear' | 'each' | 'unknown' {
+  const u = unit.toUpperCase().trim();
+
+  // Área: yards cuadradas y aliases
+  if (
+    u === 'Y2'   || u === 'YD2'  || u === 'YDS2'      ||
+    u === 'YD²'  || u === 'SQYD' || u === 'SQ_YD'     ||
+    u === 'SQUARE_YARD' || u === 'SQUARE_YARDS'
+  ) {
+    return 'area';
+  }
+
+  // Lineal: pies, metros y aliases
+  if (
+    u === 'FT' || u === 'LF'   || u === 'FEET'   || u === 'FOOT'   ||
+    u === 'M'  || u === 'LM'   || u === 'METER'  || u === 'METERS' ||
+    u === 'MTR'|| u === 'YD'   || u === 'YDS'
+  ) {
+    return 'linear';
+  }
+
+  // Unidad / cada: componentes fungibles
+  if (
+    u === 'EA' || u === 'EACH' || u === 'UNIT'  || u === 'UNITS' ||
+    u === 'PCS'|| u === 'PIECE'|| u === 'PIECES'|| u === 'UN'    ||
+    u === 'PZ'
+  ) {
+    return 'each';
+  }
+
+  return 'unknown';
+}
+
 export function determineIssueMode(sku: string, unit: string): IssueMode {
   const catalogEntry = componentCatalogBySku[sku];
 
@@ -88,22 +131,23 @@ export function determineIssueMode(sku: string, unit: string): IssueMode {
     return catalogEntry.issueMode as IssueMode;
   }
 
-  // 2. Fallback conservador puro por unidad
-  const lowerUnit = unit.toLowerCase();
-  
-  if (lowerUnit === 'y2') {
+  // 2. Normalizar la unidad y mapear a issueMode
+  const category = normalizeIssueUnit(unit);
+
+  if (category === 'area') {
     return 'exact_area';
   }
 
-  if (lowerUnit === 'ea') {
+  if (category === 'each') {
     return 'exact_each';
   }
 
-  if (lowerUnit === 'ft' || lowerUnit === 'm' || lowerUnit === 'yd' || lowerUnit === 'yd2') {
+  if (category === 'linear') {
     return 'exact_linear';
   }
 
-  return 'exact_each'; // Default super conservador
+  // 3. Unidad desconocida → fallback super conservador (exact_each)
+  return 'exact_each';
 }
 
 export function generateId(): string {
