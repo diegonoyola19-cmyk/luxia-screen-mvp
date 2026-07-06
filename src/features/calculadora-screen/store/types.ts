@@ -52,10 +52,10 @@ export interface SessionWastePiece extends WastePiece {
 
 export interface UiSlice {
   theme: 'light' | 'dark';
-  activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab' | 'users';
+  activeView: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab' | 'users' | 'production-queue';
   copyFeedbackVisible: boolean;
   setTheme: (theme: 'light' | 'dark') => void;
-  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab' | 'users') => void;
+  setActiveView: (view: 'production' | 'inventory' | 'orders' | 'settings' | 'production-v2' | 'v3-lab' | 'users' | 'production-queue') => void;
   setCopyFeedbackVisible: (visible: boolean) => void;
 }
 

@@ -64,6 +64,39 @@ describe('UserActivityPanel', () => {
             metadata: { role: 'consulta' },
             created_at: '2026-05-28T18:00:00.000Z',
           },
+          {
+            id: 'event-2',
+            actor_user_id: 'admin-user',
+            actor_email: 'admin@luxia.test',
+            target_user_id: null,
+            target_email: null,
+            event_type: 'order.sent_to_production',
+            event_label: 'Orden enviada a producción',
+            metadata: { orderNumber: 'ORD-123', clientReference: 'Cliente XYZ', source: 'production_queue' },
+            created_at: '2026-05-28T18:05:00.000Z',
+          },
+          {
+            id: 'event-3',
+            actor_user_id: 'admin-user',
+            actor_email: 'admin@luxia.test',
+            target_user_id: null,
+            target_email: null,
+            event_type: 'order.sent_to_production',
+            event_label: 'Orden enviada a producción',
+            metadata: {},
+            created_at: '2026-05-28T18:10:00.000Z',
+          },
+          {
+            id: 'event-4',
+            actor_user_id: 'admin-user',
+            actor_email: 'admin@luxia.test',
+            target_user_id: null,
+            target_email: null,
+            event_type: 'order.pdf_generated',
+            event_label: 'PDF generado',
+            metadata: { orderNumber: 'ORD-124' },
+            created_at: '2026-05-28T18:15:00.000Z',
+          }
         ],
       },
       error: null,
@@ -75,7 +108,28 @@ describe('UserActivityPanel', () => {
 
     expect(await screen.findByText('Usuario creado')).toBeInTheDocument();
     expect(screen.getAllByText(/operador@luxia.test/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Hecho por admin@luxia.test/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Hecho por admin@luxia.test/i).length).toBeGreaterThan(0);
+  });
+
+  it('renders order.sent_to_production event correctly', async () => {
+    render(<UserActivityPanel profiles={profiles} />);
+    
+    expect(await screen.findByText('Orden #ORD-123 (Cliente XYZ) enviada a producción desde Cola de Producción.')).toBeInTheDocument();
+    expect(screen.getAllByText('Orden enviada a producción')).toHaveLength(3); // 2 events + 1 option
+  });
+
+  it('renders order.sent_to_production event with fallback when metadata is missing', async () => {
+    render(<UserActivityPanel profiles={profiles} />);
+    
+    expect(await screen.findByText('Orden enviada a producción.')).toBeInTheDocument();
+    expect(screen.getAllByText('Orden enviada a producción')).toHaveLength(3);
+  });
+
+  it('renders order.pdf_generated event correctly', async () => {
+    render(<UserActivityPanel profiles={profiles} />);
+    
+    expect(await screen.findByText('PDF de materiales generado para la orden #ORD-124.')).toBeInTheDocument();
+    expect(screen.getAllByText('PDF generado')).toHaveLength(2); // 1 event + 1 option
   });
 
   it('shows empty state when there are no events', async () => {

@@ -234,6 +234,10 @@ const UsersPanel = lazy(async () => {
   const module = await import('./components/UsersPanel');
   return { default: module.UsersPanel };
 });
+const ProductionQueuePanel = lazy(async () => {
+  const module = await import('./components/production-queue/ProductionQueuePanel');
+  return { default: module.ProductionQueuePanel };
+});
 
 function DeferredPanel({ children }: { children: ReactNode }) {
   return (
@@ -256,6 +260,7 @@ function DeferredPanel({ children }: { children: ReactNode }) {
 }
 
 const VIEW_PERMISSIONS = {
+  'production-queue': 'production.view',
   'production-v2': 'production.view',
   inventory: 'inventory.view',
   orders: 'orders.view',
@@ -267,6 +272,7 @@ type ProtectedView = keyof typeof VIEW_PERMISSIONS;
 
 const NAV_ITEMS: Array<{ view: ProtectedView; label: string; icon: string }> = [
   { view: 'production-v2', label: 'Producción', icon: '🏭' },
+  { view: 'production-queue', label: 'Cola de Producción', icon: '🚦' },
   { view: 'inventory', label: 'Bodega', icon: '📦' },
   { view: 'orders', label: 'Ordenes', icon: '📋' },
   { view: 'settings', label: 'Configuracion', icon: '⚙️' },
@@ -291,7 +297,13 @@ export function ScreenCalculatorPage() {
 
   const { user, role, signOut, hasPermission, permissions } = useAuthStore();
   const allowedTabs = useMemo(
-    () => NAV_ITEMS.filter((item) => hasPermission(VIEW_PERMISSIONS[item.view])).map((item) => item.view),
+    () => NAV_ITEMS.filter((item) => {
+      const p = VIEW_PERMISSIONS[item.view];
+      if (item.view === 'production-queue') {
+        return hasPermission(p) || hasPermission('orders.view');
+      }
+      return hasPermission(p);
+    }).map((item) => item.view),
     [hasPermission, permissions, role]
   );
   useEffect(() => {
@@ -429,6 +441,23 @@ export function ScreenCalculatorPage() {
                 <PermissionGate permission={VIEW_PERMISSIONS['production-v2']}>
                   <DeferredPanel>
                     <ProductionModuleV2 />
+                  </DeferredPanel>
+                </PermissionGate>
+              </motion.div>
+            )}
+
+            {activeView === 'production-queue' && allowedTabs.includes('production-queue') && (
+              <motion.div
+                key="production-queue"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="view-content"
+              >
+                <PermissionGate anyOf={[VIEW_PERMISSIONS['production-queue'], VIEW_PERMISSIONS['orders']]}>
+                  <DeferredPanel>
+                    <ProductionQueuePanel />
                   </DeferredPanel>
                 </PermissionGate>
               </motion.div>

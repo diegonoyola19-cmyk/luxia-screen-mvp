@@ -38,6 +38,8 @@ const EVENT_LABELS: Record<string, string> = {
   'admin.error': 'Error administrativo',
   'user.login': 'Inicio de sesión',
   'order.deleted': 'Orden eliminada',
+  'order.sent_to_production': 'Orden enviada a producción',
+  'order.pdf_generated': 'PDF generado',
 };
 
 export function UserActivityPanel({ profiles }: UserActivityPanelProps) {
@@ -230,6 +232,28 @@ function describeEvent(event: ActivityEvent) {
     const orderNum = event.metadata?.orderNumber;
     const clientRef = event.metadata?.clientReference;
     return `Orden eliminada: ${orderNum || 'N/A'}${clientRef ? ` (${clientRef})` : ''}.`;
+  }
+
+  if (event.event_type === 'order.sent_to_production') {
+    const orderNum = event.metadata?.orderNumber;
+    const clientRef = event.metadata?.clientReference;
+    const source = event.metadata?.source;
+    
+    let sourceLabel = '';
+    if (source === 'production_queue') sourceLabel = 'Cola de Producción';
+    else if (source === 'order_actions_menu') sourceLabel = 'Menú de órdenes';
+    else if (source === 'order_detail_modal') sourceLabel = 'Detalle de orden';
+
+    const orderDesc = orderNum ? `Orden #${orderNum}` : 'Orden';
+    const refDesc = clientRef ? ` (${clientRef})` : '';
+    const sourceDesc = sourceLabel ? ` desde ${sourceLabel}` : '';
+    
+    return `${orderDesc}${refDesc} enviada a producción${sourceDesc}.`;
+  }
+
+  if (event.event_type === 'order.pdf_generated') {
+    const orderNum = event.metadata?.orderNumber;
+    return orderNum ? `PDF de materiales generado para la orden #${orderNum}.` : 'PDF de materiales generado.';
   }
 
   const target = event.target_email || 'Sin usuario afectado';

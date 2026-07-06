@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { validateActivityLogPayload } from './validation.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,11 +35,13 @@ serve(async (req) => {
 
     // 2. Parse payload safely
     const payload = await req.json().catch(() => ({}))
-    const { event_type, entity_type, entity_id, metadata = {} } = payload
-
-    if (!event_type) {
-      return json({ error: 'event_type es obligatorio' }, 400)
+    
+    const validation = validateActivityLogPayload(payload)
+    if (!validation.valid) {
+      return json({ error: validation.error }, 400)
     }
+
+    const { event_type, entity_type, entity_id, metadata = {} } = payload
 
     // 3. Get actor email (safe, from admin)
     const { data: actorProfile } = await supabaseAdmin
