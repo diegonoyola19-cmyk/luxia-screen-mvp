@@ -193,6 +193,9 @@ export function getBlockedOrderReasons(order: SavedOrder, context: OrderWorkflow
     reasons.push(...context.inventoryAvailabilityResult.reasons);
   } else if (context.hasInventoryError && !context.inventoryAvailabilityResult) {
     reasons.push('Error de inventario');
+  } else if (!context.inventoryAvailabilityResult && status === 'ready_for_production') {
+    // No hay resultado de validación de inventario aún (no es error explícito, pero falta)
+    reasons.push('Falta verificación de inventario');
   }
   if (context.isReadOnly) {
     reasons.push('Usuario sin permisos (Solo lectura)');
@@ -209,3 +212,4 @@ export function getBlockedOrderReasons(order: SavedOrder, context: OrderWorkflow
 
   return reasons;
 }
+

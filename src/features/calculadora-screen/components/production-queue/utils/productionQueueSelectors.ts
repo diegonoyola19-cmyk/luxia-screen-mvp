@@ -1,5 +1,5 @@
 import type { SavedOrder } from '../../../../../domain/curtains/types';
-import { canTransitionOrderStatus, type OrderWorkflowContext } from '../../../../../domain/orders/orderWorkflow';
+import { canPerformOrderAction, type OrderWorkflowContext } from '../../../../../domain/orders/orderWorkflow';
 import { normalizeOrderStatus } from '../../../../../domain/orders/orderStatus';
 import { validateOrderInventoryAvailability, type InventoryValidationContext } from '../../../../../domain/orders/orderInventoryAvailability';
 
@@ -14,12 +14,17 @@ export function getProductionQueueBucket(order: SavedOrder, context: OrderWorkfl
   if (status === 'in_production') return 'in_production';
 
   const inventoryResult = validateOrderInventoryAvailability(order, inventoryContext);
-  const localContext = { ...context, inventoryAvailabilityResult: inventoryResult };
+  const localContext = {
+    ...context,
+    inventoryAvailabilityResult: inventoryResult,
+    // hasMaterialReview refleja si la orden tiene revisión de materiales finalizada
+    hasMaterialReview: !!(order as any).productionReview?.finalMaterialLines?.length,
+  };
 
-  // For orders not yet in production
-  const transition = canTransitionOrderStatus(order, 'in_production', localContext);
-  
-  if (transition.allowed) {
+  // Puerta estricta: usa canPerformOrderAction que exige estado + materiales + inventario
+  const action = canPerformOrderAction(order, 'send_to_production', localContext);
+
+  if (action.allowed) {
     return 'ready';
   } else {
     return 'blocked';

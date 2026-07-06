@@ -4,7 +4,7 @@ import type { OrderWorkflowContext } from '../../../../domain/orders/orderWorkfl
 import type { InventoryValidationContext } from '../../../../domain/orders/orderInventoryAvailability';
 import { validateOrderInventoryAvailability } from '../../../../domain/orders/orderInventoryAvailability';
 import { getClientReference, getOrderStatusLabel } from '../orders/utils/orderDisplay';
-import { canPerformOrderAction, canTransitionOrderStatus, getBlockedOrderReasons } from '../../../../domain/orders/orderWorkflow';
+import { canPerformOrderAction, getBlockedOrderReasons } from '../../../../domain/orders/orderWorkflow';
 import { useCalculatorStore } from '../../store/useCalculatorStore';
 import { getOrderReportRow } from '../orders/utils/orderReport';
 import { logOrderSentToProduction } from '../orders/utils/orderActivityMetadata';
@@ -26,14 +26,21 @@ export function ProductionQueueCard({ order, context, inventoryContext, onViewDe
   const statusLabel = getOrderStatusLabel(order);
   
   const inventoryResult = validateOrderInventoryAvailability(order, inventoryContext);
-  const localContext = { ...context, inventoryAvailabilityResult: inventoryResult };
-  
+
+  // Construir contexto completo con todos los campos que canPerformOrderAction necesita
+  const localContext = {
+    ...context,
+    inventoryAvailabilityResult: inventoryResult,
+    // hasMaterialReview refleja si la orden tiene una revisión de materiales finalizada
+    hasMaterialReview: !!(order as any).productionReview?.finalMaterialLines?.length,
+  };
+
   const blockReasons = getBlockedOrderReasons(order, localContext);
   const hasInventoryError = localContext.hasInventoryError;
-  
-  // Transition check
-  const transitionToProduction = canTransitionOrderStatus(order, 'in_production', localContext);
-  const canSendToProduction = order.status === 'ready_for_production' && transitionToProduction.allowed;
+
+  // Puerta estricta: usa canPerformOrderAction que exige estado + materiales + inventario
+  const sendToProductionAction = canPerformOrderAction(order, 'send_to_production', localContext);
+  const canSendToProduction = sendToProductionAction.allowed;
 
   const handleSendToProduction = () => {
     if (!canSendToProduction) return;
