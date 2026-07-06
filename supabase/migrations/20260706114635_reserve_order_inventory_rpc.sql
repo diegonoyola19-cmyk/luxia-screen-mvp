@@ -359,7 +359,8 @@ BEGIN
         ) INTO v_has_wrong_width;
 
         IF v_has_wrong_width THEN
-          RAISE EXCEPTION 'WIDTH_MISMATCH: No hay rollo de tela SKU=% con ancho %.2f m (±0.01 m)',
+          -- mn-1: RAISE no usa printf; usar % simple o to_char para decimales
+          RAISE EXCEPTION 'WIDTH_MISMATCH: No hay rollo de tela SKU=% con ancho % m (+/-0.01 m)',
             v_sku, v_width;
         ELSE
           RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay rollo de tela SKU=% con suficiente stock (necesario: % YD2)',
@@ -386,9 +387,16 @@ BEGIN
       v_reservations_count := v_reservations_count + 1;
 
     -- ── B. linear_bar ────────────────────────────────────────────────────────
+    --
+    -- CR-1: almacenar siempre en FT (unidad física del campo length_feet).
+    --   quantity_reserved = v_req_ft  (no v_qty en M).
+    --   Así effective_avail = length_feet - SUM(quantity_reserved) es siempre en FT.
+    --
+    -- MED-1 (V1): excluir kind IN ('scrap','offcut') explícitamente.
+    --   Si solo hay retazos disponibles para ese SKU → UNSUPPORTED_SCRAP_RESERVATION_V1.
     ELSIF v_source = 'linear_bar' THEN
 
-      -- Convertir a FT para comparar con length_feet en BD
+      -- CR-1: convertir a FT. v_req_ft es la cantidad física a persistir.
       v_req_ft := CASE WHEN v_unit = 'M' THEN v_qty * 3.28084 ELSE v_qty END;
 
       v_item_id     := NULL;
@@ -398,6 +406,7 @@ BEGIN
         SELECT id, payload
         FROM inventory_items
         WHERE category IN ('tube', 'bottom')
+          AND kind   NOT IN ('scrap', 'offcut')  -- MED-1 V1: retazos no soportados
           AND code   = v_sku
           AND status = 'available'
         ORDER BY (payload->>'length_feet')::numeric ASC, id ASC
@@ -408,35 +417,49 @@ BEGIN
         FROM inventory_reservations
         WHERE inventory_item_id = v_candidate.id AND status = 'active';
 
-        -- Disponibilidad siempre en FT (unidad física)
+        -- CR-1: disponibilidad en FT; quantity_reserved también en FT ahora
         v_avail := COALESCE((v_candidate.payload->>'length_feet')::numeric, 0) - v_active_sum;
 
         IF v_avail >= v_req_ft THEN
           v_item_id     := v_candidate.id;
-          v_reserved_qty := v_qty;  -- almacenar en unidad original de la línea
+          v_reserved_qty := v_req_ft;  -- CR-1: siempre en FT
           EXIT;
         END IF;
       END LOOP;
 
       IF v_item_id IS NULL THEN
-        RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay barra/tubo SKU=% con suficiente stock (necesario: % %)',
-          v_sku, v_qty, v_unit;
+        -- MED-1: ¿hay retazos/offcuts para este SKU que la lógica descartó?
+        IF EXISTS (
+          SELECT 1 FROM inventory_items
+          WHERE category IN ('tube', 'bottom')
+            AND kind IN ('scrap', 'offcut')
+            AND code   = v_sku
+            AND status = 'available'
+        ) THEN
+          RAISE EXCEPTION 'UNSUPPORTED_SCRAP_RESERVATION_V1: El SKU=% solo tiene retazos/offcuts disponibles; retazos no son reservables en V1',
+            v_sku;
+        ELSE
+          RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay barra/tubo SKU=% con suficiente stock (necesario: % %, equivalente a % FT)',
+            v_sku, v_qty, v_unit, v_req_ft;
+        END IF;
       END IF;
 
+      -- CR-1: persistir en FT (no en unidad original). La unidad original se guarda en metadata.
       INSERT INTO inventory_reservations (
         order_id, inventory_item_id, sku, material_line_id,
         required_quantity, quantity_reserved, base_unit, source, status,
         created_by, metadata
       ) VALUES (
         p_order_id, v_item_id, v_sku, v_mat_line_id,
-        v_qty, v_reserved_qty, v_unit, 'linear_bar', 'active',
+        v_req_ft, v_req_ft, 'FT', 'linear_bar', 'active',
         v_actor_id,
         jsonb_build_object(
-          'reservation_source', 'linear_bar',
-          'normalized_unit',    v_unit,
-          'required_ft',        v_req_ft,
-          'line_index',         v_idx,
-          'line_kind',          'material'
+          'reservation_source',     'linear_bar',
+          'original_quantity',      v_qty,
+          'original_unit',          v_unit,
+          'normalized_quantity_ft', v_req_ft,
+          'line_index',             v_idx,
+          'line_kind',              'material'
         )
       );
       v_reservations_count := v_reservations_count + 1;
@@ -468,20 +491,24 @@ BEGIN
           v_take := LEAST(v_remaining, v_avail);
 
           IF v_take > 0 THEN
+            -- MED-2: required_quantity = v_take (porción asignada a este ítem).
+            --   SUM(required_quantity) reflejará correctamente el requerimiento por ítem.
+            --   line_required_quantity_total en metadata preserva el total de la línea.
             INSERT INTO inventory_reservations (
               order_id, inventory_item_id, sku, material_line_id,
               required_quantity, quantity_reserved, base_unit, source, status,
               created_by, metadata
             ) VALUES (
               p_order_id, v_candidate.id, v_sku, v_mat_line_id,
-              v_qty, v_take, 'EA', 'fungible', 'active',
+              v_take, v_take, 'EA', 'fungible', 'active',
               v_actor_id,
               jsonb_build_object(
-                'reservation_source', 'fungible',
-                'normalized_unit',    'EA',
-                'split_take',         v_take,
-                'line_index',         v_idx,
-                'line_kind',          'material'
+                'reservation_source',           'fungible',
+                'normalized_unit',              'EA',
+                'line_required_quantity_total', v_qty,
+                'split_part_quantity',          v_take,
+                'line_index',                   v_idx,
+                'line_kind',                    'material'
               )
             );
             v_reservations_count := v_reservations_count + 1;
@@ -579,10 +606,11 @@ BEGIN
       ) INTO v_has_wrong_width;
 
       IF v_has_wrong_width THEN
-        RAISE EXCEPTION 'WIDTH_MISMATCH: No hay rollo de tela SKU=% con ancho %.2f m (±0.01 m) — hay rollos pero de ancho diferente',
+        -- mn-1: RAISE no usa printf; % es sustitución posicional simple
+        RAISE EXCEPTION 'WIDTH_MISMATCH: No hay rollo de tela SKU=% con ancho % m (+/-0.01 m) — hay rollos pero de ancho diferente',
           v_sku, v_width;
       ELSE
-        RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay rollo de tela SKU=% con suficiente stock (necesario: % YD2, ancho: %.2f m)',
+        RAISE EXCEPTION 'INSUFFICIENT_STOCK: No hay rollo de tela SKU=% con suficiente stock (necesario: % YD2, ancho: % m)',
           v_sku, v_qty, v_width;
       END IF;
     END IF;
