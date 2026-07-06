@@ -270,8 +270,40 @@ BEGIN
     END IF;
   END;
 
+  -- T23: tela con width_meters recalcula length_meters
+  INSERT INTO work_orders (id, order_number, payload, status) VALUES ('00000000-0000-0000-0000-000000000006', 'T23', '{}', 'in_production');
+  INSERT INTO inventory_items (id, code, category, kind, status, payload) VALUES
+    ('66666666-0000-0000-0000-000000000006', 'TELA-002', 'fabric', 'fabric_roll', 'available', '{"available_yd2": 100, "width_meters": 3.0, "length_meters": 27.87}'::jsonb);
+  INSERT INTO inventory_reservations (order_id, inventory_item_id, sku, material_line_id, required_quantity, quantity_reserved, base_unit, source, status, created_by) VALUES
+    ('00000000-0000-0000-0000-000000000006', '66666666-0000-0000-0000-000000000006', 'TELA-002', 'line-x', 10, 10, 'YD2', 'fabric', 'active', ACTOR_PERM);
+  
+  PERFORM public.consume_order_inventory_reservations('00000000-0000-0000-0000-000000000006', ACTOR_PERM);
+  SELECT payload INTO v_payload_1 FROM inventory_items WHERE id = '66666666-0000-0000-0000-000000000006';
+  SELECT payload INTO v_payload_2 FROM inventory_movements WHERE order_id = '00000000-0000-0000-0000-000000000006';
+  IF (v_payload_1->>'available_yd2')::numeric = 90 AND (v_payload_1->>'length_meters')::numeric = 90 / (3.0 * 1.19599) AND (v_payload_2->>'length_meters_recalculated')::boolean = true THEN
+    RAISE NOTICE 'T23 PASS: tela recalcula length_meters con width_meters'; v_pass:=v_pass+1;
+  ELSE
+    RAISE EXCEPTION 'T23 FAIL: payload_1=% payload_2=%', v_payload_1, v_payload_2;
+  END IF;
+
+  -- T24: tela sin width_meters descuenta pero no recalcula
+  INSERT INTO work_orders (id, order_number, payload, status) VALUES ('00000000-0000-0000-0000-000000000007', 'T24', '{}', 'in_production');
+  INSERT INTO inventory_items (id, code, category, kind, status, payload) VALUES
+    ('77777777-0000-0000-0000-000000000007', 'TELA-003', 'fabric', 'fabric_roll', 'available', '{"available_yd2": 100}'::jsonb);
+  INSERT INTO inventory_reservations (order_id, inventory_item_id, sku, material_line_id, required_quantity, quantity_reserved, base_unit, source, status, created_by) VALUES
+    ('00000000-0000-0000-0000-000000000007', '77777777-0000-0000-0000-000000000007', 'TELA-003', 'line-x', 10, 10, 'YD2', 'fabric', 'active', ACTOR_PERM);
+
+  PERFORM public.consume_order_inventory_reservations('00000000-0000-0000-0000-000000000007', ACTOR_PERM);
+  SELECT payload INTO v_payload_1 FROM inventory_items WHERE id = '77777777-0000-0000-0000-000000000007';
+  SELECT payload INTO v_payload_2 FROM inventory_movements WHERE order_id = '00000000-0000-0000-0000-000000000007';
+  IF (v_payload_1->>'available_yd2')::numeric = 90 AND NOT (v_payload_1 ? 'length_meters') AND (v_payload_2->>'length_meters_recalculated')::boolean = false THEN
+    RAISE NOTICE 'T24 PASS: tela sin width_meters no recalcula length_meters'; v_pass:=v_pass+1;
+  ELSE
+    RAISE EXCEPTION 'T24 FAIL';
+  END IF;
+
   RAISE NOTICE '════════════════════════════════════════════════════════════';
-  RAISE NOTICE '  RESULTADO 3E.1: % PASS / 0 FAIL  (total 22 tests)', v_pass;
+  RAISE NOTICE '  RESULTADO 3G: % PASS / 0 FAIL  (total 24 tests)', v_pass;
   RAISE NOTICE '════════════════════════════════════════════════════════════';
 END;
 $$;

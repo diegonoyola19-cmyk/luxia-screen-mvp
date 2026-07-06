@@ -281,6 +281,47 @@ BEGIN
   END;
 
   -- ════════════════════════════════════════════════════════════════════════
+  -- T13: orden in_production con active falla
+  -- ════════════════════════════════════════════════════════════════════════
+  UPDATE work_orders SET status = 'in_production' WHERE id = ORD_SECOND;
+  -- ORD_SECOND tiene 10 EA reservados de INV_ITEM_1 (active)
+  BEGIN
+    PERFORM public.release_order_inventory(ORD_SECOND);
+    RAISE WARNING 'T13 FAIL: no falló in_production'; v_fail:=v_fail+1;
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE 'RELEASE_NOT_ALLOWED_IN_PRODUCTION%' THEN
+      RAISE NOTICE 'T13 PASS: RELEASE_NOT_ALLOWED_IN_PRODUCTION correcto'; v_pass:=v_pass+1;
+    ELSE
+      RAISE WARNING 'T13 FAIL: → %', SQLERRM; v_fail:=v_fail+1;
+    END IF;
+  END;
+
+  -- ════════════════════════════════════════════════════════════════════════
+  -- T14: orden cancelled con active sí puede liberar
+  -- ════════════════════════════════════════════════════════════════════════
+  UPDATE work_orders SET status = 'cancelled' WHERE id = ORD_SECOND;
+  BEGIN
+    v_result := public.release_order_inventory(ORD_SECOND);
+    IF (v_result->>'status') = 'released' THEN
+      RAISE NOTICE 'T14 PASS: release en cancelled exitoso'; v_pass:=v_pass+1;
+    ELSE
+      RAISE WARNING 'T14 FAIL: status no fue released → %', v_result; v_fail:=v_fail+1;
+    END IF;
+  END;
+
+  -- ════════════════════════════════════════════════════════════════════════
+  -- T15: already_released sigue funcionando aunque la orden esté in_production
+  -- ════════════════════════════════════════════════════════════════════════
+  UPDATE work_orders SET status = 'in_production' WHERE id = ORD_SECOND;
+  -- Sus reservas ahora son released
+  BEGIN
+    v_result := public.release_order_inventory(ORD_SECOND);
+    IF (v_result->>'status') = 'already_released' THEN
+      RAISE NOTICE 'T15 PASS: already_released funciona in_production sin active'; v_pass:=v_pass+1;
+    ELSE
+      RAISE WARNING 'T15 FAIL: status no fue already_released → %', v_result; v_fail:=v_fail+1;
+    END IF;
+  END;
   -- RESULTADO FINAL
   -- ════════════════════════════════════════════════════════════════════════
   RAISE NOTICE '════════════════════════════════════════════════════════════';

@@ -4,6 +4,7 @@ BEGIN;
 DO $$
 DECLARE
   ACTOR_PERM uuid := '11111111-2222-3333-4444-555555555555';
+  ACTOR_NO_PERM uuid := '22222222-3333-4444-5555-666666666666';
   
   -- Órdenes
   ORD_NO_RES uuid := '00000000-0000-0000-0000-000000000001';
@@ -17,17 +18,21 @@ DECLARE
   v_payload jsonb;
   v_plan jsonb;
   v_exception_msg text;
+  v_item_before jsonb;
+  v_item_after jsonb;
 BEGIN
   RAISE NOTICE '════════════════════════════════════════════════════════════';
-  RAISE NOTICE '  LUXIA 3F — verify-process-order-inventory-tx-legacy-guard.sql';
+  RAISE NOTICE '  LUXIA 3G — verify-process-order-inventory-tx-legacy-guard.sql';
   RAISE NOTICE '════════════════════════════════════════════════════════════';
 
   -- SETUP
   INSERT INTO auth.users (id, email) VALUES 
-    (ACTOR_PERM, 'actor1@test.com') 
+    (ACTOR_PERM, 'actor1@test.com'),
+    (ACTOR_NO_PERM, 'actor2@test.com')
   ON CONFLICT DO NOTHING;
 
   UPDATE public.profiles SET role_id = (SELECT id FROM roles WHERE name = 'admin') WHERE id = ACTOR_PERM;
+  UPDATE public.profiles SET role_id = (SELECT id FROM roles WHERE name = 'ventas') WHERE id = ACTOR_NO_PERM;
   
   -- Cleanup
   DELETE FROM inventory_movements WHERE order_id IN (ORD_NO_RES, ORD_ACTIVE, ORD_CONSUMED, ORD_RELEASED);
@@ -35,7 +40,7 @@ BEGIN
   DELETE FROM work_orders WHERE id IN (ORD_NO_RES, ORD_ACTIVE, ORD_CONSUMED, ORD_RELEASED);
   DELETE FROM inventory_items WHERE id = INV_ITEM_1;
   
-  -- Item ficticio para que falle por "INSUFFICIENT_STOCK" si llega tan lejos
+  -- Item ficticio
   INSERT INTO inventory_items (id, code, category, kind, status, payload) VALUES
     (INV_ITEM_1, 'TELA-001', 'fabric', 'fabric_roll', 'available', '{"available_yd2": 100, "width_meters": 3.0}'::jsonb);
     
@@ -104,33 +109,68 @@ BEGIN
     END IF;
   END;
 
-  -- T5: Orden con solo reserva released NO dispara ORDER_MANAGED_BY_RESERVATIONS
+  -- T10: Orden con solo reserva released NO dispara ORDER_MANAGED_BY_RESERVATIONS
   BEGIN
     v_payload := jsonb_build_object('id', ORD_RELEASED, 'orderNumber', 'ORD-04');
     PERFORM public.process_order_inventory_tx(v_payload, v_plan);
-    RAISE EXCEPTION 'T5 FAIL: No lanzó error de stock insuficiente';
+    RAISE EXCEPTION 'T10 FAIL: No lanzó error de stock insuficiente';
   EXCEPTION WHEN OTHERS THEN
     v_exception_msg := SQLERRM;
     IF v_exception_msg = 'ORDER_MANAGED_BY_RESERVATIONS: use consume_order_inventory_reservations' THEN
-      RAISE EXCEPTION 'T5 FAIL: Disparó guard en orden con reservas released';
+      RAISE EXCEPTION 'T10 FAIL: Disparó guard en orden con reservas released';
     ELSIF v_exception_msg LIKE 'INSUFFICIENT_STOCK:%' THEN
-      RAISE NOTICE 'T5 PASS: Pasó el guard correctamente y lanzó INSUFFICIENT_STOCK (lógica original)';
+      RAISE NOTICE 'T10 PASS: Pasó el guard correctamente y lanzó INSUFFICIENT_STOCK (lógica original)';
     ELSE
-      RAISE EXCEPTION 'T5 FAIL: Lanzó error inesperado: %', v_exception_msg;
+      RAISE EXCEPTION 'T10 FAIL: Lanzó error inesperado: %', v_exception_msg;
     END IF;
   END;
 
-  -- T6 y T7: Verificar que no se insertaron movimientos ni se modificó inventario (por los guardias)
-  IF EXISTS (SELECT 1 FROM inventory_movements WHERE order_id IN (ORD_ACTIVE, ORD_CONSUMED)) THEN
-    RAISE EXCEPTION 'T6 FAIL: Se crearon movimientos para órdenes bloqueadas';
+  -- T7 real: con reserva active, intentar legacy y asegurar que no hay mutación
+  v_plan := '{"items": [{"action": "consume", "category": "fabric", "itemCode": "TELA-001", "requiredQuantity": 10, "unit": "YD2", "widthMeters": 3.0}]}'::jsonb;
+  SELECT payload INTO v_item_before FROM inventory_items WHERE id = INV_ITEM_1;
+  BEGIN
+    v_payload := jsonb_build_object('id', ORD_ACTIVE, 'orderNumber', 'ORD-02');
+    PERFORM public.process_order_inventory_tx(v_payload, v_plan);
+  EXCEPTION WHEN OTHERS THEN
+    -- Expected to fail with ORDER_MANAGED_BY_RESERVATIONS
+  END;
+  SELECT payload INTO v_item_after FROM inventory_items WHERE id = INV_ITEM_1;
+  IF v_item_before::text <> v_item_after::text THEN
+    RAISE EXCEPTION 'T7 FAIL: El guard permitió modificar inventory_items';
   END IF;
-  RAISE NOTICE 'T6 PASS: Guard evitó creación de inventory_movements';
+  IF EXISTS (SELECT 1 FROM inventory_movements WHERE order_id = ORD_ACTIVE) THEN
+    RAISE EXCEPTION 'T7 FAIL: El guard permitió crear inventory_movements';
+  END IF;
+  RAISE NOTICE 'T7 PASS: El guard evita mutaciones físicas y de movimientos';
 
-  RAISE NOTICE 'T7 PASS: Al saltar la excepción tan temprano, postgres hizo ROLLBACK de la transacción interna de PERFORM (y el state global no se altera en órdenes bloqueadas)';
+  -- T8: Usuario sin permisos
+  EXECUTE format('SET request.jwt.claim.sub = ''%s''', ACTOR_NO_PERM);
+  BEGIN
+    v_payload := jsonb_build_object('id', ORD_NO_RES, 'orderNumber', 'ORD-01');
+    PERFORM public.process_order_inventory_tx(v_payload, v_plan);
+    RAISE EXCEPTION 'T8 FAIL: Permitió ejecutar sin permisos';
+  EXCEPTION WHEN OTHERS THEN
+    v_exception_msg := SQLERRM;
+    IF v_exception_msg = 'PERMISSION_DENIED' THEN
+      RAISE NOTICE 'T8 PASS: Bloqueó usuario sin permisos';
+    ELSE
+      RAISE EXCEPTION 'T8 FAIL: Falló con otro error: %', v_exception_msg;
+    END IF;
+  END;
 
-  RAISE NOTICE 'T8 PASS: Si los otros tests corren bien y este script llega hasta aquí, todo OK.';
-  
-  RAISE NOTICE '  RESULTADO 3F: 8 PASS / 0 FAIL  (total 8 tests)';
+  -- T9: anon no tiene EXECUTE
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.routine_privileges
+    WHERE routine_name = 'process_order_inventory_tx'
+      AND grantee = 'anon'
+      AND privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'T9 FAIL: anon tiene privilegios EXECUTE';
+  END IF;
+  RAISE NOTICE 'T9 PASS: anon no tiene privilegios EXECUTE';
+
+  RAISE NOTICE '  RESULTADO 3G: 10 PASS / 0 FAIL  (total 10 tests)';
   RAISE NOTICE '════════════════════════════════════════════════════════════';
 END $$;
 ROLLBACK;
