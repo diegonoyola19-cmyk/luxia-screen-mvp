@@ -156,6 +156,48 @@ export async function consumeOrderInventoryReservations(
   return result;
 }
 
+export interface ReconcileResultDetail {
+  reservation_id: string;
+  order_id: string;
+  sku: string;
+  action: 'released' | 'consumed' | 'unchanged' | 'flagged';
+  reason: string;
+  previous_status: string;
+  is_stale: boolean;
+}
+
+export interface ReconcileInventoryResult {
+  ok: boolean;
+  dry_run: boolean;
+  scanned: number;
+  released: number;
+  consumed: number;
+  unchanged: number;
+  flagged: number;
+  errors: number;
+  grace_minutes: number;
+  limit: number;
+  details: ReconcileResultDetail[];
+}
+
+export async function reconcileInventoryReservations(options?: {
+  dryRun?: boolean;
+  limit?: number;
+  graceMinutes?: number;
+}): Promise<ReconcileInventoryResult> {
+  const { data, error } = await supabase.rpc('reconcile_inventory_reservations', {
+    p_dry_run: options?.dryRun ?? false,
+    p_limit: options?.limit ?? 200,
+    p_grace_minutes: options?.graceMinutes ?? 30,
+  });
+
+  if (error) {
+    mapRpcError(error);
+  }
+
+  return data as ReconcileInventoryResult;
+}
+
 export async function processOrderInventoryTransaction(
   orderPayload: SavedOrder,
   consumptionPlan: ConsumptionPlan
