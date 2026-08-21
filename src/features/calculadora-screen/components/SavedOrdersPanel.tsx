@@ -15,11 +15,14 @@ import { sortOrders, matchesOrderSearch, type DateRange, type OrderSortMode, typ
 import { OrdersFilterBar } from './orders/OrdersFilterBar';
 import { OrdersTable } from './orders/OrdersTable';
 import { OrderDetailModal } from './orders/OrderDetailModal';
+import { useOrderWorkflowActions } from '../../../hooks/useOrderWorkflowActions';
+import type { OrderWorkflowContext } from '../../../domain/orders/orderWorkflow';
 
 // ── Main Component ──────────────
 
 export function SavedOrdersPanel() {
   const store = useCalculatorStore();
+  const { cancelOrder } = useOrderWorkflowActions();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reportRows = useMemo(() => store.savedOrders.map(getOrderReportRow), [store.savedOrders]);
   
@@ -226,12 +229,19 @@ export function SavedOrdersPanel() {
                 variant="danger" 
                 style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
                 onClick={async () => {
-                  if (!deleteReason.trim()) return;
+                  if (!deleteReason.trim() || !deletingOrderId) return;
                   const orderToDelete = store.savedOrders.find(o => o.id === deletingOrderId);
-                  store.deleteSavedOrder(deletingOrderId);
                   setDeletingOrderId(null);
                   
                   if (orderToDelete) {
+                    const syncStatus = store.syncMetadata[orderToDelete.id];
+                    const context: OrderWorkflowContext = {
+                      isReadOnly,
+                      hasInventoryError: syncStatus?.status === 'error',
+                      hasMaterialReview: orderToDelete.productionReview?.status === 'completed',
+                      inventoryAvailabilityResult: syncStatus?.inventoryAvailabilityResult,
+                    };
+                    await cancelOrder(orderToDelete, context, deleteReason.trim());
                     logAppActivity({
                       event_type: 'order.deleted',
                       entity_type: 'order',

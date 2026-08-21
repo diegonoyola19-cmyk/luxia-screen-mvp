@@ -5,11 +5,11 @@ import type { InventoryValidationContext } from '../../../../domain/orders/order
 import { validateOrderInventoryAvailability } from '../../../../domain/orders/orderInventoryAvailability';
 import { getClientReference, getOrderStatusLabel } from '../orders/utils/orderDisplay';
 import { canPerformOrderAction, getBlockedOrderReasons } from '../../../../domain/orders/orderWorkflow';
-import { useCalculatorStore } from '../../store/useCalculatorStore';
 import { getOrderReportRow } from '../orders/utils/orderReport';
 import { logOrderSentToProduction } from '../orders/utils/orderActivityMetadata';
 import type { OrderReportRow } from '../orders/utils/orderReport';
 import { formatDate } from '../../../../lib/format';
+import { useOrderWorkflowActions } from '../../../../hooks/useOrderWorkflowActions';
 
 interface Props {
   order: SavedOrder;
@@ -19,8 +19,9 @@ interface Props {
 }
 
 export function ProductionQueueCard({ order, context, inventoryContext, onViewDetails }: Props) {
-  const store = useCalculatorStore();
-  
+  const { isProcessing, sendToProduction } = useOrderWorkflowActions();
+  const isBusy = isProcessing(order.id);
+
   const clientReference = getClientReference(order);
   const dateFormatted = formatDate(order.createdAt);
   const statusLabel = getOrderStatusLabel(order);
@@ -42,10 +43,12 @@ export function ProductionQueueCard({ order, context, inventoryContext, onViewDe
   const sendToProductionAction = canPerformOrderAction(order, 'send_to_production', localContext);
   const canSendToProduction = sendToProductionAction.allowed;
 
-  const handleSendToProduction = () => {
-    if (!canSendToProduction) return;
-    store.updateSavedOrderStatus(order.id, 'in_production');
-    logOrderSentToProduction(order, 'production_queue');
+  const handleSendToProduction = async () => {
+    if (!canSendToProduction || isBusy) return;
+    const result = await sendToProduction(order, localContext);
+    if (result?.success) {
+      logOrderSentToProduction(order, 'production_queue');
+    }
   };
 
   const handleViewDetails = () => {
@@ -85,6 +88,7 @@ export function ProductionQueueCard({ order, context, inventoryContext, onViewDe
         <button 
           className="production-queue-card__btn" 
           onClick={handleViewDetails}
+          disabled={isBusy}
         >
           Ver Detalles
         </button>
@@ -92,8 +96,9 @@ export function ProductionQueueCard({ order, context, inventoryContext, onViewDe
           <button 
             className="production-queue-card__btn production-queue-card__btn--primary" 
             onClick={handleSendToProduction}
+            disabled={isBusy}
           >
-            Pasar a Producción
+            {isBusy ? 'Reservando...' : 'Pasar a Producción'}
           </button>
         )}
       </div>

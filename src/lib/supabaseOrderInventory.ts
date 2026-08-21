@@ -2,6 +2,17 @@ import { supabase } from './supabase';
 import { toast } from 'sonner';
 import type { SavedOrder } from '../domain/curtains/types';
 import type { ConsumptionPlan } from '../logic/buildConsumptionPlan';
+import { useAuthStore } from '../store/useAuthStore';
+
+export interface ReservationRpcResult {
+  ok: boolean;
+  status: string;
+  order_id: string;
+  reservations_count?: number;
+  released_count?: number;
+  consumed_count?: number;
+  message?: string;
+}
 
 export class OrderInventoryRpcError extends Error {
   constructor(message: string, public code?: string) {
@@ -66,6 +77,83 @@ function mapRpcError(error: any): never {
   }
 
   throw new OrderInventoryRpcError(msg || 'Error desconocido al procesar inventario de la orden', code);
+}
+
+export async function reserveOrderInventory(
+  orderId: string,
+  userId?: string
+): Promise<ReservationRpcResult> {
+  const effectiveUserId = userId ?? useAuthStore.getState().user?.id ?? null;
+  const { data, error } = await supabase.rpc('reserve_order_inventory', {
+    p_order_id: orderId,
+    p_user_id: effectiveUserId
+  });
+
+  if (error) {
+    mapRpcError(error);
+  }
+
+  const result = data as ReservationRpcResult | null;
+  if (!result || result.ok === false) {
+    throw new OrderInventoryRpcError(
+      result?.message || 'Error al reservar inventario de la orden',
+      result?.status || 'RESERVATION_FAILED'
+    );
+  }
+
+  return result;
+}
+
+export async function releaseOrderInventory(
+  orderId: string,
+  userId?: string,
+  reason?: string
+): Promise<ReservationRpcResult> {
+  const effectiveUserId = userId ?? useAuthStore.getState().user?.id ?? null;
+  const { data, error } = await supabase.rpc('release_order_inventory', {
+    p_order_id: orderId,
+    p_user_id: effectiveUserId,
+    p_reason: reason ?? 'manual_release'
+  });
+
+  if (error) {
+    mapRpcError(error);
+  }
+
+  const result = data as ReservationRpcResult | null;
+  if (!result || result.ok === false) {
+    throw new OrderInventoryRpcError(
+      result?.message || 'Error al liberar reservas de inventario de la orden',
+      result?.status || 'RELEASE_FAILED'
+    );
+  }
+
+  return result;
+}
+
+export async function consumeOrderInventoryReservations(
+  orderId: string,
+  userId?: string
+): Promise<ReservationRpcResult> {
+  const effectiveUserId = userId ?? useAuthStore.getState().user?.id ?? null;
+  const { data, error } = await supabase.rpc('consume_order_inventory_reservations', {
+    p_order_id: orderId,
+    p_user_id: effectiveUserId
+  });
+
+  if (error) {
+    mapRpcError(error);
+  }
+
+  const result = data as ReservationRpcResult | null;
+  if (!result || result.ok === false) {
+    throw new OrderInventoryRpcError(
+      result?.message || 'Error al consumir reservas de inventario de la orden',
+      result?.status || 'CONSUME_FAILED'
+    );
+  }
+
+  return result;
 }
 
 export async function processOrderInventoryTransaction(
@@ -135,4 +223,5 @@ export async function commitIssueSnapshotToInventory(order: SavedOrder): Promise
     await supabase.from('inventory_movements').insert(movements);
   }
 }
+
 

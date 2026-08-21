@@ -18,6 +18,16 @@ vi.mock('../../../../../lib/pdf/generateOrderMaterialsPdf', () => ({
   generateOrderMaterialsPdf: vi.fn().mockResolvedValue(true),
 }));
 
+vi.mock('../../../../../lib/supabaseOrderInventory', () => ({
+  reserveOrderInventory: vi.fn().mockResolvedValue({ ok: true, status: 'reserved' }),
+  releaseOrderInventory: vi.fn().mockResolvedValue({ ok: true, status: 'released' }),
+  consumeOrderInventoryReservations: vi.fn().mockResolvedValue({ ok: true, status: 'consumed' }),
+}));
+
+vi.mock('../../../../../lib/supabaseOrders', () => ({
+  upsertOrder: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('../utils/orderActivityMetadata', () => ({
   logOrderSentToProduction: vi.fn()
 }));
@@ -28,25 +38,33 @@ describe('OrderDetailModal', () => {
     orderNumber: 'ORD-123',
     status: 'draft',
     clientReference: 'Test Ref',
+    createdAt: '2026-06-25T10:00:00Z',
     items: [],
   };
 
   const mockSelectedRow = {
     order: mockOrder,
-    summary: { curtains: 0, materialCost: 0, price: 0, isComplete: true }
+    dateFormatted: '25/06/2026',
+    summary: { curtains: 0, totalOrderCost: 0 },
+    wastePercentage: 10,
   };
 
   const mockStore = {
+    updateSavedOrderStatus: vi.fn(),
     savedOrders: [mockOrder],
     productionInventory: [],
     inventoryMovements: [],
-    updateSavedOrderStatus: vi.fn(),
     syncMetadata: {},
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     (useCalculatorStore as any).mockReturnValue(mockStore);
+    (useCalculatorStore as any).getState = () => ({
+      savedOrders: [mockOrder],
+      updateSavedOrderStatus: mockStore.updateSavedOrderStatus,
+      syncMetadata: {}
+    });
   });
 
   it('Exportar PDF genera documento y registra log, pero no cambia estado', async () => {
@@ -83,8 +101,6 @@ describe('OrderDetailModal', () => {
   });
 
   it('Pasar a Produccion cambia estado si el workflow lo permite', async () => {
-    // productionReview.status = 'completed' → hasMaterialReview = true en el componente
-    // inventoryAvailabilityResult se inyecta via syncMetadata con canProceed: true
     const readyOrder = {
       ...mockOrder,
       status: 'ready_for_production',
@@ -92,10 +108,9 @@ describe('OrderDetailModal', () => {
     };
     const readySelectedRow = { ...mockSelectedRow, order: readyOrder };
 
-    // El componente lee syncMetadata[order.id] para construir el contexto de workflow.
-    // Añadimos inventoryAvailabilityResult requerido por canPerformOrderAction('send_to_production').
     const mockStoreReady = {
       ...mockStore,
+      savedOrders: [readyOrder],
       syncMetadata: {
         'test-order-1': {
           status: 'ok',
@@ -104,6 +119,11 @@ describe('OrderDetailModal', () => {
       },
     };
     (useCalculatorStore as any).mockReturnValue(mockStoreReady);
+    (useCalculatorStore as any).getState = () => ({
+      savedOrders: [readyOrder],
+      updateSavedOrderStatus: mockStoreReady.updateSavedOrderStatus,
+      syncMetadata: mockStoreReady.syncMetadata
+    });
 
     render(
       <OrderDetailModal
@@ -117,7 +137,9 @@ describe('OrderDetailModal', () => {
     const startBtn = screen.getByRole('button', { name: /Pasar a Producción/i });
     fireEvent.click(startBtn);
 
-    expect(mockStoreReady.updateSavedOrderStatus).toHaveBeenCalledWith('test-order-1', 'in_production');
-    expect(orderActivityMetadata.logOrderSentToProduction).toHaveBeenCalledWith(readyOrder, 'order_detail_modal');
+    await waitFor(() => {
+      expect(mockStoreReady.updateSavedOrderStatus).toHaveBeenCalledWith('test-order-1', 'in_production');
+      expect(orderActivityMetadata.logOrderSentToProduction).toHaveBeenCalledWith(readyOrder, 'order_detail_modal');
+    });
   });
 });

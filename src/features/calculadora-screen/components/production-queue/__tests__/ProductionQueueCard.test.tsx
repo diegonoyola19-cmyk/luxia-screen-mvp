@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ProductionQueueCard } from '../ProductionQueueCard';
 import { useCalculatorStore } from '../../../store/useCalculatorStore';
 import * as orderWorkflow from '../../../../../domain/orders/orderWorkflow';
 import * as orderActivityMetadata from '../../orders/utils/orderActivityMetadata';
 
 vi.mock('../../../store/useCalculatorStore');
+vi.mock('../../../../../lib/supabaseOrderInventory', () => ({
+  reserveOrderInventory: vi.fn().mockResolvedValue({ ok: true, status: 'reserved' }),
+  releaseOrderInventory: vi.fn().mockResolvedValue({ ok: true, status: 'released' }),
+  consumeOrderInventoryReservations: vi.fn().mockResolvedValue({ ok: true, status: 'consumed' }),
+}));
+vi.mock('../../../../../lib/supabaseOrders', () => ({
+  upsertOrder: vi.fn().mockResolvedValue(true),
+}));
 vi.mock('../../orders/utils/orderDisplay', () => ({
   getClientReference: () => 'Cliente de prueba',
   getOrderStatusLabel: () => 'Lista para Producción'
@@ -30,9 +38,13 @@ const mockUpdateSavedOrderStatus = vi.fn();
 describe('ProductionQueueCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (useCalculatorStore as any).mockReturnValue({
-      updateSavedOrderStatus: mockUpdateSavedOrderStatus
-    });
+    const mockStoreObj = {
+      updateSavedOrderStatus: mockUpdateSavedOrderStatus,
+      savedOrders: [baseOrder],
+      syncMetadata: {}
+    };
+    (useCalculatorStore as any).mockReturnValue(mockStoreObj);
+    (useCalculatorStore as any).getState = () => mockStoreObj;
   });
 
   const baseOrder: any = {
@@ -111,7 +123,7 @@ describe('ProductionQueueCard', () => {
     expect(screen.queryByText('Pasar a Producción')).toBeNull();
   });
 
-  it('MED-1.4: SÍ permite enviar a producción con materiales confirmados + inventario OK', () => {
+  it('MED-1.4: SÍ permite enviar a producción con materiales confirmados + inventario OK', async () => {
     vi.spyOn(orderWorkflow, 'canPerformOrderAction').mockImplementation((_, action) => {
       if (action === 'send_to_production') return { allowed: true };
       return { allowed: true };
@@ -120,8 +132,11 @@ describe('ProductionQueueCard', () => {
 
     const btn = screen.getByText('Pasar a Producción');
     fireEvent.click(btn);
-    expect(mockUpdateSavedOrderStatus).toHaveBeenCalledWith('1', 'in_production');
-    expect(orderActivityMetadata.logOrderSentToProduction).toHaveBeenCalledWith(baseOrder, 'production_queue');
+
+    await waitFor(() => {
+      expect(mockUpdateSavedOrderStatus).toHaveBeenCalledWith('1', 'in_production');
+      expect(orderActivityMetadata.logOrderSentToProduction).toHaveBeenCalledWith(baseOrder, 'production_queue');
+    });
   });
 
   it('MED-1.5: hides button when readonly or workflow denies (regresión)', () => {

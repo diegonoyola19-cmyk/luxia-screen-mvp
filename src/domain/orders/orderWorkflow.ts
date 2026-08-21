@@ -31,11 +31,11 @@ export type OrderWorkflowContext = {
  *   - cancelled: solo puede ir a draft (reactivar) — NO a in_production ni completed
  */
 const ALLOWED_TRANSITIONS: Record<SavedOrderStatus, ReadonlyArray<SavedOrderStatus>> = {
-  draft: ['ready_for_production'],
-  ready_for_production: ['in_production', 'draft'],
-  in_production: ['completed', 'sent_to_sage'],
-  materials_checked: ['sent_to_sage', 'draft', 'ready_for_production'],
-  sent_to_sage: ['materials_checked'],   // única transición: revertir
+  draft: ['ready_for_production', 'cancelled'],
+  ready_for_production: ['in_production', 'draft', 'cancelled'],
+  in_production: ['completed', 'sent_to_sage', 'cancelled'],
+  materials_checked: ['sent_to_sage', 'draft', 'ready_for_production', 'cancelled'],
+  sent_to_sage: ['materials_checked', 'cancelled'],   // única transición: revertir o cancelar
   completed: [],                          // estado terminal: sin salida
   cancelled: ['draft'],                  // sólo reactivar a draft; nunca a in_production/completed
 };

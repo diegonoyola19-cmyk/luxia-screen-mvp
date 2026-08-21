@@ -9,6 +9,7 @@ import { useCalculatorStore } from '../../store/useCalculatorStore';
 import { canPerformOrderAction, canTransitionOrderStatus, type OrderWorkflowContext } from '../../../../domain/orders/orderWorkflow';
 import { logAppActivity } from '../../../../lib/logAppActivity';
 import { logOrderSentToProduction } from './utils/orderActivityMetadata';
+import { useOrderWorkflowActions } from '../../../../hooks/useOrderWorkflowActions';
 
 const M_TO_FT = 3.28084;
 
@@ -21,6 +22,8 @@ interface Props {
 
 export function OrderDetailModal({ selectedRow, onClose, isReadOnly, onReviewMaterials }: Props) {
   const store = useCalculatorStore();
+  const { isProcessing, sendToProduction, completeOrder } = useOrderWorkflowActions();
+  const isBusy = isProcessing(selectedRow.order.id);
   const orderStatus = getOrderStatus(selectedRow.order);
   
   const syncStatus = store.syncMetadata[selectedRow.order.id];
@@ -117,6 +120,7 @@ export function OrderDetailModal({ selectedRow, onClose, isReadOnly, onReviewMat
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
+
         <div className="modal-body">
           <div className="order-kpi-row" style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
             <div className="order-kpi-card" style={{ flex: 1, padding: '16px', background: 'var(--surface-container)', borderRadius: '8px' }}>
@@ -190,30 +194,39 @@ export function OrderDetailModal({ selectedRow, onClose, isReadOnly, onReviewMat
         </div>
         <div className="modal-footer">
           <span title={!canPerformOrderAction(selectedRow.order, 'export_pdf', context).allowed ? canPerformOrderAction(selectedRow.order, 'export_pdf', context).reason : 'Exportar PDF no cambia el estado de la orden'}>
-            <Button type="button" variant="secondary" onClick={handlePdf} disabled={!canPerformOrderAction(selectedRow.order, 'export_pdf', context).allowed}>
+            <Button type="button" variant="secondary" onClick={handlePdf} disabled={isBusy || !canPerformOrderAction(selectedRow.order, 'export_pdf', context).allowed}>
               📄 PDF
             </Button>
           </span>
           {orderStatus === 'ready_for_production' && (
             <span title={!canPerformOrderAction(selectedRow.order, 'send_to_production', context).allowed ? canPerformOrderAction(selectedRow.order, 'send_to_production', context).reason : undefined}>
-              <Button type="button" variant="secondary" onClick={() => {
-                store.updateSavedOrderStatus(selectedRow.order.id, 'in_production');
-                logOrderSentToProduction(selectedRow.order, 'order_detail_modal');
-              }} disabled={!canPerformOrderAction(selectedRow.order, 'send_to_production', context).allowed}>
-                Pasar a Producción
+              <Button type="button" variant="secondary" onClick={async () => {
+                const result = await sendToProduction(selectedRow.order, context);
+                if (result?.success) {
+                  logOrderSentToProduction(selectedRow.order, 'order_detail_modal');
+                }
+              }} disabled={isBusy || !canPerformOrderAction(selectedRow.order, 'send_to_production', context).allowed}>
+                {isBusy ? 'Reservando...' : 'Pasar a Producción'}
               </Button>
             </span>
           )}
+          {orderStatus === 'in_production' && (
+            <Button type="button" variant="primary" onClick={async () => {
+              await completeOrder(selectedRow.order, context);
+            }} disabled={isBusy}>
+              {isBusy ? 'Consumiendo...' : '✓ Completar Producción'}
+            </Button>
+          )}
           {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(orderStatus) && (
             <span title={!canPerformOrderAction(selectedRow.order, 'confirm_materials', context).allowed ? canPerformOrderAction(selectedRow.order, 'confirm_materials', context).reason : undefined}>
-              <Button type="button" variant="secondary" onClick={() => onReviewMaterials(selectedRow.order.id)} disabled={!canPerformOrderAction(selectedRow.order, 'confirm_materials', context).allowed}>
+              <Button type="button" variant="secondary" onClick={() => onReviewMaterials(selectedRow.order.id)} disabled={isBusy || !canPerformOrderAction(selectedRow.order, 'confirm_materials', context).allowed}>
                 👀 Materiales
               </Button>
             </span>
           )}
           {orderStatus === 'sent_to_sage' && (
             <span title={!canPerformOrderAction(selectedRow.order, 'revert_to_draft', context).allowed ? canPerformOrderAction(selectedRow.order, 'revert_to_draft', context).reason : undefined}>
-              <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')} disabled={!canPerformOrderAction(selectedRow.order, 'revert_to_draft', context).allowed}>
+              <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(selectedRow.order.id, 'materials_checked')} disabled={isBusy || !canPerformOrderAction(selectedRow.order, 'revert_to_draft', context).allowed}>
                 🔙 Revertir a Revisado
               </Button>
             </span>

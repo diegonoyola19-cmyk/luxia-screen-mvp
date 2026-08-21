@@ -8,6 +8,8 @@ import { useCalculatorStore } from '../../store/useCalculatorStore';
 import { useGlobalInventoryStore } from '../../../../store/useGlobalInventoryStore';
 import { validateOrderInventoryAvailability } from '../../../../domain/orders/orderInventoryAvailability';
 import { logOrderSentToProduction } from './utils/orderActivityMetadata';
+import { useOrderWorkflowActions } from '../../../../hooks/useOrderWorkflowActions';
+import type { OrderWorkflowContext } from '../../../../domain/orders/orderWorkflow';
 
 interface Props {
   paginatedRows: OrderReportRow[];
@@ -29,6 +31,7 @@ export function OrdersTable({
   onDelete
 }: Props) {
   const store = useCalculatorStore();
+  const { sendToProduction } = useOrderWorkflowActions();
   const { items: inventoryItems, syncStatus, lastError } = useGlobalInventoryStore();
   
   const inventoryContext = {
@@ -122,10 +125,19 @@ export function OrdersTable({
                           if (isReadOnly) return;
                         } catch (err: any) { alert(err.message); }
                       }}
-                      onStartProduction={() => {
-                        store.updateSavedOrderStatus(row.order.id, 'in_production');
-                        logOrderSentToProduction(row.order, 'order_actions_menu');
+                      onStartProduction={async () => {
                         setActionMenuOpenId(null);
+                        const syncStatus = store.syncMetadata[row.order.id];
+                        const context: OrderWorkflowContext = {
+                          isReadOnly,
+                          hasInventoryError: syncStatus?.status === 'error',
+                          hasMaterialReview: row.order.productionReview?.status === 'completed',
+                          inventoryAvailabilityResult: syncStatus?.inventoryAvailabilityResult,
+                        };
+                        const result = await sendToProduction(row.order, context);
+                        if (result?.success) {
+                          logOrderSentToProduction(row.order, 'order_actions_menu');
+                        }
                       }}
                       onReviewMaterials={() => onReviewMaterials(row.order.id)}
                       onRevertToReviewed={() => {

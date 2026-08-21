@@ -80,7 +80,7 @@ describe('productionQueueSelectors', () => {
       const ctx = {
         isReadOnly: false,
         hasMaterialReview: true,
-        inventoryAvailabilityResult: { status: 'available', canProceed: true, reasons: [], missingItems: [], insufficientItems: [], warnings: [] }
+        inventoryAvailabilityResult: { status: 'available' as const, canProceed: true, reasons: [], missingItems: [], insufficientItems: [], warnings: [] }
       };
       expect(getProductionQueueBucket(order, ctx, {})).toBe('ready');
     });
@@ -116,7 +116,7 @@ describe('productionQueueSelectors', () => {
       const context = {
         isReadOnly: false,
         hasMaterialReview: true,
-        inventoryAvailabilityResult: { status: 'available', canProceed: true, reasons: [], missingItems: [], insufficientItems: [], warnings: [] }
+        inventoryAvailabilityResult: { status: 'available' as const, canProceed: true, reasons: [], missingItems: [], insufficientItems: [], warnings: [] }
       };
       const inventoryContext = {};
       const groups = getProductionQueueGroups(orders, context, inventoryContext);
