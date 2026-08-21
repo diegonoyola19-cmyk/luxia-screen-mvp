@@ -19,12 +19,20 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       throw new Error('Missing environment variables in Edge Function');
+    }
+
+    // 1. Verificación de Autenticación / Autorización
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return json({ ok: false, error: 'Unauthorized: Missing Authorization header' }, 401);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -34,21 +42,31 @@ serve(async (req) => {
 
     const options = parseReconcileOptions(url, body);
 
-    // Invocar la RPC de reconciliación
+    // 2. Invocar la RPC de reconciliación
     const { data, error } = await supabaseAdmin.rpc('reconcile_inventory_reservations', {
       p_dry_run: options.dryRun,
       p_limit: options.limit,
       p_grace_minutes: options.graceMinutes,
     });
 
+    const durationMs = Date.now() - startTime;
+
     if (error) {
-      console.error('[reconcile-inventory-reservations] RPC Error:', error);
-      return json({ ok: false, error: error.message }, 500);
+      console.error('[reconcile-inventory-reservations] RPC Error:', error.message);
+      return json({ ok: false, error: error.message, duration_ms: durationMs }, 500);
     }
 
-    return json(data);
+    console.log(
+      `[reconcile-inventory-reservations] Executed: dryRun=${options.dryRun}, scanned=${data?.scanned ?? 0}, released=${data?.released ?? 0}, duration=${durationMs}ms`
+    );
+
+    return json({
+      ...data,
+      duration_ms: durationMs,
+    });
   } catch (err: any) {
-    console.error('[reconcile-inventory-reservations] Execution Error:', err);
-    return json({ ok: false, error: err.message || 'Internal Server Error' }, 500);
+    const durationMs = Date.now() - startTime;
+    console.error('[reconcile-inventory-reservations] Execution Error:', err.message || err);
+    return json({ ok: false, error: err.message || 'Internal Server Error', duration_ms: durationMs }, 500);
   }
 });

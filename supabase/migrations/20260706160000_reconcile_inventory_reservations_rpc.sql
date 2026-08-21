@@ -81,10 +81,23 @@ BEGIN
       v_action_taken := 'released';
       v_reason_text := 'order_cancelled';
 
-    -- REGLA 2: Reserva activa de una orden completada -> Consumo recuperable seguro
+    -- REGLA 2: Reserva activa de una orden completada -> Verificar evidencia de producción antes de consumir
     ELSIF FOUND AND v_order.status = 'completed' THEN
-      v_action_taken := 'consumed';
-      v_reason_text := 'order_completed_pending_consumption';
+      -- Evidencia inequívoca: producción revisada/completada, issueSnapshot presente o inventario sincronizado
+      IF (
+        v_order.payload ? 'productionReview' AND (
+          v_order.payload->'productionReview'->>'status' = 'completed'
+          OR v_order.payload->'productionReview' ? 'issueSnapshot'
+          OR v_order.payload->'productionReview' ? 'reviewedAt'
+        )
+      ) OR COALESCE((v_order.payload->>'inventorySynced')::boolean, false) = true OR v_order.payload ? 'sageExportedAt' THEN
+        v_action_taken := 'consumed';
+        v_reason_text := 'order_completed_with_production_evidence';
+      ELSE
+        -- Sin evidencia suficiente de producción: NO consumir destructivamente, marcar como flagged
+        v_action_taken := 'flagged';
+        v_reason_text := 'order_completed_lacks_production_evidence';
+      END IF;
 
     -- REGLA 3: Reserva activa de orden que nunca llegó a producción (draft, pending, etc.) y venció el período de gracia -> Liberar
     ELSIF FOUND AND v_order.status IN ('draft', 'pending', 'materials_checked', 'sent_to_sage') AND v_is_stale THEN

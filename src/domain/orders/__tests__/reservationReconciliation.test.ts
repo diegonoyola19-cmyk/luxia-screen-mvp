@@ -342,4 +342,54 @@ describe('Reconciliación Automática de Reservas Huérfanas', () => {
     const res = await reconcileInventoryReservations();
     expect(res.unchanged).toBe(3);
   });
+
+  it('18. completed + active sin evidencia de producción -> flagged y NO consumir', async () => {
+    const mockResult = createMockRpcResult({
+      consumed: 0,
+      flagged: 1,
+      details: [
+        {
+          reservation_id: 'res-comp-no-ev',
+          order_id: 'ord-completed-no-ev',
+          sku: '0-154-TU-50001',
+          action: 'flagged',
+          reason: 'order_completed_lacks_production_evidence',
+          previous_status: 'active',
+          is_stale: false,
+        },
+      ],
+    });
+
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: mockResult, error: null } as any);
+
+    const res = await reconcileInventoryReservations();
+    expect(res.consumed).toBe(0);
+    expect(res.flagged).toBe(1);
+    expect(res.details[0].reason).toBe('order_completed_lacks_production_evidence');
+  });
+
+  it('19. completed + active con evidencia de producción -> consumed', async () => {
+    const mockResult = createMockRpcResult({
+      consumed: 1,
+      flagged: 0,
+      details: [
+        {
+          reservation_id: 'res-comp-ev',
+          order_id: 'ord-completed-ev',
+          sku: '0-154-TU-50001',
+          action: 'consumed',
+          reason: 'order_completed_with_production_evidence',
+          previous_status: 'active',
+          is_stale: false,
+        },
+      ],
+    });
+
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: mockResult, error: null } as any);
+
+    const res = await reconcileInventoryReservations();
+    expect(res.consumed).toBe(1);
+    expect(res.flagged).toBe(0);
+    expect(res.details[0].reason).toBe('order_completed_with_production_evidence');
+  });
 });
