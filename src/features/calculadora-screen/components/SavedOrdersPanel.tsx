@@ -111,14 +111,18 @@ function deriveAutoTone(fabricColor: string): Tone {
 }
 
 function getOrderReportRow(order: SavedOrder): OrderReportRow {
-  const summary = summarizeProduction(order.items);
-  const reusedArea = order.items.reduce(
-    (sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0),
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const summary = summarizeProduction(items);
+  const reusedArea = items.reduce(
+    (sum, item) => sum + (item?.reusedWastePiece?.areaM2 ?? 0),
     0,
   );
 
   return {
-    order,
+    order: {
+      ...order,
+      items,
+    },
     summary,
     wastePercentage:
       summary.fabricDownloadedM2 === 0
@@ -280,14 +284,15 @@ export function SavedOrdersPanel() {
         return true;
       }
 
+      const items = Array.isArray(row.order?.items) ? row.order.items : [];
       const searchable = [
         row.order.orderNumber || '',
         row.order.id,
         getOrderStatusLabel(row.order),
-        row.order.items.length.toString(),
-        row.order.items
+        items.length.toString(),
+        items
           .map((item) =>
-            item.result.selectedFabric
+            item?.result?.selectedFabric
               ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
               : '',
           )
@@ -332,12 +337,13 @@ export function SavedOrdersPanel() {
   const orderBOM = useMemo((): BOMItem[] => {
     if (!selectedRow) return [];
     const aggregated = new Map<string, BOMItem>();
+    const orderItems = Array.isArray(selectedRow.order?.items) ? selectedRow.order.items : [];
     
-    const isV3 = selectedRow.order.items.some(i => i.materialLines && i.materialLines.length > 0);
+    const isV3 = orderItems.some(i => i?.materialLines && i.materialLines.length > 0);
 
     if (isV3) {
-      for (const item of selectedRow.order.items) {
-        if (!item.materialLines) continue;
+      for (const item of orderItems) {
+        if (!item?.materialLines) continue;
         for (const line of item.materialLines) {
           const sku = line.sageItemCode || line.itemCode;
           const existing = aggregated.get(sku);
@@ -361,13 +367,13 @@ export function SavedOrdersPanel() {
       return Array.from(aggregated.values());
     }
 
-    for (const item of selectedRow.order.items) {
-      const tone = item.input.hardwareTone ?? deriveAutoTone(item.input.fabricColor ?? '');
-      const mounting = item.input.mountingSystem ?? 'standard';
+    for (const item of orderItems) {
+      const tone = item?.input?.hardwareTone ?? deriveAutoTone(item?.input?.fabricColor ?? '');
+      const mounting = item?.input?.mountingSystem ?? 'standard';
       try {
         const bom = generateRollerBOM(
-          item.input.widthMeters,
-          item.input.heightMeters,
+          item?.input?.widthMeters ?? 0,
+          item?.input?.heightMeters ?? 0,
           tone as import('../../../logic/generateRollerBOM').Tone,
           mounting
         );
@@ -449,7 +455,8 @@ export function SavedOrdersPanel() {
   };
 
   const getMainFabricLabel = (order: SavedOrder) => {
-    const fabrics = Array.from(new Set(order.items.map(i => i.result.selectedFabric?.color).filter(Boolean)));
+    const items = Array.isArray(order?.items) ? order.items : [];
+    const fabrics = Array.from(new Set(items.map(i => i?.result?.selectedFabric?.color).filter(Boolean)));
     if (fabrics.length === 0) return 'Sin tela';
     if (fabrics.length === 1) return `Tela: ${fabrics[0]}`;
     return 'Múltiples telas';
@@ -460,6 +467,7 @@ export function SavedOrdersPanel() {
     if (!selectedOrderModal) return null;
     const row = selectedOrderModal;
     const orderStatus = getOrderStatus(row.order);
+    const modalItems = Array.isArray(row.order?.items) ? row.order.items : [];
 
     return (
       <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrderModal(null); }}>
@@ -521,19 +529,19 @@ export function SavedOrdersPanel() {
                 <span className="material-symbols-outlined">straighten</span> Dimensiones de Piezas
               </h3>
               <div style={{ display: 'grid', gap: '12px' }}>
-                {row.order.items.map((item: any, index: number) => (
-                  <div key={item.id} style={{ border: '1px solid var(--line)', padding: '12px', borderRadius: '8px', background: 'var(--surface-container)' }}>
+                {modalItems.map((item: any, index: number) => (
+                  <div key={item.id || index} style={{ border: '1px solid var(--line)', padding: '12px', borderRadius: '8px', background: 'var(--surface-container)' }}>
                     <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                      Cortina {index + 1} - {formatNumber(item.input.widthMeters)} x {formatNumber(item.input.heightMeters)} m
+                      Cortina {index + 1} - {formatNumber(item?.input?.widthMeters ?? 0)} x {formatNumber(item?.input?.heightMeters ?? 0)} m
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                      {item.result.selectedFabric ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.color}` : `Rollo ${formatNumber(item.result.recommendedRollWidthMeters)} m`}
+                      {item?.result?.selectedFabric ? `${item.result.selectedFabric.itemCode} - ${item.result.selectedFabric.color}` : `Rollo ${formatNumber(item?.result?.recommendedRollWidthMeters ?? 0)} m`}
                     </div>
                     <div style={{ marginTop: '8px', fontSize: '13px' }}>
-                      {item.reusedWastePiece ? (
+                      {item?.reusedWastePiece ? (
                         <span style={{ color: '#059669', fontWeight: 600 }}>✓ Usa retazo ({formatNumber(item.reusedWastePiece.widthMeters)} x {formatNumber(item.reusedWastePiece.heightMeters)}m)</span>
                       ) : (
-                        <span>Rollo: {formatNumber(item.result.recommendedRollWidthMeters)}m | Merma: {formatNumber(item.result.wastePercentage)}%</span>
+                        <span>Rollo: {formatNumber(item?.result?.recommendedRollWidthMeters ?? 0)}m | Merma: {formatNumber(item?.result?.wastePercentage ?? 0)}%</span>
                       )}
                     </div>
                   </div>
@@ -551,7 +559,7 @@ export function SavedOrdersPanel() {
                 if (orderStatus === 'ready_for_production') {
                   newStatus = 'in_production';
                 } else if (orderStatus === 'draft') {
-                  const hasValidMaterialLines = row.order.items.some(
+                  const hasValidMaterialLines = modalItems.some(
                     (item) => item.materialLines && item.materialLines.length > 0
                   );
                   if (hasValidMaterialLines) {
@@ -658,8 +666,14 @@ export function SavedOrdersPanel() {
                 let syncIcon = null;
                 const syncStatus = store.syncMetadata[row.order.id];
                 if (syncStatus) {
-                  if (syncStatus.status === 'pending') syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '14px' }}>⏳</span>;
-                  else if (syncStatus.status === 'error') syncIcon = <span title="Error al sincronizar" style={{ marginLeft: 6, fontSize: '14px' }}>🔴</span>;
+                  if (syncStatus.status === 'pending') {
+                    syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '14px' }}>⏳</span>;
+                  } else if (syncStatus.status === 'error') {
+                    const errorTitle = syncStatus.inventoryErrorCode
+                      ? inventoryErrorLabel(syncStatus.inventoryErrorCode)
+                      : syncStatus.errorMessage || 'No se pudo sincronizar';
+                    syncIcon = <span title={`Error: ${errorTitle}`} style={{ marginLeft: 6, fontSize: '14px' }}>🔴</span>;
+                  }
                 }
 
                 return (
@@ -704,7 +718,7 @@ export function SavedOrdersPanel() {
                             <button className="action-dropdown-item" onClick={() => {
                               store.setOrderDraft(() => ({
                                 orderNumber: row.order.orderNumber,
-                                items: row.order.items
+                                items: Array.isArray(row.order?.items) ? row.order.items : []
                               }));
                               alert('Orden cargada. Por favor navega a la pestaña de Cotizador para continuar.');
                               setActionMenuOpenId(null);
@@ -735,7 +749,8 @@ export function SavedOrdersPanel() {
                               if (status === 'ready_for_production') {
                                 newStatus = 'in_production';
                               } else if (status === 'draft') {
-                                const hasValidMaterialLines = row.order.items.some(
+                                const rowItems = Array.isArray(row.order?.items) ? row.order.items : [];
+                                const hasValidMaterialLines = rowItems.some(
                                   (item) => item.materialLines && item.materialLines.length > 0
                                 );
                                 if (hasValidMaterialLines) {
@@ -857,7 +872,7 @@ export function SavedOrdersPanel() {
                       entity_id: orderToDelete.id,
                       metadata: {
                         orderNumber: orderToDelete.orderNumber,
-                        curtainCount: orderToDelete.items.length,
+                        curtainCount: Array.isArray(orderToDelete.items) ? orderToDelete.items.length : 0,
                         status: orderToDelete.status,
                       }
                     });
