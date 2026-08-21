@@ -173,54 +173,155 @@ export async function processOrderInventoryTransaction(
 }
 
 export async function commitIssueSnapshotToInventory(order: SavedOrder): Promise<void> {
-  if (!order.productionReview?.issueSnapshot) return;
+  const snapshot = order.productionReview?.issueSnapshot;
 
-  const snapshot = order.productionReview.issueSnapshot;
-  if (!snapshot.createdRemainders || snapshot.createdRemainders.length === 0) return;
+  // 1. Idempotencia: Consultar si ya se materializaron retazos o mermas para esta orden
+  const { data: existingItems } = await supabase
+    .from('inventory_items')
+    .select('id, payload')
+    .eq('created_from_order_id', order.id);
 
-  // Insert linear remainders as kind='unit' in inventory_items
-  const itemsToInsert = snapshot.createdRemainders.map(r => {
-    // Generate an ID if needed, or use the one from remainder
-    const itemId = r.id.startsWith('rem-') ? crypto.randomUUID() : r.id;
-    return {
-      id: itemId,
-      category: r.sku.includes('TU-') ? 'tube' : 'bottom',
-      kind: 'unit',
-      code: r.sku,
-      status: 'available',
-      created_from_order_id: order.id,
-      source: 'production_cut',
-      payload: {
-        length_feet: r.remainingLengthFt,
-        length_meters: r.remainingLengthFt / 3.28084,
-        available_quantity: 1, // It's a single unit of this specific length
-        unit: 'FT',
-        code: r.sku,
-        description: r.description
+  const existingStableIds = new Set(
+    (existingItems || []).map(item => item.payload?.stable_id || item.payload?.curtain_item_id || item.id)
+  );
+
+  // 2. Materializar retazos lineales reutilizables (>= 1.00m / 3.28084 ft)
+  if (snapshot?.createdRemainders && snapshot.createdRemainders.length > 0) {
+    const reusableRemainders = snapshot.createdRemainders.filter(
+      r => r.remainingLengthFt && r.remainingLengthFt >= 3.28084 && !existingStableIds.has(r.id)
+    );
+
+    if (reusableRemainders.length > 0) {
+      const itemsToInsert = reusableRemainders.map(r => {
+        const itemId = r.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
+          ? r.id 
+          : crypto.randomUUID();
+        const category = r.sku.includes('TU-') ? 'tube' : r.sku.includes('AL-') || r.sku.includes('CLZ') ? 'bottom' : 'component';
+
+        return {
+          id: itemId,
+          category,
+          kind: 'unit',
+          code: r.sku,
+          status: 'available',
+          created_from_order_id: order.id,
+          source: 'production_cut',
+          payload: {
+            length_feet: r.remainingLengthFt,
+            length_meters: r.remainingLengthFt / 3.28084,
+            available_quantity: 1,
+            unit: 'FT',
+            code: r.sku,
+            description: r.description,
+            stable_id: r.id
+          }
+        };
+      });
+
+      const { error: insertErr } = await supabase.from('inventory_items').insert(itemsToInsert);
+
+      if (insertErr) {
+        console.error('[commitIssueSnapshotToInventory] Error inserting linear remainders:', insertErr);
+        toast.error(`No se pudieron guardar los sobrantes en Bodega: ${insertErr.message}`);
+      } else {
+        const movements = itemsToInsert.map(item => ({
+          inventory_item_id: item.id,
+          order_id: order.id,
+          category: item.category,
+          action: 'create_scrap',
+          item_code: item.code,
+          quantity: item.payload.length_feet,
+          unit: 'FT',
+          notes: 'Retazo lineal reutilizable generado en producción',
+          payload: { stable_id: item.payload.stable_id, source_order_id: order.id }
+        }));
+        await supabase.from('inventory_movements').insert(movements);
       }
-    };
-  });
+    }
+  }
 
-  const { error } = await supabase.from('inventory_items').insert(itemsToInsert);
+  // 3. Registrar mermas/descartes lineales (< 1.00m / 3.28084 ft)
+  if (snapshot?.discardedLinearRemainders && snapshot.discardedLinearRemainders.length > 0) {
+    const { data: existingMovements } = await supabase
+      .from('inventory_movements')
+      .select('payload')
+      .eq('order_id', order.id)
+      .eq('action', 'discard');
 
-  if (error) {
-    console.error('[commitIssueSnapshotToInventory] Error inserting remainders:', error);
-    toast.error(`No se pudieron guardar los tubos en Bodega: ${error.message}`);
-    // Not throwing here to avoid breaking the Sage export entirely if just one remainder fails
-    // or if RLS has issues, but ideally it should succeed.
-  } else {
-    // Insert movements
-    const movements = itemsToInsert.map(item => ({
-      inventory_item_id: item.id,
-      order_id: order.id,
-      category: item.category,
-      action: 'create_scrap',
-      item_code: item.code,
-      quantity: item.payload.length_feet,
-      unit: 'FT',
-      notes: 'Sobrante generado desde corte de producción'
-    }));
-    await supabase.from('inventory_movements').insert(movements);
+    const existingBars = new Set((existingMovements || []).map(m => m.payload?.bar_index));
+
+    const discardsToInsert = snapshot.discardedLinearRemainders
+      .filter(d => d.lengthFt > 0 && !existingBars.has(d.barIndex))
+      .map(d => ({
+        inventory_item_id: null,
+        order_id: order.id,
+        category: d.materialKind || 'tube',
+        action: 'discard',
+        item_code: d.sku,
+        quantity: d.lengthFt,
+        unit: 'FT',
+        notes: d.reason || 'Merma de producción (< 1.00m)',
+        payload: { bar_index: d.barIndex, source_order_id: order.id }
+      }));
+
+    if (discardsToInsert.length > 0) {
+      await supabase.from('inventory_movements').insert(discardsToInsert);
+    }
+  }
+
+  // 4. Materializar retazos de tela (>= 0.50m por lado)
+  if (order.items && order.items.length > 0) {
+    const fabricScrapsToInsert: any[] = [];
+    const fabricMovementsToInsert: any[] = [];
+
+    for (const item of order.items) {
+      const wM = item.result?.wastePieceWidthMeters ?? 0;
+      const hM = item.result?.wastePieceHeightMeters ?? 0;
+      const fabCode = item.result?.selectedFabric?.itemCode;
+
+      if (wM >= 0.50 && hM >= 0.50 && fabCode && !existingStableIds.has(item.id)) {
+        const scrapId = crypto.randomUUID();
+        const areaYd2 = wM * hM * 1.19599;
+
+        fabricScrapsToInsert.push({
+          id: scrapId,
+          category: 'fabric',
+          kind: 'scrap',
+          code: fabCode,
+          status: 'available',
+          created_from_order_id: order.id,
+          source: 'production_cut',
+          payload: {
+            width_meters: wM,
+            length_meters: hM,
+            area_meters: wM * hM,
+            available_yd2: areaYd2,
+            family: item.result?.selectedFabric?.family || '',
+            color: item.result?.selectedFabric?.color || '',
+            curtain_item_id: item.id
+          }
+        });
+
+        fabricMovementsToInsert.push({
+          inventory_item_id: scrapId,
+          order_id: order.id,
+          category: 'fabric',
+          action: 'create_scrap',
+          item_code: fabCode,
+          quantity: areaYd2,
+          unit: 'YD2',
+          notes: 'Retazo de tela generado en producción',
+          payload: { curtain_item_id: item.id, source_order_id: order.id }
+        });
+      }
+    }
+
+    if (fabricScrapsToInsert.length > 0) {
+      const { error: fabErr } = await supabase.from('inventory_items').insert(fabricScrapsToInsert);
+      if (!fabErr) {
+        await supabase.from('inventory_movements').insert(fabricMovementsToInsert);
+      }
+    }
   }
 }
 
