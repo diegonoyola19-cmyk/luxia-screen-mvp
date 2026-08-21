@@ -24,14 +24,18 @@ export function deriveAutoTone(fabricColor: string): Tone {
 }
 
 export function getOrderReportRow(order: SavedOrder): OrderReportRow {
-  const summary = summarizeProduction(order.items);
-  const reusedArea = order.items.reduce(
-    (sum, item) => sum + (item.reusedWastePiece?.areaM2 ?? 0),
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const summary = summarizeProduction(items);
+  const reusedArea = items.reduce(
+    (sum, item) => sum + (item?.reusedWastePiece?.areaM2 ?? 0),
     0,
   );
 
   return {
-    order,
+    order: {
+      ...order,
+      items,
+    },
     summary,
     wastePercentage:
       summary.fabricDownloadedM2 === 0

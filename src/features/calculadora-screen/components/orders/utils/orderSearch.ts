@@ -26,14 +26,15 @@ export function matchesOrderSearch(row: OrderReportRow, query: string, dateRange
     return true;
   }
 
+  const items = Array.isArray(row.order?.items) ? row.order.items : [];
   const searchable = [
     row.order.orderNumber || '',
     row.order.id,
     getOrderStatusLabel(row.order),
-    row.order.items.length.toString(),
-    row.order.items
+    items.length.toString(),
+    items
       .map((item: any) =>
-        item.result?.selectedFabric
+        item?.result?.selectedFabric
           ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.openness} ${item.result.selectedFabric.color}`
           : '',
       )

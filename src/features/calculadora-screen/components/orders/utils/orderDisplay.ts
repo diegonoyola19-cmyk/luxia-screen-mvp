@@ -88,7 +88,8 @@ export function getClientReference(order: SavedOrder) {
 }
 
 export function getMainFabricLabel(order: SavedOrder) {
-  const fabrics = Array.from(new Set(order.items.map((i: any) => i.result?.selectedFabric?.color).filter(Boolean)));
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const fabrics = Array.from(new Set(items.map((i: any) => i?.result?.selectedFabric?.color).filter(Boolean)));
   if (fabrics.length === 0) return 'Sin tela';
   if (fabrics.length === 1) return `Tela: ${fabrics[0]}`;
   return 'Múltiples telas';

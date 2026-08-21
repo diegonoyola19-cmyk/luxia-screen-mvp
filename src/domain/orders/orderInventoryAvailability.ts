@@ -266,8 +266,9 @@ export function validateOrderInventoryAvailability(
   }
   // Prioridad 2: materialLines de los ítems
   else {
-    for (const item of order.items) {
-      if (item.materialLines && item.materialLines.length > 0) {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    for (const item of items) {
+      if (item?.materialLines && item.materialLines.length > 0) {
         hasLines = true;
         for (const line of item.materialLines) {
           const rawSku = line.sageItemCode || line.itemCode;

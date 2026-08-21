@@ -15,14 +15,23 @@ function handleSupabaseError(error: any, context: string) {
 export async function fetchActiveOrders(): Promise<SavedOrder[]> {
   const { data, error } = await supabase
     .from('work_orders')
-    .select('payload')
+    .select('id, order_number, status, payload')
     .is('deleted_at', null);
 
   if (error) {
     handleSupabaseError(error, 'fetchActiveOrders');
   }
 
-  return (data || []).map((row) => row.payload as SavedOrder);
+  return (data || []).map((row) => {
+    const p = (row.payload || {}) as SavedOrder;
+    return {
+      ...p,
+      id: row.id || p.id,
+      orderNumber: p.orderNumber || row.order_number,
+      status: p.status || row.status,
+      items: Array.isArray(p.items) ? p.items : []
+    };
+  });
 }
 
 function mapOrderToRow(order: SavedOrder) {

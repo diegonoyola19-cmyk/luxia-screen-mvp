@@ -70,25 +70,31 @@ function optimizeLinearCuts(cutsFeet: number[], stockLengthFeet: number): Linear
   };
 }
 
-function summarizeFixedComponents(items: ProjectCurtainItem[]): FixedComponentSummary[] {
+function summarizeFixedComponents(items?: ProjectCurtainItem[]): FixedComponentSummary[] {
+  const safeItems = Array.isArray(items) ? items : [];
   const totals = new Map<string, FixedComponentSummary>();
 
-  items.forEach((item) => {
-    item.result.fixedComponents.forEach((component) => {
+  safeItems.forEach((item) => {
+    const fixedComponents = Array.isArray(item?.result?.fixedComponents)
+      ? item.result.fixedComponents
+      : [];
+
+    fixedComponents.forEach((component) => {
+      if (!component?.name || !component?.unit) return;
       const key = `${component.name.toLowerCase()}::${component.unit.toLowerCase()}`;
       const existing = totals.get(key);
 
       if (existing) {
-        existing.quantity += component.quantity;
-        existing.totalCost += component.quantity * component.cost;
+        existing.quantity += (component.quantity ?? 0);
+        existing.totalCost += (component.quantity ?? 0) * (component.cost ?? 0);
         return;
       }
 
       totals.set(key, {
         name: component.name,
-        quantity: component.quantity,
+        quantity: component.quantity ?? 0,
         unit: component.unit,
-        totalCost: component.quantity * component.cost,
+        totalCost: (component.quantity ?? 0) * (component.cost ?? 0),
       });
     });
   });
@@ -96,44 +102,53 @@ function summarizeFixedComponents(items: ProjectCurtainItem[]): FixedComponentSu
   return [...totals.values()].sort((left, right) => left.name.localeCompare(right.name, 'es'));
 }
 
-export function summarizeProduction(items: ProjectCurtainItem[]): ProductionSummary {
-  const curtainAreaM2 = items.reduce(
-    (sum, item) => sum + item.input.widthMeters * item.input.heightMeters,
+export function summarizeProduction(items?: ProjectCurtainItem[]): ProductionSummary {
+  const safeItems = Array.isArray(items) ? items : [];
+
+  const curtainAreaM2 = safeItems.reduce(
+    (sum, item) => sum + ((item?.input?.widthMeters ?? 0) * (item?.input?.heightMeters ?? 0)),
     0,
   );
-  const fabricDownloadedM2 = items.reduce(
-    (sum, item) => sum + item.result.fabricDownloadedM2,
+  const fabricDownloadedM2 = safeItems.reduce(
+    (sum, item) => sum + (item?.result?.fabricDownloadedM2 ?? 0),
     0,
   );
-  const fabricDownloadedYd2 = items.reduce(
-    (sum, item) => sum + item.result.fabricDownloadedYd2,
+  const fabricDownloadedYd2 = safeItems.reduce(
+    (sum, item) => sum + (item?.result?.fabricDownloadedYd2 ?? 0),
     0,
   );
-  const fabricWasteM2 = items.reduce((sum, item) => sum + item.result.wasteM2, 0);
-  const fabricWasteYd2 = items.reduce((sum, item) => sum + item.result.wasteYd2, 0);
-  const fabricDownloadedCost = items.reduce(
-    (sum, item) => sum + item.result.fabricDownloadedCost,
+  const fabricWasteM2 = safeItems.reduce((sum, item) => sum + (item?.result?.wasteM2 ?? 0), 0);
+  const fabricWasteYd2 = safeItems.reduce((sum, item) => sum + (item?.result?.wasteYd2 ?? 0), 0);
+  const fabricDownloadedCost = safeItems.reduce(
+    (sum, item) => sum + (item?.result?.fabricDownloadedCost ?? 0),
     0,
   );
-  const fabricWasteCost = items.reduce((sum, item) => sum + item.result.fabricWasteCost, 0);
-  const fabricSavingsCost = items.reduce(
-    (sum, item) => sum + item.result.fabricSavingsCost,
+  const fabricWasteCost = safeItems.reduce((sum, item) => sum + (item?.result?.fabricWasteCost ?? 0), 0);
+  const fabricSavingsCost = safeItems.reduce(
+    (sum, item) => sum + (item?.result?.fabricSavingsCost ?? 0),
     0,
   );
-  const fixedComponentsCost = items.reduce(
-    (sum, item) =>
-      sum +
-      item.result.fixedComponents.reduce(
-        (componentSum, component) => componentSum + component.quantity * component.cost,
-        0,
-      ),
+  const fixedComponentsCost = safeItems.reduce(
+    (sum, item) => {
+      const fixed = Array.isArray(item?.result?.fixedComponents)
+        ? item.result.fixedComponents
+        : [];
+      return (
+        sum +
+        fixed.reduce(
+          (componentSum, component) =>
+            componentSum + (component?.quantity ?? 0) * (component?.cost ?? 0),
+          0,
+        )
+      );
+    },
     0,
   );
-  const chainFeet = items.reduce((sum, item) => sum + item.result.chainFeet, 0);
+  const chainFeet = safeItems.reduce((sum, item) => sum + (item?.result?.chainFeet ?? 0), 0);
 
   return {
-    curtains: items.length,
-    reusedWasteCurtains: items.filter((item) => Boolean(item.reusedWastePiece)).length,
+    curtains: safeItems.length,
+    reusedWasteCurtains: safeItems.filter((item) => Boolean(item?.reusedWastePiece)).length,
     curtainAreaM2,
     fabricDownloadedM2,
     fabricDownloadedYd2,
@@ -148,17 +163,17 @@ export function summarizeProduction(items: ProjectCurtainItem[]): ProductionSumm
     totalOrderCost: fabricDownloadedCost + fixedComponentsCost,
     chainFeet,
     tube: optimizeLinearCuts(
-      items.map((item) => item.result.tubeFeet),
+      safeItems.map((item) => item?.result?.tubeFeet ?? 0),
       STOCK_BAR_FEET,
     ),
     bottom: optimizeLinearCuts(
-      items.map((item) => item.result.bottomRailFeet),
+      safeItems.map((item) => item?.result?.bottomRailFeet ?? 0),
       STOCK_BAR_FEET,
     ),
-    fixedComponents: summarizeFixedComponents(items),
+    fixedComponents: summarizeFixedComponents(safeItems),
   };
 }
 
 export function summarizeOrdersProduction(orders: SavedOrder[]): ProductionSummary {
-  return summarizeProduction(orders.flatMap((order) => order.items));
+  return summarizeProduction((orders || []).flatMap((order) => order?.items || []));
 }
