@@ -132,8 +132,10 @@ function getOrderReportRow(order: SavedOrder): OrderReportRow {
   };
 }
 
-function getRelativeDateLabel(value: string) {
+function getRelativeDateLabel(value: string | null | undefined) {
+  if (!value) return '—';
   const orderDate = new Date(value);
+  if (isNaN(orderDate.getTime())) return '—';
   const now = new Date();
   const dayMs = 24 * 60 * 60 * 1000;
   const diffDays = Math.floor(
@@ -273,9 +275,10 @@ export function SavedOrdersPanel() {
 
     const nextRows = reportRows.filter((row) => {
       const orderDate = new Date(row.order.createdAt);
-      if (dateRange === 'today' && orderDate < today) return false;
-      if (dateRange === 'week' && orderDate < startOfWeek) return false;
-      if (dateRange === 'month' && orderDate < startOfMonth) return false;
+      const isDateValid = !isNaN(orderDate.getTime());
+      if (dateRange === 'today' && (!isDateValid || orderDate < today)) return false;
+      if (dateRange === 'week' && (!isDateValid || orderDate < startOfWeek)) return false;
+      if (dateRange === 'month' && (!isDateValid || orderDate < startOfMonth)) return false;
 
       const orderStatus = getOrderStatus(row.order);
       if (statusFilter !== 'all' && orderStatus !== statusFilter) return false;
