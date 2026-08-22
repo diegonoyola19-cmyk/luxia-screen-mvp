@@ -91,12 +91,27 @@ function findRule(
   category: string,
   widthM: number
 ): BomRule | undefined {
-  return rules.find(
-    (r) =>
-      r.category === category &&
-      widthM >= r.minWidthM &&
-      widthM <= r.maxWidthM
-  );
+  const categoryRules = rules
+    .filter((r) => r.category === category)
+    .sort((a, b) => a.minWidthM - b.minWidthM);
+
+  if (categoryRules.length === 0) return undefined;
+
+  // 1. Direct match
+  const direct = categoryRules.find((r) => widthM >= r.minWidthM && widthM <= r.maxWidthM);
+  if (direct) return direct;
+
+  // 2. Continuous band fallback (prevents decimal precision gaps)
+  return categoryRules.find((r, idx) => {
+    const isFirst = idx === 0;
+    const min = isFirst ? r.minWidthM : categoryRules[idx - 1].maxWidthM;
+    const max = r.maxWidthM;
+
+    if (isFirst) {
+      return widthM >= min && widthM <= max;
+    }
+    return widthM > min && widthM <= max;
+  });
 }
 
 // ─── Color resolution ────────────────────────────────────────────────────────

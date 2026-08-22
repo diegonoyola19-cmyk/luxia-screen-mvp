@@ -31,8 +31,8 @@ Object.defineProperty(window, 'matchMedia', {
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
@@ -119,7 +119,6 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
     const qtyInput = screen.getByLabelText('Cantidad');
     fireEvent.change(qtyInput, { target: { value: '0' } });
     
-    // The button might still say "Agregar a Lote" if qty < 1
     const addBtn = screen.getByRole('button', { name: /Agregar/i });
     fireEvent.click(addBtn);
 
@@ -140,12 +139,10 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
     const call2 = addProductionItemMock.mock.calls[1][0];
     const call3 = addProductionItemMock.mock.calls[2][0];
 
-    // IDs should be unique
     expect(call1.id).not.toBe(call2.id);
     expect(call2.id).not.toBe(call3.id);
     expect(call1.id).not.toBe(call3.id);
 
-    // Other props should be identical
     expect(call1.input.widthMeters).toBe(1.5);
     expect(call2.input.widthMeters).toBe(1.5);
     expect(call3.input.widthMeters).toBe(1.5);
@@ -159,7 +156,6 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
     const addBtn = screen.getByRole('button', { name: /Agregar/i });
     fireEvent.click(addBtn);
 
-    // Cantidad should be reset to 1
     await waitFor(() => expect(qtyInput.value).toBe('1'));
     expect(screen.getByRole('button', { name: /Agregar/i })).toBeInTheDocument();
   });
@@ -173,6 +169,8 @@ describe('ProductionModuleV2 - Fabric Substitution Alerts', () => {
         orderDraft: { orderNumber: 'ORD-001' },
         cuttingGroups: [],
         itemsAProducir: [],
+        mountingSystem: 'standard',
+        hardwareTone: 'white',
       };
       return selector ? selector(state) : state;
     });
@@ -255,5 +253,35 @@ describe('ProductionModuleV2 - Fabric Substitution Alerts', () => {
     render(<ProductionModuleV2 />);
     expect(screen.getByText(/No hay stock en ancho 2.50m. Se usará ancho 3.00m porque cubre el requerimiento./i)).toBeInTheDocument();
     expect(screen.getByText(/Requiere 5.50 yd². Disponible: 1.20 yd²./i)).toBeInTheDocument();
+  });
+
+  it('Renderiza preview BOM V2 correctamente para 1.50m', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: { widthMeters: 1.5, heightMeters: 2.0 },
+      displayResult: { wasteYd2: 0.5 },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText(/0-154-TU-38111/i)).toBeInTheDocument();
+  });
+
+  it('Renderiza preview BOM V2 correctamente para 3.005m sin gap usando NEO 63mm', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      parsedFormValues: { widthMeters: 3.005, heightMeters: 2.0 },
+      displayResult: { wasteYd2: 0.5 },
+      displayErrors: {},
+      colorWasteMatches: [],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText(/0-154-TU-63001/i)).toBeInTheDocument();
   });
 });

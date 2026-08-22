@@ -625,7 +625,7 @@
     },
     {
       "category": "Roller",
-      "minWidthM": 3.01,
+      "minWidthM": 3.001,
       "maxWidthM": 3.6,
       "components": [
         {

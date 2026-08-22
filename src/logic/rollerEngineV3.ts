@@ -1,14 +1,8 @@
 /**
- * rollerEngineV3.ts — Motor Completo: Herrajes + Telas
- *
- * Fuentes de Verdad:
- *   - src/data/roller-bom-rules.json → Reglas de fabricación por rango (data-driven)
- *   - src/data/v3-catalog.json       → SKUs con costo y stock (enriquecimiento)
- *   - src/data/v3-fabrics.json       → Telas Rollux con CROSSW, MostRecentCost y QtyOH
- *
- * Arquitectura:
- *   generateRollerBOM  →  SKU resuelto + cantidad calculada  (reglas JSON)
- *   rollerEngineV3     →  Enriquece con costo/stock del catálogo
+ * @deprecated
+ * rollerEngineV3.ts — Prototipo legacy de motor monolítico.
+ * El motor canónico oficial de producción es `src/logic/doubleBracketBom.ts`
+ * con la fuente de verdad `src/data/roller-bom-rules-v2.json`.
  */
 import catalogRaw from '../data/v3-catalog.json';
 import fabricsRaw from '../data/v3-fabrics.json';
@@ -341,7 +335,7 @@ export function getFabricLine(cut: FabricCut): RecipeLine {
  * Función principal recomendada para ProduccionV3.
  *
  * Pipeline:
- *   1. generateRollerBOM  → SKU resuelto + cantidad (lee roller-bom-rules.json)
+ *   1. generateRollerBOM  → SKU resuelto + cantidad (lee roller-bom-rules-v2.json)
  *   2. HW_MAP lookup      → cost, qtyOH por cada SKU
  *   3. Retorna RecipeLine[] con stock status listo para el dashboard
  *
