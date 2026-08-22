@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { buildConsumptionPlan } from '../logic/buildConsumptionPlan';
 import { 
   processOrderInventoryTransaction,
+  cancelOrderInventoryTransaction,
   OrderInventoryPermissionError,
   InsufficientStockError,
   InvalidConsumptionPlanError,
@@ -86,9 +87,15 @@ export function useOrderSync() {
               window.dispatchEvent(new Event('sync-inventory'));
 
             } else if (status.pendingAction === 'delete') {
-              // ─── Comportamiento previo intacto: soft delete ───────────────────────────
-              await softDeleteOrder(orderId);
+              // ─── Cancelación / Rollback de inventario atómico ─────────────────────────
+              try {
+                await cancelOrderInventoryTransaction(orderId);
+              } catch (cancelErr: any) {
+                // Fallback si la RPC no existe o falla en entorno sin RPC
+                await softDeleteOrder(orderId);
+              }
               useCalculatorStore.getState().clearOrderSyncMetadata(orderId);
+              window.dispatchEvent(new Event('sync-inventory'));
             }
 
           } catch (err: any) {

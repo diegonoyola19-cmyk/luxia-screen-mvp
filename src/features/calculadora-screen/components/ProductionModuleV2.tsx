@@ -206,9 +206,10 @@ export function ProductionModuleV2() {
     const h = parsedFormValues?.heightMeters ?? 0;
     if (w <= 0 || h <= 0) return [];
     if (widthGuard.approvalState === 'cancelled') return [];
+    if (store.formValues.driveType === 'motorized') return [];
     try { return generateRollerBOM(w, h, activeTone, store.mountingSystem ?? 'standard').items; }
     catch { return []; }
-  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem, widthGuard.approvalState]);
+  }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem, widthGuard.approvalState, store.formValues.driveType]);
 
 
 
@@ -278,7 +279,8 @@ export function ProductionModuleV2() {
 
   const canAdd = Boolean(displayResult) && 
     (!displayResult?.oversizedRotated || oversizedRotatedAccepted) &&
-    (!displayResult?.forcedRotatedByRollLimit || forcedRotatedAccepted);
+    (!displayResult?.forcedRotatedByRollLimit || forcedRotatedAccepted) &&
+    store.formValues.driveType !== 'motorized';
   const canSave = store.orderDraft.orderNumber.trim() !== '' &&
     store.itemsAProducir.length > 0 &&
     !store.cuttingGroups.some((g) => g.error);
@@ -895,6 +897,11 @@ export function ProductionModuleV2() {
                   </button>
                 ))}
               </div>
+              {store.formValues.driveType === 'motorized' && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', lineHeight: 1.4 }}>
+                  ⚠️ <strong>Configuración motorizada no disponible en esta versión</strong> (reglas de motor pendientes de catálogo).
+                </div>
+              )}
             </div>
             {/* Sistema de Montaje */}
             <div className="pv2-sys-section">

@@ -313,6 +313,7 @@ export interface ScreenValidationErrors {
   fabricColor?: string;
   widthMeters?: string;
   heightMeters?: string;
+  driveType?: string;
   general?: string;
 }
 
@@ -358,6 +359,7 @@ export interface ScreenValidationErrors {
   fabricColor?: string;
   widthMeters?: string;
   heightMeters?: string;
+  driveType?: string;
   general?: string;
 }
 

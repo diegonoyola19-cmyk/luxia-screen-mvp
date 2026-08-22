@@ -681,7 +681,7 @@
         },
         {
           "componentType": "Chapita",
-          "baseSku": "0-154-PS-ES0X3",
+          "baseSku": "0-154-PS-ES0R3",
           "colorKey": null,
           "calculation": {
             "type": "fixedQuantity",

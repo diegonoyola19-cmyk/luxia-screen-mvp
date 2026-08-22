@@ -124,4 +124,107 @@ describe('Issue Strategies - Catalog Based Engine', () => {
     expect(r2.id).toBe(r1.id); // Same stable ID
     expect(r2.remainingLengthFt).toBe(9);
   });
+
+  describe('CRITICAL-001: actualQuantity como TOTAL consolidado de la orden', () => {
+    it('Conserva exactamente el total de 5.0m en una orden de 3 persianas', () => {
+      // 3 cortes de 1.50m (calculado: 4.50m) ajustados a un consolidado de 5.00m
+      const totalAdjusted = 5.0;
+      const originalLines = [1.5, 1.5, 1.5];
+      const totalOriginal = 4.5;
+      
+      const distributedLines: IssueEngineInputLine[] = [];
+      let remaining = totalAdjusted;
+      originalLines.forEach((q, idx) => {
+        if (idx === originalLines.length - 1) {
+          distributedLines.push({ sku: '0-154-TU-38111', description: 'Tubo', quantity: Number(remaining.toFixed(4)), unit: 'M', orderId: 'ord-1' });
+        } else {
+          const share = q / totalOriginal;
+          const alloc = Number((totalAdjusted * share).toFixed(4));
+          remaining -= alloc;
+          distributedLines.push({ sku: '0-154-TU-38111', description: 'Tubo', quantity: alloc, unit: 'M', orderId: 'ord-1' });
+        }
+      });
+
+      const sum = distributedLines.reduce((acc, l) => acc + l.quantity, 0);
+      expect(sum).toBeCloseTo(5.0, 4);
+
+      // En SAGE esto debe traducirse a 1 sola barra de 19 ft (5.0m = 16.4 ft <= 19 ft)
+      const res = calculateIssueLines(distributedLines, []);
+      const sageFt = res.sageLines.find(s => s.itemCode === '0-154-TU-38111')?.quantity || 0;
+      expect(sageFt).toBe(19); // 1 barra de 19 ft, NO 57 ft
+    });
+
+    it('Conserva exactamente el total de 5 EA en una orden de 10 persianas', () => {
+      const totalAdjusted = 5;
+      const count = 10;
+      const distributedLines: IssueEngineInputLine[] = [];
+      let remaining = totalAdjusted;
+      for (let i = 0; i < count; i++) {
+        if (i === count - 1) {
+          distributedLines.push({ sku: '0-154-AD-RA250', description: 'Adaptador', quantity: Number(remaining.toFixed(4)), unit: 'EA', orderId: 'ord-10' });
+        } else {
+          const alloc = Number((totalAdjusted / count).toFixed(4));
+          remaining -= alloc;
+          distributedLines.push({ sku: '0-154-AD-RA250', description: 'Adaptador', quantity: alloc, unit: 'EA', orderId: 'ord-10' });
+        }
+      }
+
+      const sum = distributedLines.reduce((acc, l) => acc + l.quantity, 0);
+      expect(sum).toBeCloseTo(5.0, 4);
+
+      const res = calculateIssueLines(distributedLines, []);
+      const sageQty = res.sageLines.find(s => s.itemCode === '0-154-AD-RA250')?.quantity || 0;
+      expect(sageQty).toBe(5);
+    });
+
+    it('Caso no divisible 1: Original 1 + 1 + 1 ajustado a 5 -> SUM exacta = 5.0000', () => {
+      const originalLines = [1, 1, 1];
+      const totalOriginal = 3;
+      const totalAdjusted = 5.0;
+
+      const distributedLines: IssueEngineInputLine[] = [];
+      let remaining = totalAdjusted;
+      originalLines.forEach((q, idx) => {
+        if (idx === originalLines.length - 1) {
+          distributedLines.push({ sku: '0-154-TU-38111', description: 'Tubo', quantity: Number(remaining.toFixed(4)), unit: 'M', orderId: 'ord-nd1' });
+        } else {
+          const share = q / totalOriginal;
+          const alloc = Number((totalAdjusted * share).toFixed(4));
+          remaining -= alloc;
+          distributedLines.push({ sku: '0-154-TU-38111', description: 'Tubo', quantity: alloc, unit: 'M', orderId: 'ord-nd1' });
+        }
+      });
+
+      const sum = distributedLines.reduce((acc, l) => acc + l.quantity, 0);
+      expect(sum).toBe(5);
+      expect(distributedLines[0].quantity).toBe(1.6667);
+      expect(distributedLines[1].quantity).toBe(1.6667);
+      expect(distributedLines[2].quantity).toBe(1.6666);
+    });
+
+    it('Caso no divisible 2: Original 0.3333 + 0.3333 + 0.3334 ajustado a 1.25 -> SUM exacta = 1.2500', () => {
+      const originalLines = [0.3333, 0.3333, 0.3334];
+      const totalOriginal = 1.0;
+      const totalAdjusted = 1.25;
+
+      const distributedLines: IssueEngineInputLine[] = [];
+      let remaining = totalAdjusted;
+      originalLines.forEach((q, idx) => {
+        if (idx === originalLines.length - 1) {
+          distributedLines.push({ sku: '0-004-87-02518', description: 'Tela', quantity: Number(remaining.toFixed(4)), unit: 'Y2', orderId: 'ord-nd2' });
+        } else {
+          const share = q / totalOriginal;
+          const alloc = Number((totalAdjusted * share).toFixed(4));
+          remaining -= alloc;
+          distributedLines.push({ sku: '0-004-87-02518', description: 'Tela', quantity: alloc, unit: 'Y2', orderId: 'ord-nd2' });
+        }
+      });
+
+      const sum = distributedLines.reduce((acc, l) => acc + l.quantity, 0);
+      expect(sum).toBe(1.25);
+      expect(distributedLines[0].quantity).toBe(0.4166);
+      expect(distributedLines[1].quantity).toBe(0.4166);
+      expect(distributedLines[2].quantity).toBe(0.4168);
+    });
+  });
 });

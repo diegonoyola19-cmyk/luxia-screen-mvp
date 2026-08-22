@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supabase } from '../supabase';
 import { 
-  processOrderInventoryTransaction, 
+  processOrderInventoryTransaction,
+  cancelOrderInventoryTransaction,
   OrderInventoryPermissionError, 
   InsufficientStockError, 
   InvalidConsumptionPlanError, 
   InvalidOrderError, 
   InventoryItemUnavailableError, 
+  ScrapAlreadyUsedError,
+  CannotCancelCompletedOrderError,
   OrderInventoryRpcError 
 } from '../supabaseOrderInventory';
 import type { SavedOrder } from '../../domain/curtains/types';
@@ -128,5 +131,47 @@ describe('processOrderInventoryTransaction', () => {
 
     expect(orderRef).toBe(dummyOrder);
     expect(planRef).toBe(dummyPlan);
+  });
+});
+
+describe('cancelOrderInventoryTransaction', () => {
+  it('Llama a supabase.rpc con cancel_order_inventory_tx y p_order_id', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({ data: null, error: null } as any);
+    
+    const res = await cancelOrderInventoryTransaction('test-order-uuid');
+    expect(res).toBe(true);
+    expect(supabase.rpc).toHaveBeenCalledWith('cancel_order_inventory_tx', {
+      p_order_id: 'test-order-uuid'
+    });
+  });
+
+  it('Mapea PERMISSION_DENIED en cancelación', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: null,
+      error: { message: 'PERMISSION_DENIED: No tienes permisos', code: '42501' }
+    } as any);
+
+    await expect(cancelOrderInventoryTransaction('test-order-uuid'))
+      .rejects.toThrow(OrderInventoryPermissionError);
+  });
+
+  it('Mapea SCRAP_ALREADY_USED cuando un retazo derivado ya fue consumido por otra orden', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: null,
+      error: { message: 'SCRAP_ALREADY_USED: No se puede cancelar porque el retazo ya fue consumido', code: 'P0001' }
+    } as any);
+
+    await expect(cancelOrderInventoryTransaction('test-order-with-used-scrap'))
+      .rejects.toThrow(ScrapAlreadyUsedError);
+  });
+
+  it('Mapea CANNOT_CANCEL_COMPLETED_ORDER cuando la orden ya fue completada', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: null,
+      error: { message: 'CANNOT_CANCEL_COMPLETED_ORDER: La orden ya fue completada', code: 'P0001' }
+    } as any);
+
+    await expect(cancelOrderInventoryTransaction('test-completed-order'))
+      .rejects.toThrow(CannotCancelCompletedOrderError);
   });
 });

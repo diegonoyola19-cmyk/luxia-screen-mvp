@@ -33,11 +33,12 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   // 1. Gather original calculated materials (aggregated by SKU)
   const initialCalculatedBOM = useMemo(() => {
     const aggregated = new Map<string, BOMItem>();
-    const isV3 = order.items.some(i => i.materialLines && i.materialLines.length > 0);
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+    const isV3 = orderItems.some(i => i?.materialLines && i.materialLines.length > 0);
 
     if (isV3) {
-      for (const item of order.items) {
-        if (!item.materialLines) continue;
+      for (const item of orderItems) {
+        if (!item?.materialLines) continue;
         for (const line of item.materialLines) {
           const sku = line.sageItemCode || line.itemCode;
           const existing = aggregated.get(sku);
@@ -62,7 +63,8 @@ export function MaterialReviewModal({ order, onClose }: Props) {
     }
 
     // Fallback for V2
-    for (const item of order.items) {
+    for (const item of orderItems) {
+      if (!item?.input) continue;
       const tone = item.input.hardwareTone ?? 'white';
       const mounting = item.input.mountingSystem ?? 'standard';
       try {
@@ -90,9 +92,10 @@ export function MaterialReviewModal({ order, onClose }: Props) {
 
   // 2. Gather original fabrics
   const initialCalculatedFabrics = useMemo(() => {
-    return order.items.map(item => {
-      const fabric = item.result?.selectedFabric;
-      const rollWidth = item.result?.recommendedRollWidthMeters;
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+    return orderItems.map(item => {
+      const fabric = item?.result?.selectedFabric;
+      const rollWidth = item?.result?.recommendedRollWidthMeters;
       const remnant = item.reusedWastePiece;
       
       const isRemnant = !!remnant;
@@ -390,10 +393,30 @@ export function MaterialReviewModal({ order, onClose }: Props) {
       }
     }
 
-    for (const item of order.items) {
-      if (!item.materialLines) continue;
+    // Pre-calcular totales originales por SKU para distribuir ajustes consolidados
+    const originalSkuTotals = new Map<string, number>();
+    const originalSkuCounts = new Map<string, number>();
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+
+    for (const item of orderItems) {
+      if (!item?.materialLines) continue;
       for (const mLine of item.materialLines) {
         const originalSku = mLine.sageItemCode || mLine.itemCode;
+        if (!originalSku) continue;
+        originalSkuTotals.set(originalSku, (originalSkuTotals.get(originalSku) || 0) + mLine.quantity);
+        originalSkuCounts.set(originalSku, (originalSkuCounts.get(originalSku) || 0) + 1);
+      }
+    }
+
+    // Rastrear remanente asignado por SKU durante la distribución
+    const remainingAdjustedQty = new Map<string, number>();
+    const processedSkuCounts = new Map<string, number>();
+
+    for (const item of orderItems) {
+      if (!item?.materialLines) continue;
+      for (const mLine of item.materialLines) {
+        const originalSku = mLine.sageItemCode || mLine.itemCode;
+        if (!originalSku) continue;
         const adjustment = adjMap.get(originalSku);
         if (adjustment?.action === "removed") continue;
 
@@ -406,8 +429,25 @@ export function MaterialReviewModal({ order, onClose }: Props) {
           finalSku = adjustment.actualSku;
           finalDescription = adjustment.actualDescription || finalDescription;
         }
-        if (adjustment && adjustment.action === "quantity_adjusted" && adjustment.actualQuantity !== undefined) {
-          finalQuantity = adjustment.actualQuantity;
+
+        if (adjustment && (adjustment.action === "quantity_adjusted" || (adjustment.action === "substituted" && adjustment.actualQuantity !== undefined)) && adjustment.actualQuantity !== undefined) {
+          const totalOriginal = originalSkuTotals.get(originalSku) || 0;
+          const totalCount = originalSkuCounts.get(originalSku) || 1;
+          const currentCount = (processedSkuCounts.get(originalSku) || 0) + 1;
+          processedSkuCounts.set(originalSku, currentCount);
+
+          let currentRemaining = remainingAdjustedQty.has(originalSku) 
+            ? remainingAdjustedQty.get(originalSku)! 
+            : adjustment.actualQuantity;
+
+          if (currentCount === totalCount) {
+            finalQuantity = Math.max(0, Number(currentRemaining.toFixed(4)));
+          } else {
+            const share = totalOriginal > 0 ? (mLine.quantity / totalOriginal) : (1 / totalCount);
+            const allocated = Number((adjustment.actualQuantity * share).toFixed(4));
+            finalQuantity = allocated;
+            remainingAdjustedQty.set(originalSku, currentRemaining - allocated);
+          }
         }
 
         inputs.push({

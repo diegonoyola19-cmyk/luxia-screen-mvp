@@ -46,16 +46,18 @@ async function loadLogo(): Promise<HTMLImageElement> {
  * Validates the order and aggregates the BOM lines using ONLY the saved materialLines.
  */
 function getAggregatedMaterials(order: SavedOrder) {
-  const isV3 = order.items.some(i => i.materialLines && i.materialLines.length > 0);
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const isV3 = items.some(i => i?.materialLines && i.materialLines.length > 0);
   
-  if (!isV3) {
+  if (!isV3 || items.length === 0) {
     throw new Error('Esta orden fue creada con una versión anterior y no tiene materiales guardados. Reabre o reguarda la orden para generar el PDF.');
   }
 
   const doubleBracketGroups: number[][] = [];
   const pendingDoubleBrackets = new Map<number, number[]>();
 
-  order.items.forEach((item, idx) => {
+  items.forEach((item, idx) => {
+    if (!item?.input) return;
     const mounting = item.input.mountingSystem ?? 'standard';
     const width = item.input.widthMeters;
     
@@ -71,17 +73,17 @@ function getAggregatedMaterials(order: SavedOrder) {
     }
   });
 
-  for (const [width, items] of pendingDoubleBrackets.entries()) {
-    doubleBracketGroups.push(items);
+  for (const [width, itemsArr] of pendingDoubleBrackets.entries()) {
+    doubleBracketGroups.push(itemsArr);
   }
 
   const getGroupOf = (curtainIndex: number) => doubleBracketGroups.find(g => g.includes(curtainIndex));
 
   const aggregated = new Map<string, any>();
   
-  for (let idx = 0; idx < order.items.length; idx++) {
-    const item = order.items[idx];
-    if (!item.materialLines) continue;
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    if (!item?.materialLines) continue;
 
     const curtainIndex = idx + 1;
     const group = getGroupOf(curtainIndex);
@@ -270,6 +272,7 @@ export async function generateOrderMaterialsPdf(
   inventoryMovements?: InventoryMovement[]
 ): Promise<void> {
   const materials = getAggregatedMaterials(order);
+  const orderItems = Array.isArray(order?.items) ? order.items : [];
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -302,7 +305,7 @@ export async function generateOrderMaterialsPdf(
   doc.text(`Orden: ${order.orderNumber}`, 18, currentY + 6);
   
   doc.setFont('helvetica', 'normal');
-  doc.text(`Cortinas: ${order.items.length}`, 80, currentY + 6);
+  doc.text(`Cortinas: ${orderItems.length}`, 80, currentY + 6);
   doc.text(`Fecha Orden: ${formatDate(order.createdAt)}`, 130, currentY + 6);
 
   doc.setFont('helvetica', 'bold');
@@ -316,18 +319,18 @@ export async function generateOrderMaterialsPdf(
   currentY += 25;
 
   // ── Special fabrication alert ────────────────────────────────────────────────
-  const hasSpecialFabrication = order.items.some(
-    item => item.input.specialFabrication === true && (item.input.specialFabricationReason || item.input.riskAcceptedByCustomer)
+  const hasSpecialFabrication = orderItems.some(
+    item => item?.input?.specialFabrication === true && (item.input.specialFabricationReason || item.input.riskAcceptedByCustomer)
   );
 
   if (hasSpecialFabrication) {
-    const specialItem = order.items.find(item => item.input.specialFabrication);
+    const specialItem = orderItems.find(item => item?.input?.specialFabrication);
     doc.setFillColor(255, 235, 235);
     doc.setDrawColor(200, 0, 0);
     doc.rect(14, currentY, pageWidth - 28, 10, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(200, 0, 0);
-    doc.text(`FABRICACIÓN ESPECIAL: ${specialItem?.input.specialFabricationReason || 'Riesgo asumido por el cliente'}`, 18, currentY + 7);
+    doc.text(`FABRICACIÓN ESPECIAL: ${specialItem?.input?.specialFabricationReason || 'Riesgo asumido por el cliente'}`, 18, currentY + 7);
     doc.setTextColor(0, 0, 0);
     currentY += 14;
   }
@@ -362,13 +365,13 @@ export async function generateOrderMaterialsPdf(
     body: (() => {
       const fabricGroups = new Map<string, any>();
       
-      order.items.forEach((item, idx) => {
-        let sku = item.result.selectedFabric?.itemCode || '—';
-        let desc = item.result.selectedFabric 
+      orderItems.forEach((item, idx) => {
+        let sku = item?.result?.selectedFabric?.itemCode || '—';
+        let desc = item?.result?.selectedFabric 
           ? `${item.result.selectedFabric.family} ${item.result.selectedFabric.color}`
           : '—';
-        let rollWidthM = item.result.recommendedRollWidthMeters;
-        let remnant = item.reusedWastePiece;
+        let rollWidthM = item?.result?.recommendedRollWidthMeters;
+        let remnant = item?.reusedWastePiece;
         let isReused = remnant != null;
         let origen = isReused ? 'Retazo' : 'Rollo';
         let rolloRetazo = isReused ? `${formatNumber(remnant!.widthMeters)}x${formatNumber(remnant!.heightMeters)}m` : (rollWidthM ? `${formatNumber(rollWidthM)}m` : '—');

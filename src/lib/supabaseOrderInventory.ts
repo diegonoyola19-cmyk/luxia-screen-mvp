@@ -45,6 +45,20 @@ export class InventoryItemUnavailableError extends OrderInventoryRpcError {
   }
 }
 
+export class ScrapAlreadyUsedError extends OrderInventoryRpcError {
+  constructor(message: string) {
+    super(message, 'SCRAP_ALREADY_USED');
+    this.name = 'ScrapAlreadyUsedError';
+  }
+}
+
+export class CannotCancelCompletedOrderError extends OrderInventoryRpcError {
+  constructor(message: string) {
+    super(message, 'CANNOT_CANCEL_COMPLETED_ORDER');
+    this.name = 'CannotCancelCompletedOrderError';
+  }
+}
+
 function mapRpcError(error: any): never {
   const msg = error.message || '';
   const code = error.code || '';
@@ -64,6 +78,12 @@ function mapRpcError(error: any): never {
   if (msg.includes('ITEM_NOT_AVAILABLE')) {
     throw new InventoryItemUnavailableError(msg);
   }
+  if (msg.includes('SCRAP_ALREADY_USED')) {
+    throw new ScrapAlreadyUsedError(msg);
+  }
+  if (msg.includes('CANNOT_CANCEL_COMPLETED_ORDER')) {
+    throw new CannotCancelCompletedOrderError(msg);
+  }
 
   throw new OrderInventoryRpcError(msg || 'Error desconocido al procesar inventario de la orden', code);
 }
@@ -75,6 +95,18 @@ export async function processOrderInventoryTransaction(
   const { error } = await supabase.rpc('process_order_inventory_tx', {
     p_order_payload: orderPayload,
     p_consumption_plan: consumptionPlan
+  });
+
+  if (error) {
+    mapRpcError(error);
+  }
+
+  return true;
+}
+
+export async function cancelOrderInventoryTransaction(orderId: string): Promise<boolean> {
+  const { error } = await supabase.rpc('cancel_order_inventory_tx', {
+    p_order_id: orderId
   });
 
   if (error) {

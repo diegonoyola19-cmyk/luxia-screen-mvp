@@ -56,6 +56,10 @@ export function validateScreenInput(
     errors.heightMeters = 'El alto debe ser mayor que cero.';
   }
 
+  if (input.driveType === 'motorized') {
+    errors.driveType = 'Configuración motorizada no disponible en esta versión (reglas de motor pendientes de catálogo).';
+  }
+
   return errors;
 }
 

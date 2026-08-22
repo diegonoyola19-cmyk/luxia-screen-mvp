@@ -182,11 +182,31 @@ function collectIssueEngineInputs(orders: SavedOrder[]): IssueEngineInputLine[] 
       }
     }
 
-    for (const item of order.items) {
-      if (!item.materialLines) continue;
+    // Pre-calcular totales originales por SKU para distribuir ajustes consolidados
+    const originalSkuTotals = new Map<string, number>();
+    const originalSkuCounts = new Map<string, number>();
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+
+    for (const item of orderItems) {
+      if (!item?.materialLines) continue;
+      for (const mLine of item.materialLines) {
+        const originalSku = mLine.sageItemCode || mLine.itemCode;
+        if (!originalSku) continue;
+        originalSkuTotals.set(originalSku, (originalSkuTotals.get(originalSku) || 0) + mLine.quantity);
+        originalSkuCounts.set(originalSku, (originalSkuCounts.get(originalSku) || 0) + 1);
+      }
+    }
+
+    // Rastrear remanente asignado por SKU durante la distribución
+    const remainingAdjustedQty = new Map<string, number>();
+    const processedSkuCounts = new Map<string, number>();
+
+    for (const item of orderItems) {
+      if (!item?.materialLines) continue;
 
       for (const mLine of item.materialLines) {
         const originalSku = mLine.sageItemCode || mLine.itemCode;
+        if (!originalSku) continue;
         const adjustment = adjMap.get(originalSku);
 
         // Si fue removido en la revisión, se ignora
@@ -202,11 +222,25 @@ function collectIssueEngineInputs(orders: SavedOrder[]): IssueEngineInputLine[] 
           finalDescription = adjustment.actualDescription || finalDescription;
         }
 
-        if (adjustment && adjustment.action === "quantity_adjusted" && adjustment.actualQuantity !== undefined) {
-          // Nota: Si hay múltiples cortes de este mismo SKU en la orden, 
-          // usar actualQuantity en cada uno no es ideal, pero quantity_adjusted 
-          // rara vez se usa en cortes, más en EA. Lo usamos de todos modos.
-          finalQuantity = adjustment.actualQuantity;
+        if (adjustment && (adjustment.action === "quantity_adjusted" || (adjustment.action === "substituted" && adjustment.actualQuantity !== undefined)) && adjustment.actualQuantity !== undefined) {
+          const totalOriginal = originalSkuTotals.get(originalSku) || 0;
+          const totalCount = originalSkuCounts.get(originalSku) || 1;
+          const currentCount = (processedSkuCounts.get(originalSku) || 0) + 1;
+          processedSkuCounts.set(originalSku, currentCount);
+
+          let currentRemaining = remainingAdjustedQty.has(originalSku) 
+            ? remainingAdjustedQty.get(originalSku)! 
+            : adjustment.actualQuantity;
+
+          if (currentCount === totalCount) {
+            // Última línea absorbe el remanente exacto para garantizar SUM(q) === actualQuantity
+            finalQuantity = Math.max(0, Number(currentRemaining.toFixed(4)));
+          } else {
+            const share = totalOriginal > 0 ? (mLine.quantity / totalOriginal) : (1 / totalCount);
+            const allocated = Number((adjustment.actualQuantity * share).toFixed(4));
+            finalQuantity = allocated;
+            remainingAdjustedQty.set(originalSku, currentRemaining - allocated);
+          }
         }
 
         result.push({
