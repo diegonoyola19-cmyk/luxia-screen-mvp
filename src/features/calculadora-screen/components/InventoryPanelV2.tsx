@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { animate } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -7,6 +7,8 @@ import fabricCatalogData from '../../../data/luxia-roller-catalog.json';
 import { useGlobalInventoryStore } from '../../../store/useGlobalInventoryStore';
 import { selectGlobalFabricsForBodega, selectGlobalLinearsForBodega } from '../../../lib/inventoryGlobalSelectors';
 import { getInventoryMigrationStatus } from '../../../lib/inventoryMigration';
+import { supabase } from '../../../lib/supabase';
+import { fetchLatestSyncStatus, formatSyncDateTime, getTriggerLabel, type SyncHealthStatus } from '../../../services/apiSyncAudit';
 import './InventoryPanelV2.css';
 
 function toFT(meters: number): string {
@@ -85,10 +87,20 @@ export function InventoryPanelV2() {
   });
 
   const [isSyncingApi, setIsSyncingApi] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<number | null>(() => {
-    const saved = localStorage.getItem('last_api_sync_time');
-    return saved ? Number(saved) : null;
-  });
+  const [syncHealth, setSyncHealth] = useState<SyncHealthStatus | null>(null);
+
+  const loadSyncHealth = useCallback(async () => {
+    try {
+      const status = await fetchLatestSyncStatus(supabase);
+      setSyncHealth(status);
+    } catch (err) {
+      console.warn('[InventoryPanelV2] Could not load sync status:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSyncHealth();
+  }, [loadSyncHealth]);
 
   const [imageError, setImageError] = useState(false);
   useEffect(() => {
@@ -102,16 +114,14 @@ export function InventoryPanelV2() {
     }
     setIsSyncingApi(true);
     let toastId;
-    if (!silent) toastId = toast.loading('Sincronizando catálogo de telas con Bodega...');
+    if (!silent) toastId = toast.loading('Sincronizando catálogo con Bodega...');
     try {
       const { syncApiCatalogToSupabase } = await import('../../../logic/syncApiCatalogToSupabase');
       const count = await syncApiCatalogToSupabase();
       
-      const now = Date.now();
-      localStorage.setItem('last_api_sync_time', now.toString());
-      setLastSyncTime(now);
+      await loadSyncHealth();
       
-      if (!silent) toast.success(`Sincronización completa (${count} ítems empujados).`, { id: toastId });
+      if (!silent) toast.success(`Sincronización completa (${count} ítems actualizados).`, { id: toastId });
       window.dispatchEvent(new Event('sync-inventory'));
     } catch (err: any) {
       if (!silent) toast.error(`Error de sincronización: ${err.message}`, { id: toastId });
@@ -120,13 +130,6 @@ export function InventoryPanelV2() {
       setIsSyncingApi(false);
     }
   };
-
-  // Auto-sync once per day automatically on mount
-  useEffect(() => {
-    if (!isReadOnly && (!lastSyncTime || Date.now() - lastSyncTime > 24 * 60 * 60 * 1000)) {
-      handleSyncApi(true);
-    }
-  }, []);
 
   // Clear selection on tab change
   useEffect(() => {
@@ -334,24 +337,91 @@ export function InventoryPanelV2() {
             <p className="subtext">Consulta retazos de tela y sobrantes lineales en la base de datos centralizada Supabase.</p>
           </div>
           <div className="InventoryPanelV2__actions" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            {!isReadOnly && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => handleSyncApi(false)}
-                  disabled={isSyncingApi}
-                  title="Sincroniza los rollos oficiales de Vertilux hacia la Bodega local para que puedan ser consumidos"
-                >
-                  <span className={`material-symbols-outlined ${isSyncingApi ? 'spin' : ''}`} style={{ fontSize: 18 }}>
-                    sync
-                  </span>
-                  {isSyncingApi ? 'Sincronizando...' : 'Sincronizar API'}
-                </button>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
-                  {lastSyncTime ? `Última sincr: ${new Date(lastSyncTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'No sincronizado'}
-                </span>
+            <div 
+              className="InventoryPanelV2__sync-widget" 
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'stretch', 
+                background: 'var(--surface-sunken, rgba(255, 255, 255, 0.03))', 
+                border: '1px solid var(--line, rgba(255, 255, 255, 0.08))', 
+                borderRadius: '8px', 
+                padding: '6px 12px', 
+                gap: '4px', 
+                minWidth: '260px' 
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text, #ffffff)', fontSize: '11px' }}>API Vertilux</span>
+                  {syncHealth?.lastStatus === 'success' && syncHealth.isHealthy && (
+                    <span className="pill pill-success" style={{ fontSize: '10px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title={syncHealth.healthMessage}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                      Actualizada
+                    </span>
+                  )}
+                  {syncHealth?.lastStatus === 'failed' && (
+                    <span className="pill pill-discarded" style={{ fontSize: '10px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }} title={syncHealth.lastLog?.error_message || 'Último intento falló'}>
+                      ⚠ Último intento falló
+                    </span>
+                  )}
+                  {syncHealth && !syncHealth.isHealthy && syncHealth.lastStatus !== 'failed' && syncHealth.lastStatus !== 'never' && (
+                    <span className="pill pill-discarded" style={{ fontSize: '10px', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      ⚠ &gt;14h sin sync
+                    </span>
+                  )}
+                  {(!syncHealth || syncHealth.lastStatus === 'never') && (
+                    <span style={{ color: 'var(--color-text-muted, #9ca3af)', fontSize: '10px' }}>
+                      — Sin sincronizaciones
+                    </span>
+                  )}
+                </div>
+
+                {!isReadOnly && (
+                  <button 
+                    className="btn btn-secondary"
+                    style={{ padding: '2px 8px', fontSize: '11px', height: '24px' }}
+                    onClick={() => handleSyncApi(false)}
+                    disabled={isSyncingApi}
+                    title="Sincroniza los rollos oficiales de Vertilux hacia la Bodega local"
+                  >
+                    <span className={`material-symbols-outlined ${isSyncingApi ? 'spin' : ''}`} style={{ fontSize: 13 }}>
+                      sync
+                    </span>
+                    {isSyncingApi ? 'Sincronizando...' : 'Sincronizar ahora'}
+                  </button>
+                )}
               </div>
-            )}
+
+              {syncHealth && syncHealth.lastStatus !== 'never' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', color: 'var(--color-text-muted, #9ca3af)', fontSize: '10.5px', marginTop: '2px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span>Última consulta:</span>
+                    <span style={{ color: 'var(--text, #ffffff)', fontWeight: 500 }}>
+                      {formatSyncDateTime(syncHealth.lastAttemptAt)}
+                      {getTriggerLabel(syncHealth.lastLog?.trigger) ? ` (${getTriggerLabel(syncHealth.lastLog?.trigger)})` : ''}
+                    </span>
+                  </div>
+
+                  {syncHealth.lastStatus === 'failed' && syncHealth.lastSuccessfulSyncAt && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                      <span>Último éxito:</span>
+                      <span style={{ color: 'var(--color-success, #2e7d32)', fontWeight: 500 }}>
+                        {formatSyncDateTime(syncHealth.lastSuccessfulSyncAt)}
+                        {getTriggerLabel(syncHealth.lastSuccessfulLog?.trigger) ? ` (${getTriggerLabel(syncHealth.lastSuccessfulLog?.trigger)})` : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span>Próxima consulta:</span>
+                    <span style={{ color: 'var(--color-text-muted, #9ca3af)', fontWeight: 500 }} title={`Programación programada: 06:00 y 18:00 UTC`}>
+                      {formatSyncDateTime(syncHealth.nextScheduledRunUtc)} (Automática)
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
             {!isReadOnly && (
               <button className="btn btn-primary" onClick={() => setIsManualModalOpen(true)}>
                 + Registrar manual

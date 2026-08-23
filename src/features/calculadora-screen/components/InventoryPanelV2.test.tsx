@@ -17,6 +17,21 @@ vi.mock('../../../store/useGlobalInventoryStore');
 vi.mock('../../../lib/inventoryMigration', () => ({
   getInventoryMigrationStatus: vi.fn(),
 }));
+vi.mock('../../../services/apiSyncAudit', () => ({
+  fetchLatestSyncStatus: vi.fn().mockResolvedValue({
+    isHealthy: true,
+    hoursSinceLastSuccess: 1.5,
+    lastSuccessfulSyncAt: '2026-08-22T18:00:00.000Z',
+    lastAttemptAt: '2026-08-22T18:00:00.000Z',
+    lastStatus: 'success',
+    lastLog: { trigger: 'scheduled', status: 'success' },
+    lastSuccessfulLog: { trigger: 'scheduled', status: 'success' },
+    nextScheduledRunUtc: '2026-08-23T06:00:00.000Z',
+    healthMessage: 'Sincronización al día y operativa',
+  }),
+  formatSyncDateTime: vi.fn((iso) => iso ? '22 ago 2026 · 18:00' : '—'),
+  getTriggerLabel: vi.fn((tr) => tr === 'scheduled' ? 'Automática' : tr === 'manual' ? 'Manual' : ''),
+}));
 
 const mockAuthStore = useAuthStore as unknown as ReturnType<typeof vi.fn>;
 
@@ -237,6 +252,40 @@ describe('InventoryPanelV2 (Bodega 3.0)', () => {
         type: 'update_status',
         itemId: 'fab-1'
       }));
+    });
+  });
+
+  it('renderiza widget de sincronización con estado Actualizada, última y próxima consulta', async () => {
+    render(<InventoryPanelV2 />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('API Vertilux')).toBeInTheDocument();
+      expect(screen.getByText('Actualizada')).toBeInTheDocument();
+      expect(screen.getByText(/Última consulta:/)).toBeInTheDocument();
+      expect(screen.getByText(/Próxima consulta:/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Sincronizar ahora/ })).toBeInTheDocument();
+    });
+  });
+
+  it('renderiza aviso cuando el último intento falló', async () => {
+    const { fetchLatestSyncStatus } = await import('../../../services/apiSyncAudit');
+    vi.mocked(fetchLatestSyncStatus).mockResolvedValueOnce({
+      isHealthy: true,
+      hoursSinceLastSuccess: 2,
+      lastSuccessfulSyncAt: '2026-08-22T18:00:00.000Z',
+      lastAttemptAt: '2026-08-22T19:00:00.000Z',
+      lastStatus: 'failed',
+      lastLog: { trigger: 'scheduled', status: 'failed', error_message: 'HTTP 500' } as any,
+      lastSuccessfulLog: { trigger: 'scheduled', status: 'success' } as any,
+      nextScheduledRunUtc: '2026-08-23T06:00:00.000Z',
+      healthMessage: 'Último intento falló',
+    });
+
+    render(<InventoryPanelV2 />);
+
+    await waitFor(() => {
+      expect(screen.getByText('⚠ Último intento falló')).toBeInTheDocument();
+      expect(screen.getByText(/Último éxito:/)).toBeInTheDocument();
     });
   });
 });
