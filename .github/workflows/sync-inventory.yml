@@ -1,0 +1,17 @@
+name: Scheduled Inventory Sync
+
+on:
+  schedule:
+    # Runs twice a day at 06:00 and 18:00 UTC
+    - cron: '0 6,18 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel Sync Endpoint
+        run: |
+          echo "Triggering LUXIA inventory sync..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "https://luxia-screen-mvp.vercel.app/api/cron/sync-inventory")
+          echo "$RESPONSE"
