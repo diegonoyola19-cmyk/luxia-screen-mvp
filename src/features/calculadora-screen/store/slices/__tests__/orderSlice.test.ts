@@ -167,3 +167,66 @@ describe('orderSlice - syncMetadata helpers extendidos (D1)', () => {
     expect(meta.inventoryErrorCode).toBe('ITEM_NOT_AVAILABLE');
   });
 });
+
+describe('orderSlice - Correlativo automático y prevención de duplicados', () => {
+  let useStore: any;
+
+  beforeEach(() => {
+    useStore = create<CalculatorStore>()((...a) => ({
+      ...createOrderSlice(...a),
+      theme: 'light',
+      activeView: 'production',
+      productionInventory: { fabrics: [] },
+      inventoryMovements: [],
+      ruleConfig: { cutHeightExtraMeters: 0.3 } as any,
+      itemsAProducir: [],
+      cuttingGroups: [],
+      errors: {},
+    } as any));
+  });
+
+  it('asigna ORD-001 automáticamente al inicializar con savedOrders vacío', () => {
+    expect(useStore.getState().orderDraft.orderNumber).toBe('ORD-001');
+  });
+
+  it('no permite guardar si el número de orden ya existe en savedOrders', () => {
+    useStore.setState({
+      savedOrders: [{ id: 'ord-1', orderNumber: 'ORD-001', items: [] }],
+      orderDraft: { orderNumber: 'ORD-001', items: [] },
+      itemsAProducir: [{ id: 'item-1', input: { curtainType: 'screen' } }],
+      cuttingGroups: [{ items: [{ id: 'item-1' }] }],
+    });
+
+    useStore.getState().saveOrder();
+
+    expect(useStore.getState().errors.general).toContain('ya existe');
+    expect(useStore.getState().savedOrders).toHaveLength(1);
+  });
+
+  it('setSavedOrders actualiza el correlativo del borrador al recibir órdenes existentes', () => {
+    useStore.setState({
+      savedOrders: [],
+      orderDraft: { orderNumber: 'ORD-001', items: [] }
+    });
+
+    useStore.getState().setSavedOrders([
+      { id: '1', orderNumber: 'ORD-001' },
+      { id: '2', orderNumber: 'ORD-002' },
+    ]);
+
+    expect(useStore.getState().orderDraft.orderNumber).toBe('ORD-003');
+  });
+
+  it('clearOrder reinicia con el siguiente correlativo según savedOrders', () => {
+    useStore.setState({
+      savedOrders: [
+        { id: '1', orderNumber: 'ORD-005' },
+      ],
+      orderDraft: { orderNumber: 'ORD-CUSTOM', items: [] }
+    });
+
+    useStore.getState().clearOrder();
+
+    expect(useStore.getState().orderDraft.orderNumber).toBe('ORD-006');
+  });
+});

@@ -24,7 +24,7 @@ global.requestAnimationFrame = (callback) => {
 };
 window.requestAnimationFrame = global.requestAnimationFrame;
 
-// Mock window.matchMedia if needed by framer-motion or other libs
+// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({
@@ -39,24 +39,182 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-describe('ProductionModuleV2 - Cantidad múltiple', () => {
+describe('ProductionModuleV2 — Focus Mode & Ergonomics', () => {
   let addProductionItemMock: any;
+  let removeProductionItemMock: any;
   let setFormValueMock: any;
+  let setMountingSystemMock: any;
+  let saveOrderMock: any;
 
   beforeEach(() => {
     addProductionItemMock = vi.fn();
+    removeProductionItemMock = vi.fn();
     setFormValueMock = vi.fn();
+    setMountingSystemMock = vi.fn();
+    saveOrderMock = vi.fn();
 
     vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
       const state = {
         formValues: {
-          fabricFamily: 'Roller',
+          fabricFamily: 'Screen 5%',
           fabricOpenness: '5%',
           fabricColor: 'White',
           widthMeters: '1.5',
           heightMeters: '2.0',
+          driveType: 'manual',
         },
-        orderDraft: { orderNumber: 'ORD-001' },
+        orderDraft: { orderNumber: 'ORD-2026-001' },
+        cuttingGroups: [
+          {
+            id: 'group-1',
+            totalCutWidth: 1.5,
+            rollWidth: 2.5,
+            waste: 1.0,
+            yd2Consumed: 4.5,
+            items: [
+              {
+                id: 'item-1',
+                input: { widthMeters: 1.5, heightMeters: 2.0 },
+              }
+            ]
+          }
+        ],
+        itemsAProducir: [{ id: 'item-1' }],
+        mountingSystem: 'standard',
+        hardwareTone: 'white',
+        savedOrders: [],
+        setFormValue: setFormValueMock,
+        setFabricFamily: vi.fn(),
+        setFabricOpenness: vi.fn(),
+        setFabricColor: vi.fn(),
+        setMountingSystem: setMountingSystemMock,
+        setHardwareTone: vi.fn(),
+        setOrderNumber: vi.fn(),
+        addProductionItem: addProductionItemMock,
+        removeProductionItem: removeProductionItemMock,
+        saveOrder: saveOrderMock,
+        setSelectedWastePieceId: vi.fn(),
+        handleFieldBlur: vi.fn(),
+        handleNewCurtain: vi.fn(),
+      };
+      return selector ? selector(state) : state;
+    });
+
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      fabricFamilies: ['Screen 5%', 'Screen 1%'],
+      fabricOpennessOptions: ['5%', '1%'],
+      fabricColorOptions: [{ color: 'White' }, { color: 'Grey' }],
+      parsedFormValues: {
+        curtainType: 'roller',
+        widthMeters: 1.5,
+        heightMeters: 2.0,
+        fabricFamily: 'Screen 5%',
+        fabricOpenness: '5%',
+        fabricColor: 'White',
+      },
+      displayResult: {
+        cutWidthMeters: 1.5,
+        cutLengthMeters: 2.2,
+        fabricDownloadedYd2: 4.5,
+        wasteYd2: 0.5,
+        tubeRecommendation: '',
+        fabricSubstitution: undefined,
+      },
+      selectedFabricPreview: null,
+      colorWasteMatches: [],
+      colorWastePieces: [],
+      selectedWasteMatch: null,
+      hasValidDimensions: true,
+      displayErrors: {},
+    } as any);
+
+    vi.mocked(useDoubleBracketWidthGuard).mockReturnValue({
+      approvalState: 'idle',
+      specialFabricationMeta: null,
+      modalOpen: false,
+      widthM: 1.5,
+      handleApprove: vi.fn(),
+      handleCancel: vi.fn(),
+    } as any);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('1. Renderiza panel de captura y lote de producción en 2 columnas', () => {
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText('Configuración de Persiana')).toBeInTheDocument();
+    expect(screen.getByText('Lote de Producción')).toBeInTheDocument();
+    expect(screen.getByText('1. Tela y Color')).toBeInTheDocument();
+    expect(screen.getByText('2. Medidas y Montaje')).toBeInTheDocument();
+    expect(screen.getByText('3. Manufactura & BOM')).toBeInTheDocument();
+  });
+
+  it('2. Muestra la tarjeta compacta de BOM V2 con botón para ver completo', () => {
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText('BOM V2 Válido')).toBeInTheDocument();
+    expect(screen.getByText(/0-154-TU-38111/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ver BOM/i)).toBeInTheDocument();
+  });
+
+  it('3. Abre el drawer lateral al pulsar "Ver BOM completo" y lo cierra con el botón X', () => {
+    render(<ProductionModuleV2 />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    const openBtn = screen.getByText(/Ver BOM/i);
+    fireEvent.click(openBtn);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Desglose de Herrajes · BOM V2')).toBeInTheDocument();
+
+    const closeBtn = screen.getByLabelText('Cerrar desglose BOM');
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('4. Cierra el drawer lateral de BOM al presionar la tecla Escape', () => {
+    render(<ProductionModuleV2 />);
+    fireEvent.click(screen.getByText(/Ver BOM/i));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('5. Acordeón de opciones avanzadas se expande y colapsa correctamente', () => {
+    render(<ProductionModuleV2 />);
+    expect(screen.queryByText('Tono de Herrajes')).not.toBeInTheDocument();
+
+    const advancedToggle = screen.getByText('Opciones avanzadas');
+    fireEvent.click(advancedToggle);
+
+    expect(screen.getByText('Tono de Herrajes')).toBeInTheDocument();
+
+    fireEvent.click(advancedToggle);
+    expect(screen.queryByText('Tono de Herrajes')).not.toBeInTheDocument();
+  });
+
+  it('6. Selector de mounting system conmuta entre standard, pin_endplug y double_bracket', () => {
+    render(<ProductionModuleV2 />);
+    const pinBtn = screen.getByText('Pin EndPlug');
+    fireEvent.click(pinBtn);
+    expect(setMountingSystemMock).toHaveBeenCalledWith('pin_endplug');
+  });
+
+  it('7. Motorizado permanece visible con advertencia y bloqueado para agregar a lote', () => {
+    vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
+      const state = {
+        formValues: {
+          fabricFamily: 'Screen 5%',
+          fabricOpenness: '5%',
+          fabricColor: 'White',
+          widthMeters: '1.5',
+          heightMeters: '2.0',
+          driveType: 'motorized',
+        },
+        orderDraft: { orderNumber: 'ORD-2026-001' },
         cuttingGroups: [],
         itemsAProducir: [],
         mountingSystem: 'standard',
@@ -70,24 +228,84 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
       return selector ? selector(state) : state;
     });
 
+    render(<ProductionModuleV2 />);
+    expect(screen.getByText(/Configuración motorizada no disponible en esta versión/i)).toBeInTheDocument();
+    
+    const addBtn = screen.getByRole('button', { name: /Agregar/i });
+    expect(addBtn).toBeDisabled();
+  });
+
+  it('8. Permite agregar al lote presionando Enter en el campo Cantidad cuando es válido', () => {
+    render(<ProductionModuleV2 />);
+    const qtyInput = screen.getByLabelText('Cantidad');
+    fireEvent.keyDown(qtyInput, { key: 'Enter' });
+
+    expect(addProductionItemMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('9. NO permite agregar al lote con Enter si el formulario no es válido', () => {
     vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      fabricFamilies: ['Roller'],
+      fabricFamilies: [],
+      fabricOpennessOptions: [],
+      fabricColorOptions: [],
+      parsedFormValues: {
+        curtainType: 'roller',
+        widthMeters: undefined,
+        heightMeters: undefined,
+      },
+      displayResult: null,
+      selectedFabricPreview: null,
+      colorWasteMatches: [],
+      colorWastePieces: [],
+      selectedWasteMatch: null,
+      hasValidDimensions: false,
+      displayErrors: { widthMeters: 'Requerido' },
+    } as any);
+
+    render(<ProductionModuleV2 />);
+    const qtyInput = screen.getByLabelText('Cantidad');
+    fireEvent.keyDown(qtyInput, { key: 'Enter' });
+
+    expect(addProductionItemMock).not.toHaveBeenCalled();
+  });
+
+  it('10. Botón "Guardar Orden" en el panel del lote invoca store.saveOrder', async () => {
+    render(<ProductionModuleV2 />);
+    const saveBtn = screen.getByRole('button', { name: /Guardar Orden/i });
+    expect(saveBtn).toBeInTheDocument();
+    expect(saveBtn).not.toBeDisabled();
+
+    fireEvent.click(saveBtn);
+    await waitFor(() => expect(saveOrderMock).toHaveBeenCalledTimes(1));
+  });
+
+  it('11. Permite eliminar fila de cortes del lote activo', () => {
+    render(<ProductionModuleV2 />);
+    const deleteBtn = screen.getByTitle(/Eliminar fila del lote/i);
+    fireEvent.click(deleteBtn);
+
+    expect(removeProductionItemMock).toHaveBeenCalledWith('item-1');
+  });
+
+  it('12. Alertas críticas de rotación obligatoria permanecen visibles', () => {
+    vi.mocked(useCalculatorDerivedState).mockReturnValue({
+      fabricFamilies: ['Screen 5%'],
       fabricOpennessOptions: ['5%'],
       fabricColorOptions: [{ color: 'White' }],
       parsedFormValues: {
         curtainType: 'roller',
-        widthMeters: 1.5,
+        widthMeters: 3.2,
         heightMeters: 2.0,
-        fabricFamily: 'Roller',
+        fabricFamily: 'Screen 5%',
         fabricOpenness: '5%',
         fabricColor: 'White',
       },
       displayResult: {
-        cutWidthMeters: 1.5,
+        cutWidthMeters: 3.2,
         cutLengthMeters: 2.2,
-        fabricDownloadedYd2: 4,
-        wasteYd2: 0,
-        tubeRecommendation: '',
+        fabricDownloadedYd2: 6.0,
+        wasteYd2: 0.5,
+        oversizedRotated: true,
       },
       selectedFabricPreview: null,
       colorWasteMatches: [],
@@ -97,191 +315,45 @@ describe('ProductionModuleV2 - Cantidad múltiple', () => {
       displayErrors: {},
     } as any);
 
-    vi.mocked(useDoubleBracketWidthGuard).mockReturnValue({
-      approvalState: 'idle',
-      specialFabricationMeta: null,
-    } as any);
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('cantidad default es 1 y el botón muestra "Agregar a Lote"', () => {
     render(<ProductionModuleV2 />);
-    const qtyInput = screen.getByLabelText('Cantidad') as HTMLInputElement;
-    expect(qtyInput.value).toBe('1');
-    expect(screen.getByRole('button', { name: /Agregar/i })).toBeInTheDocument();
+    expect(screen.getByText('Fabricación rotada requerida')).toBeInTheDocument();
+    expect(screen.getByText('Confirmo fabricar esta cortina rotada')).toBeInTheDocument();
   });
 
-  it('cantidad inválida se normaliza a 1 al hacer submit', () => {
-    render(<ProductionModuleV2 />);
-    const qtyInput = screen.getByLabelText('Cantidad');
-    fireEvent.change(qtyInput, { target: { value: '0' } });
-    
-    const addBtn = screen.getByRole('button', { name: /Agregar/i });
-    fireEvent.click(addBtn);
-
-    expect(addProductionItemMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('cantidad 3 agrega 3 items al lote con ids únicos', async () => {
-    render(<ProductionModuleV2 />);
-    const qtyInput = screen.getByLabelText('Cantidad');
-    fireEvent.change(qtyInput, { target: { value: '3' } });
-
-    const addBtn = screen.getByRole('button', { name: /Agregar/i });
-    fireEvent.click(addBtn);
-
-    expect(addProductionItemMock).toHaveBeenCalledTimes(3);
-    
-    const call1 = addProductionItemMock.mock.calls[0][0];
-    const call2 = addProductionItemMock.mock.calls[1][0];
-    const call3 = addProductionItemMock.mock.calls[2][0];
-
-    expect(call1.id).not.toBe(call2.id);
-    expect(call2.id).not.toBe(call3.id);
-    expect(call1.id).not.toBe(call3.id);
-
-    expect(call1.input.widthMeters).toBe(1.5);
-    expect(call2.input.widthMeters).toBe(1.5);
-    expect(call3.input.widthMeters).toBe(1.5);
-  });
-
-  it('después de agregar, la cantidad vuelve a 1', async () => {
-    render(<ProductionModuleV2 />);
-    const qtyInput = screen.getByLabelText('Cantidad') as HTMLInputElement;
-    fireEvent.change(qtyInput, { target: { value: '3' } });
-    
-    const addBtn = screen.getByRole('button', { name: /Agregar/i });
-    fireEvent.click(addBtn);
-
-    await waitFor(() => expect(qtyInput.value).toBe('1'));
-    expect(screen.getByRole('button', { name: /Agregar/i })).toBeInTheDocument();
-  });
-});
-
-describe('ProductionModuleV2 - Fabric Substitution Alerts', () => {
-  beforeEach(() => {
+  it('13. Deshabilita Guardar Orden y muestra aviso cuando el N° Orden está duplicado', () => {
     vi.mocked(useCalculatorStore).mockImplementation((selector: any) => {
       const state = {
-        formValues: { widthMeters: '1.5', heightMeters: '2.0', fabricColor: 'White' },
-        orderDraft: { orderNumber: 'ORD-001' },
-        cuttingGroups: [],
-        itemsAProducir: [],
+        formValues: {
+          fabricFamily: 'Screen 5%',
+          fabricOpenness: '5%',
+          fabricColor: 'White',
+          widthMeters: '1.5',
+          heightMeters: '2.0',
+          driveType: 'manual',
+        },
+        orderDraft: { orderNumber: 'ORD-2026-001' },
+        cuttingGroups: [{ 
+          id: 'group-1', 
+          totalCutWidth: 1.5,
+          rollWidth: 2.5,
+          waste: 1.0,
+          yd2Consumed: 4.5,
+          items: [{ id: 'item-1', input: { widthMeters: 1.5, heightMeters: 2.0 } }] 
+        }],
+        itemsAProducir: [{ id: 'item-1' }],
         mountingSystem: 'standard',
         hardwareTone: 'white',
+        savedOrders: [{ id: 'saved-1', orderNumber: 'ORD-2026-001', items: [] }],
+        setFormValue: vi.fn(),
+        setOrderNumber: vi.fn(),
+        saveOrder: vi.fn(),
       };
       return selector ? selector(state) : state;
     });
-    vi.mocked(useDoubleBracketWidthGuard).mockReturnValue({ approvalState: 'idle' } as any);
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('No muestra alerta si fabricSubstitution no existe', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: {},
-      displayResult: { fabricSubstitution: undefined },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
 
     render(<ProductionModuleV2 />);
-    expect(screen.queryByText(/Stock insuficiente/i)).not.toBeInTheDocument();
-  });
-
-  it('No muestra alerta si fabricSubstitution.wasSubstituted=false', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: {},
-      displayResult: { fabricSubstitution: { wasSubstituted: false } },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
-
-    render(<ProductionModuleV2 />);
-    expect(screen.queryByText(/Stock insuficiente/i)).not.toBeInTheDocument();
-  });
-
-  it('Muestra alerta de warning (no stock suficiente) si wasSubstituted=false pero hay warning de error', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: {},
-      displayResult: { 
-        fabricSubstitution: { 
-          wasSubstituted: false,
-          warnings: [{ code: 'INSUFFICIENT_STOCK', severity: 'error', message: '...' }]
-        } 
-      },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
-
-    render(<ProductionModuleV2 />);
-    expect(screen.getByText(/No hay stock suficiente para la tela seleccionada/i)).toBeInTheDocument();
-  });
-
-  it('Muestra alerta si fabricSubstitution.wasSubstituted=true con detalles', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: {},
-      displayResult: { 
-        fabricSubstitution: { 
-          wasSubstituted: true,
-          originalWidthMeters: 2.5,
-          selectedWidthMeters: 3.0,
-          requiredYd2: 5.5,
-          availableYd2: 1.2
-        } 
-      },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
-
-    render(<ProductionModuleV2 />);
-    expect(screen.getByText(/No hay stock en ancho 2.50m. Se usará ancho 3.00m porque cubre el requerimiento./i)).toBeInTheDocument();
-    expect(screen.getByText(/Requiere 5.50 yd². Disponible: 1.20 yd²./i)).toBeInTheDocument();
-  });
-
-  it('Renderiza preview BOM V2 correctamente para 1.50m', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: { widthMeters: 1.5, heightMeters: 2.0 },
-      displayResult: { wasteYd2: 0.5 },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
-
-    render(<ProductionModuleV2 />);
-    expect(screen.getByText(/0-154-TU-38111/i)).toBeInTheDocument();
-  });
-
-  it('Renderiza preview BOM V2 correctamente para 3.005m sin gap usando NEO 63mm', () => {
-    vi.mocked(useCalculatorDerivedState).mockReturnValue({
-      parsedFormValues: { widthMeters: 3.005, heightMeters: 2.0 },
-      displayResult: { wasteYd2: 0.5 },
-      displayErrors: {},
-      colorWasteMatches: [],
-      fabricFamilies: [],
-      fabricOpennessOptions: [],
-      fabricColorOptions: [],
-    } as any);
-
-    render(<ProductionModuleV2 />);
-    expect(screen.getByText(/0-154-TU-63001/i)).toBeInTheDocument();
+    const saveBtn = screen.getByRole('button', { name: /Guardar Orden/i });
+    expect(saveBtn).toBeDisabled();
+    expect(screen.getByText(/Ya existe esta orden/i)).toBeInTheDocument();
   });
 });

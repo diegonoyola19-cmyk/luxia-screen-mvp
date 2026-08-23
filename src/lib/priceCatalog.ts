@@ -244,6 +244,11 @@ function isSelectableRollerFabricItem(item: ImportedCatalogItem) {
     return false;
   }
 
+  // 1.83m (72") solo está disponible en la línea Pinpointe
+  if (item.family !== 'Pinpointe' && Math.abs(item.widthMeters - 1.83) <= 0.02) {
+    return false;
+  }
+
   return !normalizedDescription.includes('bindercard');
 }
 

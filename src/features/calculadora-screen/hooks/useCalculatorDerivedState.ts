@@ -155,15 +155,9 @@ export function useCalculatorDerivedState(isAutoMode: boolean = false) {
       return;
     }
 
-    if (
-      store.selectedRollWidth !== null &&
-      store.selectedRollWidth >= store.result.occupiedRollWidthMeters &&
-      rollOptions.includes(store.selectedRollWidth)
-    ) {
-      return;
+    if (store.selectedRollWidth === null || !rollOptions.includes(store.selectedRollWidth)) {
+      store.setSelectedRollWidth(store.result.recommendedRollWidthMeters);
     }
-
-    store.setSelectedRollWidth(store.result.recommendedRollWidthMeters);
   }, [store.result, rollOptions, store.selectedRollWidth]);
 
   const selectedFabricPreview = useMemo(() => {

@@ -1,9 +1,10 @@
 /**
- * ProductionModuleV2 — Diseño Stitch "Luxia Industrial Intelligence"
+ * ProductionModuleV2 — Diseño Stitch "Luxia Industrial Intelligence" Focus Mode
  * Conectado 100% al store real (useCalculatorStore + useCalculatorDerivedState)
- * Sin afectar reglas de cálculo existentes
+ * Sin afectar reglas de cálculo ni de fabricación existentes.
  */
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useCalculatorStore } from '../store/useCalculatorStore';
 import { useCalculatorDerivedState } from '../hooks/useCalculatorDerivedState';
 import { formatNumber } from '../../../lib/format';
@@ -18,6 +19,7 @@ import { useDoubleBracketWidthGuard } from '../hooks/useDoubleBracketWidthGuard'
 import { DoubleBracketWidthAlert } from './DoubleBracketWidthAlert';
 import { resolveHardwareToneFromFabricColor, extractFabricColorName } from '../../../domain/curtains/hardwareToneRules';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { getNextOrderNumber } from '../utils';
 import './ProductionModuleV2.css';
 
 // ── BOM display helpers ───────────────────────────────────────────────────────
@@ -71,7 +73,6 @@ function bomDisplayLabel(componente: string, skuFinal: string): string {
 
 // ── Swatch color map (fallback cuando no hay imageUrl) ───────────────────────
 const FABRIC_COLOR_MAP: Record<string, string> = {
-  // e Blackout FR
   'black/black': '#1a1a1a',
   'light grey/grey-grey': '#9aa8b0',
   'beige/bisque': '#d4b896',
@@ -79,13 +80,12 @@ const FABRIC_COLOR_MAP: Record<string, string> = {
   'stone/dark grey': '#5c6166',
   smoke: '#838b91',
   'white/snow flakes': '#eeece8',
-  // Screen / Premium / Pinpointe (title case keys)
   beige: '#d9c4a4',
   bisque: '#c9a87c',
   black: '#1a1a1a',
   'brown/chocolate': '#4a3228',
   ebony: '#2e2822',
-  'ebony pearl': '#2a2a30',  // oscuro perlado
+  'ebony pearl': '#2a2a30',
   'ebony sand': '#6b5a42',
   'light grey': '#a8b4bc',
   linen: '#d4c8b0',
@@ -96,7 +96,6 @@ const FABRIC_COLOR_MAP: Record<string, string> = {
   white: '#f5f3ee',
   'white linen': '#e4dece',
   'white pearl': '#eae7e0',
-  // Calico 550
   'sand custard': '#cdb07a',
   'sand linen': '#c4b090',
   'gold custard': '#c8a050',
@@ -105,16 +104,14 @@ const FABRIC_COLOR_MAP: Record<string, string> = {
   'calico 550 ebony sand': '#6b5a42',
 };
 
-function getSwatchColor(color: string): string {
+function getSwatchColor(color?: string | null): string {
+  if (!color) return '#c8bfb0';
   const n = color.trim().toLowerCase();
-  // Exact match first
   if (FABRIC_COLOR_MAP[n]) return FABRIC_COLOR_MAP[n];
-  // Partial match
   const match = Object.keys(FABRIC_COLOR_MAP).find((k) => n.includes(k) || k.includes(n));
   return match ? FABRIC_COLOR_MAP[match] : '#c8bfb0';
 }
 
-// Prefijos de colección a eliminar del label del swatch
 const COLLECTION_PREFIXES = [
   'calico 550 ',
   'e blackout fr ',
@@ -145,6 +142,8 @@ export function ProductionModuleV2() {
   const { role } = useAuthStore();
   const isReadOnly = role === 'consulta';
   const widthRef = useRef<HTMLInputElement | null>(null);
+  
+  // UI-only state
   const [isSaving, setIsSaving] = useState(false);
   const [scrapsOpen, setScrapsOpen] = useState(false);
   const [useManualRetazo, setUseManualRetazo] = useState(false);
@@ -152,6 +151,10 @@ export function ProductionModuleV2() {
   const [oversizedRotatedAccepted, setOversizedRotatedAccepted] = useState(false);
   const [forcedRotatedAccepted, setForcedRotatedAccepted] = useState(false);
   const [cantidadInput, setCantidadInput] = useState<string>('1');
+  const [isBomDrawerOpen, setIsBomDrawerOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
+  const [isPreviewDetailOpen, setIsPreviewDetailOpen] = useState(false);
 
   const {
     fabricFamilies,
@@ -167,6 +170,17 @@ export function ProductionModuleV2() {
     displayErrors,
   } = useCalculatorDerivedState(false);
 
+  // Close drawer on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isBomDrawerOpen) {
+        setIsBomDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isBomDrawerOpen]);
+
   // -- Tono de herrajes: conectado al store para persistir en saveOrder ----------
   const toneOverride = store.hardwareTone as Tone | null;
   const setToneOverride = (t: Tone | null) => store.setHardwareTone(t);
@@ -177,7 +191,6 @@ export function ProductionModuleV2() {
   }, [store.formValues.fabricColor, selectedFabricPreview]);
 
   const selectedTone = toneOverride ?? autoTone;
-  // Fallback a white solo para no romper cálculos si es null
   const activeTone: Tone = selectedTone ?? 'white';
 
   const typedMatches = colorWasteMatches as WasteReuseMatch[];
@@ -185,7 +198,6 @@ export function ProductionModuleV2() {
   const usingWaste = Boolean(store.selectedWastePieceId);
 
   // ── Bracket Doble width guard ───────────────────────────────────────────
-  // parsedFormValues ya está disponible aqui — seguro usarlo en el hook.
   const widthGuard = useDoubleBracketWidthGuard({
     widthM:         parsedFormValues?.widthMeters ?? 0,
     mountingSystem: store.mountingSystem,
@@ -200,7 +212,6 @@ export function ProductionModuleV2() {
   const displayedWaste = retazoResult?.alcanza ? retazoResult.merma : displayResult?.wasteYd2;
 
   // BOM: solo SKU + cantidad, sin consulta de inventario.
-  // Bloqueado si el operador canceló la autorización de bracket doble.
   const hwItems = useMemo((): BOMItem[] => {
     const w = parsedFormValues?.widthMeters ?? 0;
     const h = parsedFormValues?.heightMeters ?? 0;
@@ -211,8 +222,9 @@ export function ProductionModuleV2() {
     catch { return []; }
   }, [parsedFormValues?.widthMeters, parsedFormValues?.heightMeters, activeTone, store.mountingSystem, widthGuard.approvalState, store.formValues.driveType]);
 
-
-
+  const tubeItem = useMemo(() => {
+    return hwItems.find(i => i.componente.includes('Tubo')) ?? null;
+  }, [hwItems]);
 
   // ── Batch summary ──────────────────────────────────────────────────────────
   const summary = useMemo(() => {
@@ -232,14 +244,33 @@ export function ProductionModuleV2() {
 
   const parsedQty = Math.max(1, parseInt(cantidadInput, 10) || 1);
 
+  const canAdd = Boolean(displayResult) && 
+    (!displayResult?.oversizedRotated || oversizedRotatedAccepted) &&
+    (!displayResult?.forcedRotatedByRollLimit || forcedRotatedAccepted) &&
+    store.formValues.driveType !== 'motorized';
+
+  const trimmedDraftOrderNumber = (store.orderDraft?.orderNumber || '').trim();
+  const isDuplicateOrderNumber = Boolean(
+    trimmedDraftOrderNumber &&
+    (store.savedOrders || []).some(
+      (o) => (o?.orderNumber || '').trim().toLowerCase() === trimmedDraftOrderNumber.toLowerCase()
+    )
+  );
+
+  const canSave = trimmedDraftOrderNumber !== '' &&
+    !isDuplicateOrderNumber &&
+    store.itemsAProducir.length > 0 &&
+    !store.cuttingGroups.some((g) => g.error);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleAddToBatch = () => {
+  const handleAddToBatch = useCallback(() => {
     if (
       !displayResult || !parsedFormValues?.curtainType ||
       parsedFormValues.widthMeters === undefined ||
       parsedFormValues.heightMeters === undefined ||
       !parsedFormValues.fabricFamily || !parsedFormValues.fabricOpenness ||
-      !parsedFormValues.fabricColor
+      !parsedFormValues.fabricColor ||
+      !canAdd
     ) return;
 
     for (let i = 0; i < parsedQty; i++) {
@@ -251,7 +282,6 @@ export function ProductionModuleV2() {
           hardwareTone: activeTone,
           oversizedRotatedAccepted,
           forcedRotatedAccepted,
-          // Persisit specialFabrication metadata when applicable
           ...(widthGuard.specialFabricationMeta ?? {}),
         },
         result: displayResult,
@@ -259,7 +289,13 @@ export function ProductionModuleV2() {
       };
       store.addProductionItem(item);
     }
-    // Resetear selección de retazo y dimensiones tras agregar
+
+    // Feedback ligero
+    if (typeof toast !== 'undefined' && toast.success) {
+      toast.success(parsedQty > 1 ? `✓ ${parsedQty} persianas agregadas al lote` : '✓ Persiana agregada al lote');
+    }
+
+    // Resetear dimensiones manteniendo tela, color, tono y montaje
     store.setSelectedWastePieceId(null);
     store.setFormValue('widthMeters', '');
     store.setFormValue('heightMeters', '');
@@ -267,393 +303,493 @@ export function ProductionModuleV2() {
     setForcedRotatedAccepted(false);
     setCantidadInput('1');
     window.requestAnimationFrame(() => widthRef.current?.focus());
-  };
+  }, [
+    displayResult,
+    parsedFormValues,
+    canAdd,
+    parsedQty,
+    store,
+    activeTone,
+    oversizedRotatedAccepted,
+    forcedRotatedAccepted,
+    widthGuard.specialFabricationMeta,
+    selectedWasteMatch
+  ]);
 
   const handleSaveOrder = async () => {
-    // Siempre persistir el tono activo (auto o manual) en el store ANTES de guardar,
-    // para que orderSlice.saveOrder use el mismo tono que muestra la UI.
     store.setHardwareTone(activeTone);
-    try { setIsSaving(true); store.saveOrder(); }
-    finally { setIsSaving(false); }
+    try {
+      setIsSaving(true);
+      await store.saveOrder();
+      if (typeof toast !== 'undefined' && toast.success) {
+        toast.success('✓ Orden guardada correctamente');
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
-
-  const canAdd = Boolean(displayResult) && 
-    (!displayResult?.oversizedRotated || oversizedRotatedAccepted) &&
-    (!displayResult?.forcedRotatedByRollLimit || forcedRotatedAccepted) &&
-    store.formValues.driveType !== 'motorized';
-  const canSave = store.orderDraft.orderNumber.trim() !== '' &&
-    store.itemsAProducir.length > 0 &&
-    !store.cuttingGroups.some((g) => g.error);
 
   // ── Fabric preview info ────────────────────────────────────────────────────
   const fabricLabel = [store.formValues.fabricFamily, store.formValues.fabricOpenness, store.formValues.fabricColor]
     .filter(Boolean).join(' · ') || 'Sin especificar';
   const selectedSwatchColor = getSwatchColor(store.formValues.fabricColor);
 
-  // ── Metrics ────────────────────────────────────────────────────────────────
-  // Campo correcto del CalculationResult: cutLengthMeters (altura) y fabricDownloadedYd2 (consumo)
-  const metrics = [
-    { label: 'Eficiencia', value: summary ? Math.round(summary.efficiency) : 0, unit: '%', accent: 'red' },
-    { label: 'Altura de Corte', value: displayResult ? formatNumber(displayResult.cutLengthMeters, 2) : '—', unit: 'm', accent: '' },
-    { label: 'Ancho de Corte', value: displayResult ? formatNumber(displayResult.cutWidthMeters, 2) : '—', unit: 'm', accent: '' },
-    { label: 'Consumo Y²', value: displayedYd2 != null ? formatNumber(displayedYd2, 2) : '—', unit: 'yd²', accent: useManualRetazo && retazoResult?.alcanza ? 'green' : '' },
-    { label: 'Desperdicio', value: displayedWaste != null ? formatNumber(displayedWaste, 2) : '—', unit: 'yd²', accent: 'yellow' },
-  ];
-
   return (
     <div className="pv2-root">
 
-      {/* ── Main grid ──────────────────────────────────────────────────── */}
-      <div className="pv2-grid-3">
+      {/* ══ 2-COLUMN FOCUS GRID ════════════════════════════════════════════ */}
+      <div className="pv2-focus-grid">
 
-        {/* ══ LEFT PANEL: Configuración de Tela ══════════════════════════════ */}
-        <section className="pv2-left">
+        {/* ══ LEFT COLUMN: CAPTURA DE PERSIANA (52%) ════════════════════════ */}
+        <section className="pv2-focus-left">
           <div className="pv2-glass pv2-config-panel">
+
             {/* Header */}
-            <div className="pv2-config-header" style={{ marginBottom: isReadOnly ? '10px' : '20px' }}>
-              <span className="material-symbols-outlined pv2-icon-red">tune</span>
-              <h2 className="pv2-headline">Configuración de Tela</h2>
+            <div className="pv2-panel-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined pv2-icon-red" style={{ fontSize: 20 }}>tune</span>
+                <h2 className="pv2-headline" style={{ fontSize: '18px', margin: 0 }}>Configuración de Persiana</h2>
+              </div>
             </div>
 
             {isReadOnly && (
-              <div style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '14px', padding: '8px 12px', backgroundColor: 'var(--primary-glow)', borderRadius: '4px', border: '1px solid rgba(192,37,58,0.2)' }}>
+              <div style={{ color: 'var(--danger)', fontSize: '13px', marginBottom: '8px', padding: '6px 10px', backgroundColor: 'var(--primary-glow)', borderRadius: '4px', border: '1px solid rgba(192,37,58,0.2)' }}>
                 🔒 <strong>Solo Lectura:</strong> Acciones de modificación deshabilitadas.
               </div>
             )}
 
-            {/* Selects row */}
-            <div className="pv2-grid-2">
-              <div className="pv2-field">
-                <label className="pv2-label">Línea de Tela</label>
-                <select
-                  className="pv2-select"
-                  value={store.formValues.fabricFamily}
-                  onChange={(e) => store.setFabricFamily(e.target.value)}
-                >
-                  {fabricFamilies.map((f) => (
-                    <option key={f} value={f}>{f || 'Seleccionar'}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="pv2-field">
-                <label className="pv2-label">Openness</label>
-                <select
-                  className="pv2-select"
-                  value={store.formValues.fabricOpenness}
-                  onChange={(e) => store.setFabricOpenness(e.target.value)}
-                >
-                  {fabricOpennessOptions.map((o) => (
-                    <option key={o} value={o}>{o || 'Seleccionar'}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Dimensions row */}
-            <div className="pv2-grid-3">
-              <div className="pv2-field">
-                <label className="pv2-label">Ancho (m)</label>
-                <input
-                  ref={widthRef}
-                  className="pv2-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={store.formValues.widthMeters}
-                  onChange={(e) => store.setFormValue('widthMeters', e.target.value)}
-                  onBlur={() => store.handleFieldBlur('widthMeters')}
-                />
-                {displayErrors.widthMeters && (
-                  <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
-                    {displayErrors.widthMeters}
-                  </div>
+            {/* 1. SECCIÓN: TELA Y COLOR */}
+            <div className="pv2-section-group">
+              <div className="pv2-section-header">
+                <span className="pv2-section-title">1. Tela y Color</span>
+                {fabricLabel !== 'Sin especificar' && (
+                  <span className="pv2-section-subtitle">{fabricLabel}</span>
                 )}
               </div>
-              <div className="pv2-field">
-                <label className="pv2-label">Alto (m)</label>
-                <input
-                  className="pv2-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={store.formValues.heightMeters}
-                  onChange={(e) => store.setFormValue('heightMeters', e.target.value)}
-                  onBlur={() => store.handleFieldBlur('heightMeters')}
-                />
-                {displayErrors.heightMeters && (
-                  <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
-                    {displayErrors.heightMeters}
-                  </div>
-                )}
-              </div>
-              <div className="pv2-field">
-                <label className="pv2-label" htmlFor="input-cantidad">Cantidad</label>
-                <input
-                  id="input-cantidad"
-                  className="pv2-input"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={cantidadInput}
-                  onChange={(e) => setCantidadInput(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Order number */}
-            <div className="pv2-field">
-              <label className="pv2-label">N° Orden</label>
-              <input
-                className="pv2-input"
-                type="text"
-                placeholder="ORD-001"
-                value={store.orderDraft.orderNumber}
-                onChange={(e) => store.setOrderNumber(e.target.value)}
-                disabled={isReadOnly}
-              />
-            </div>
-
-            {/* Color swatches — usa imageUrl real del catálogo */}
-            <div className="pv2-field">
-              <label className="pv2-label">Variante de Color</label>
-              <div className="pv2-swatches">
-                {fabricColorOptions.length > 0 ? (
-                  fabricColorOptions.map((opt) => {
-                    const isActive = store.formValues.fabricColor === opt.color;
-                    return (
-                      <button
-                        key={opt.color}
-                        className={`pv2-swatch-btn ${isActive ? 'pv2-swatch-btn--active' : ''}`}
-                        onClick={() => store.setFabricColor(opt.color)}
-                        title={opt.color}
-                      >
-                        {opt.imageUrl ? (
-                          <img
-                            src={opt.imageUrl}
-                            alt={opt.color}
-                            className="pv2-swatch-img"
-                          />
-                        ) : (
-                          <div
-                            className="pv2-swatch-circle"
-                            style={{ background: getSwatchColor(opt.color) }}
-                          />
-                        )}
-                        <span className="pv2-swatch-label">{getColorLabel(opt.color)}</span>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <span className="pv2-muted-sm">Selecciona línea y openness</span>
-                )}
-              </div>
-            </div>
-
-            {/* ── Panel de Retazo — siempre visible cuando hay resultado ─── */}
-            {displayResult && (
-              <div className="pv2-retazo-panel">
-
-                {/* Encabezado con badge de matches de inventario */}
-                <div className="pv2-retazo-header">
-                  <span className="material-symbols-outlined pv2-retazo-icon">content_cut</span>
-                  <span className="pv2-retazo-title">Retazo</span>
-                  {hasRetazos && (
-                    <span className="pv2-retazo-badge">{typedMatches.length} en inventario</span>
-                  )}
-                  <button
-                    className="pv2-waste-toggle"
-                    onClick={() => setScrapsOpen(v => !v)}
+              
+              <div className="pv2-grid-2">
+                <div className="pv2-field">
+                  <label className="pv2-label" htmlFor="select-linea-tela">Línea de Tela</label>
+                  <select
+                    id="select-linea-tela"
+                    className="pv2-select"
+                    value={store.formValues.fabricFamily}
+                    onChange={(e) => store.setFabricFamily(e.target.value)}
                   >
-                    {scrapsOpen ? 'Cerrar' : 'Expandir'}
+                    {fabricFamilies.map((f) => (
+                      <option key={f} value={f}>{f || 'Seleccionar'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pv2-field">
+                  <label className="pv2-label" htmlFor="select-openness">Openness</label>
+                  <select
+                    id="select-openness"
+                    className="pv2-select"
+                    value={store.formValues.fabricOpenness}
+                    onChange={(e) => store.setFabricOpenness(e.target.value)}
+                  >
+                    {fabricOpennessOptions.map((o) => (
+                      <option key={o} value={o}>{o || 'Seleccionar'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Swatches de Color Compactos */}
+              <div className="pv2-field" style={{ marginTop: '4px' }}>
+                <div className="pv2-swatches-compact">
+                  {fabricColorOptions.length > 0 ? (
+                    fabricColorOptions.map((opt) => {
+                      const isActive = store.formValues.fabricColor === opt.color;
+                      return (
+                        <button
+                          key={opt.color}
+                          type="button"
+                          className={`pv2-swatch-chip ${isActive ? 'pv2-swatch-chip--active' : ''}`}
+                          onClick={() => store.setFabricColor(opt.color)}
+                          title={opt.color}
+                        >
+                          {opt.imageUrl ? (
+                            <img
+                              src={opt.imageUrl}
+                              alt={opt.color}
+                              className="pv2-swatch-chip-img"
+                            />
+                          ) : (
+                            <div
+                              className="pv2-swatch-chip-circle"
+                              style={{ background: getSwatchColor(opt.color) }}
+                            />
+                          )}
+                          <span className="pv2-swatch-chip-label">{getColorLabel(opt.color)}</span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <span className="pv2-muted-sm">Selecciona línea y openness</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. SECCIÓN: MEDIDAS Y MONTAJE */}
+            <div className="pv2-section-group">
+              <div className="pv2-section-title-row">
+                <span className="pv2-section-title">2. Medidas y Montaje</span>
+                <button
+                  type="button"
+                  className="pv2-btn-reset-icon"
+                  onClick={() => {
+                    store.handleNewCurtain();
+                    widthRef.current?.focus();
+                  }}
+                  title="Limpiar medidas de persiana"
+                  aria-label="Limpiar persiana actual"
+                  disabled={isReadOnly}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>restart_alt</span>
+                </button>
+              </div>
+
+              {/* Dimensiones en 1 sola fila: Ancho, Alto, Cantidad + Botón [+] */}
+              <div className="pv2-grid-dims-action">
+                <div className="pv2-field">
+                  <label className="pv2-label" htmlFor="input-ancho">Ancho (m)</label>
+                  <input
+                    id="input-ancho"
+                    ref={widthRef}
+                    className="pv2-input"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={store.formValues.widthMeters}
+                    onChange={(e) => store.setFormValue('widthMeters', e.target.value)}
+                    onBlur={() => store.handleFieldBlur('widthMeters')}
+                  />
+                  {displayErrors.widthMeters && (
+                    <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>
+                      {displayErrors.widthMeters}
+                    </div>
+                  )}
+                </div>
+                <div className="pv2-field">
+                  <label className="pv2-label" htmlFor="input-alto">Alto (m)</label>
+                  <input
+                    id="input-alto"
+                    className="pv2-input"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={store.formValues.heightMeters}
+                    onChange={(e) => store.setFormValue('heightMeters', e.target.value)}
+                    onBlur={() => store.handleFieldBlur('heightMeters')}
+                  />
+                  {displayErrors.heightMeters && (
+                    <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px' }}>
+                      {displayErrors.heightMeters}
+                    </div>
+                  )}
+                </div>
+                <div className="pv2-field pv2-field-qty">
+                  <label className="pv2-label" htmlFor="input-cantidad">Cantidad</label>
+                  <input
+                    id="input-cantidad"
+                    className="pv2-input pv2-input-qty"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={cantidadInput}
+                    onChange={(e) => setCantidadInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && canAdd && !isReadOnly) {
+                        e.preventDefault();
+                        handleAddToBatch();
+                      }
+                    }}
+                  />
+                </div>
+                <div className="pv2-field pv2-field-add-btn">
+                  <span className="pv2-label pv2-label-placeholder" aria-hidden="true">&nbsp;</span>
+                  <button
+                    type="button"
+                    className={`pv2-btn-add-inline ${canAdd && !isReadOnly ? 'pv2-btn-add-inline--active' : ''}`}
+                    onClick={handleAddToBatch}
+                    disabled={isReadOnly || !canAdd}
+                    title={isReadOnly ? "No tienes permisos de escritura" : (displayErrors.general || (canAdd ? "Agregar persiana al lote" : (!hasValidDimensions ? "Ingresa dimensiones válidas para agregar" : (displayResult?.oversizedRotated && !oversizedRotatedAccepted ? "Debes confirmar la fabricación rotada para agregar" : (displayResult?.forcedRotatedByRollLimit && !forcedRotatedAccepted ? "Debes confirmar la rotación por límite de rollo para agregar" : "Completa la configuración para agregar")))))}
+                    aria-label="Agregar persiana al lote"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_circle</span>
+                    <span className="pv2-btn-add-inline-label">Agregar</span>
                   </button>
                 </div>
+              </div>
 
-                {scrapsOpen && (
-                  <div className="pv2-retazo-body">
+              {/* Sistema de Montaje (Segmented Control Horizontal) */}
+              <div className="pv2-field" style={{ marginTop: '4px' }}>
+                <span className="pv2-label">Sistema de Montaje</span>
+                <div className="pv2-segmented-control">
+                  {([
+                    { val: 'standard'       as const, label: 'Estándar',      icon: 'grid_view' },
+                    { val: 'pin_endplug'   as const, label: 'Pin EndPlug',   icon: 'push_pin' },
+                    { val: 'double_bracket' as const, label: 'Bracket Doble', icon: 'view_column' },
+                  ]).map(({ val, label, icon }) => {
+                    const isActive = (store.mountingSystem ?? 'standard') === val;
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        className={`pv2-segmented-btn ${isActive ? "pv2-segmented-btn--active" : ""}`}
+                        onClick={() => store.setMountingSystem(val)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                    {/* ── Selector de inventario (si hay matches) */}
-                    {hasRetazos && (
-                      <>
-                        <p className="pv2-retazo-section-title">Piezas disponibles del color actual</p>
-                        <div className="pv2-waste-list">
-                          <button
-                            className={`pv2-waste-option ${!usingWaste ? 'pv2-waste-option--active' : ''}`}
-                            onClick={() => store.setSelectedWastePieceId(null)}
-                          >
-                            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>fiber_new</span>
-                            <span>Rollo nuevo</span>
-                          </button>
-                          {typedMatches.map((match) => {
-                            const p = match.wastePiece;
-                            const isSelected = store.selectedWastePieceId === p.id;
-                            return (
-                              <button
-                                key={p.id}
-                                className={`pv2-waste-option ${isSelected ? 'pv2-waste-option--active' : ''}`}
-                                onClick={() => store.setSelectedWastePieceId(p.id)}
-                              >
-                                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>cut</span>
-                                <span>
-                                  {formatNumber(p.widthMeters, 2)}m × {formatNumber(p.heightMeters, 2)}m
-                                  {' '}<em className="pv2-muted-sm">({formatNumber(p.areaM2, 2)} m²)</em>
-                                  {match.orientationUsed === 'volteada' && (
-                                    <em className="pv2-waste-rotated"> — volteado</em>
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {selectedWasteMatch && (
-                          <div className="pv2-waste-active-info">
-                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check_circle</span>
-                            Retazo activo seleccionado
-                          </div>
-                        )}
-                        <div className="pv2-retazo-divider" />
-                      </>
-                    )}
-
-                    {/* ── Entrada manual de Y² */}
-                    <label className="pv2-retazo-toggle-row">
-                      <input
-                        type="checkbox"
-                        className="pv2-retazo-checkbox"
-                        checked={useManualRetazo}
-                        onChange={(e) => {
-                          setUseManualRetazo(e.target.checked);
-                          if (!e.target.checked) setManualRetazoSqYd('');
-                        }}
-                      />
-                      <span>Ingresar Y² manualmente</span>
-                    </label>
-
-                    {useManualRetazo && (
-                      <div className="pv2-retazo-manual">
-                        <div className="pv2-field">
-                          <label className="pv2-label">Tamaño del retazo (yd²)</label>
-                          <input
-                            className="pv2-input"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={manualRetazoSqYd}
-                            onChange={(e) => setManualRetazoSqYd(e.target.value)}
-                          />
-                        </div>
-
-                        {manualRetazoVal > 0 && retazoResult && (
-                          <div className={`pv2-retazo-result ${retazoResult.alcanza ? 'pv2-retazo-result--ok' : 'pv2-retazo-result--err'
-                            }`}>
-                            {retazoResult.alcanza ? (
-                              <>
-                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
-                                <span>
-                                  Alcanza — Descargar <strong>{formatNumber(retazoResult.descargar, 2)} yd²</strong>,
-                                  {' '}merma <strong>{formatNumber(retazoResult.merma, 2)} yd²</strong>
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cancel</span>
-                                <span>
-                                  No alcanza — se necesitan{' '}
-                                  <strong>{formatNumber(displayResult.fabricDownloadedYd2, 2)} yd²</strong>,
-                                  {' '}tienes {formatNumber(manualRetazoVal, 2)} yd²
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
+              {/* Accionamiento (Segmented Control Horizontal con Motorizado explícitamente No Disponible) */}
+              <div className="pv2-field" style={{ marginTop: '4px' }}>
+                <span className="pv2-label">Accionamiento</span>
+                <div className="pv2-segmented-control">
+                  <button
+                    type="button"
+                    className={`pv2-segmented-btn ${(store.formValues.driveType ?? 'manual') === 'manual' ? 'pv2-segmented-btn--active' : ''}`}
+                    onClick={() => store.setFormValue('driveType', 'manual')}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>settings_remote</span>
+                    <span>Manual</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="pv2-segmented-btn pv2-segmented-btn--disabled"
+                    disabled
+                    title="Configuración motorizada no disponible en esta versión (reglas de motor pendientes de catálogo)"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>
+                    <span>Motorizado (No disp.)</span>
+                  </button>
+                </div>
+                {store.formValues.driveType === 'motorized' && (
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', padding: '0.4rem 0.6rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '4px', lineHeight: 1.3 }}>
+                    ⚠️ <strong>Configuración motorizada no disponible en esta versión</strong> (reglas de motor pendientes de catálogo).
                   </div>
                 )}
               </div>
-            )}
-
-
-            {/* Actions */}
-            <div className="pv2-actions-row">
-              <button
-                className="pv2-btn-primary pv2-btn-grow"
-                onClick={handleAddToBatch}
-                disabled={isReadOnly || !canAdd}
-                title={isReadOnly ? "No tienes permisos de escritura" : (displayErrors.general || `Agregar ${parsedQty > 1 ? parsedQty : ''} a Lote`)}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add_box</span>
-                {parsedQty > 1 ? `Agregar ${parsedQty} a Lote` : 'Agregar a Lote'}
-              </button>
-              <button
-                className="pv2-btn-ghost pv2-btn-icon"
-                onClick={() => store.handleNewCurtain()}
-                title="Limpiar"
-                disabled={isReadOnly}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>restart_alt</span>
-              </button>
             </div>
+
+            {/* 3. SECCIÓN: BOM COMPACTO & ALERTAS CRÍTICAS */}
+            <div className="pv2-section-group">
+              <span className="pv2-section-title">3. Manufactura & BOM</span>
+
+              {/* BOM Compact Card / Row */}
+              {hwItems.length > 0 ? (
+                <div className="pv2-bom-compact-row">
+                  <div className="pv2-bom-compact-left">
+                    <span className="material-symbols-outlined pv2-bom-check-icon">check_circle</span>
+                    <span className="pv2-bom-compact-text">
+                      <strong>BOM V2 Válido</strong>
+                      <span className="pv2-bom-compact-sep">·</span>
+                      {tubeItem ? `${bomDisplayLabel(tubeItem.componente, tubeItem.skuFinal)} (${tubeItem.skuFinal})` : 'Estructura lista'}
+                      <span className="pv2-bom-compact-sep">·</span>
+                      {hwItems.length} componentes
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="pv2-bom-drawer-toggle-btn"
+                    onClick={() => setIsBomDrawerOpen(true)}
+                    aria-label="Ver desglose completo de BOM"
+                  >
+                    <span>Ver BOM</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>open_in_new</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="pv2-bom-empty-row">
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, opacity: 0.5 }}>info</span>
+                  <span>— Ingresa dimensiones para calcular BOM</span>
+                </div>
+              )}
+
+              {/* Alertas Críticas (SIEMPRE visibles en el panel de configuración) */}
+              {displayResult?.fabricSubstitution?.wasSubstituted && displayResult.fabricSubstitution.reason === 'substituted_to_larger_width' && (
+                <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+                    <div>
+                      <strong>No hay stock en ancho {formatNumber(displayResult.fabricSubstitution.originalWidthMeters ?? 0, 2)}m. Se usará ancho {formatNumber(displayResult.fabricSubstitution.selectedWidthMeters ?? 0, 2)}m.</strong>
+                      {displayResult.fabricSubstitution.requiredYd2 != null && displayResult.fabricSubstitution.availableYd2 != null && (
+                        <p style={{ marginTop: '0.2rem', fontSize: '11px' }}>
+                          Requiere {formatNumber(displayResult.fabricSubstitution.requiredYd2, 2)} yd². Disponible: {formatNumber(displayResult.fabricSubstitution.availableYd2, 2)} yd².
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!displayResult?.fabricSubstitution?.wasSubstituted && displayResult?.fabricSubstitution?.warnings?.some(w => w.severity === 'error') && (
+                <div className="pv2-alert pv2-alert--warning" style={{ marginTop: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+                  <div>
+                    <strong>No hay stock suficiente para la tela seleccionada.</strong>
+                  </div>
+                </div>
+              )}
+
+              {displayResult?.oversizedRotated ? (
+                <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+                    <div>
+                      <strong>Fabricación rotada requerida</strong>
+                      <p style={{ fontSize: '11px' }}>Esta cortina supera los 3.00 m de ancho. Se fabricará rotada usando el ancho del rollo como alto.</p>
+                    </div>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.8rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={oversizedRotatedAccepted}
+                      onChange={(e) => setOversizedRotatedAccepted(e.target.checked)}
+                      style={{ width: '1.1rem', height: '1.1rem', cursor: 'pointer' }}
+                    />
+                    Confirmo fabricar esta cortina rotada
+                  </label>
+                </div>
+              ) : displayResult?.forcedRotatedByRollLimit ? (
+                <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+                    <div>
+                      <strong>Fabricación rotada por ancho de rollo</strong>
+                      <p style={{ fontSize: '11px' }}>Esta tela no tiene un ancho de rollo suficiente para fabricación normal.</p>
+                    </div>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.8rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={forcedRotatedAccepted}
+                      onChange={(e) => setForcedRotatedAccepted(e.target.checked)}
+                      style={{ width: '1.1rem', height: '1.1rem', cursor: 'pointer' }}
+                    />
+                    Confirmo fabricar esta cortina rotada
+                  </label>
+                </div>
+              ) : displayResult?.orientationUsed === 'volteada' && (
+                <div className="pv2-alert pv2-alert--info" style={{ marginTop: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>rotate_90_degrees_ccw</span>
+                  <div>
+                    <strong>Fabricación Rotada (90°)</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Edge Roll Fit alert */}
+              {displayResult?.edgeRollFit && (
+                <div className="pv2-alert pv2-alert--warning" style={{ marginTop: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>fit_screen</span>
+                  <div>
+                    <strong>Corte justo al rollo</strong> (sin encuadre lateral estándar).
+                  </div>
+                </div>
+              )}
+
+              {/* Tubo reforzado alert */}
+              {displayResult?.requiresReinforcedTube && !displayResult?.oversizedRotated && (
+                <div className="pv2-alert pv2-alert--warning" style={{ marginTop: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
+                  <div>
+                    <strong>Aviso de Estructura:</strong> {displayResult.tubeRecommendation}
+                  </div>
+                </div>
+              )}
+
+              {displayErrors.general && (
+                <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', padding: '6px 8px', backgroundColor: '#fef2f2', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px', verticalAlign: 'middle', marginRight: '4px' }}>error</span>
+                  {displayErrors.general}
+                </div>
+              )}
+            </div>
+
           </div>
-
-          {displayErrors.general && (
-            <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '12px', padding: '8px', backgroundColor: '#fef2f2', borderRadius: '4px', border: '1px solid #fecaca' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px' }}>error</span>
-              {displayErrors.general}
-            </div>
-          )}
-
-          {/* Save order dashed button */}
-          <button
-            className={`pv2-glass pv2-new-curtain-btn ${isReadOnly || !canSave ? 'pv2-disabled' : ''}`}
-            onClick={handleSaveOrder}
-            disabled={isReadOnly || !canSave || isSaving}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
-            <span className="pv2-label">{isSaving ? 'Guardando…' : 'Guardar Orden'}</span>
-          </button>
         </section>
 
-        {/* ══ RIGHT PANEL ════════════════════════════════════════════════════ */}
-        <section className="pv2-right">
+        {/* ══ RIGHT COLUMN: LOTE + PREVIEW + OPCIONES AVANZADAS + GUARDAR (48%) ════ */}
+        <section className="pv2-focus-right">
+          <div className="pv2-glass pv2-batch-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-          {/* Metrics row */}
-          <div className="pv2-metrics-row">
-            {metrics.map((m) => (
-              <div
-                key={m.label}
-                className={`pv2-glass pv2-metric-card ${m.accent === 'red' ? 'pv2-metric-card--red' : m.accent === 'yellow' ? 'pv2-metric-card--yellow' : m.accent === 'green' ? 'pv2-metric-card--green' : ''}`}
-              >
-                <div className="pv2-metric-label">{m.label}</div>
-                <div className="pv2-metric-value">
-                  <span className="pv2-metric-number">{m.value}</span>
-                  <span className="pv2-metric-unit">{m.unit}</span>
+            {/* A. Header del Lote & N° Orden + ● Mesa activa */}
+            <div className="pv2-batch-header">
+              <div className="pv2-panel-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined pv2-icon-red" style={{ fontSize: 20 }}>inventory_2</span>
+                  <h2 className="pv2-headline" style={{ fontSize: '18px', margin: 0 }}>Lote de Producción</h2>
+                  <span className="pv2-mesa-status-badge">
+                    <span className="pv2-mesa-pip" />
+                    Mesa activa
+                  </span>
+                </div>
+                <div className="pv2-order-input-wrapper">
+                  <label htmlFor="input-order-number" className="pv2-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>N° Orden:</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', position: 'relative' }}>
+                    <input
+                      id="input-order-number"
+                      className={`pv2-input pv2-input-order ${isDuplicateOrderNumber ? 'pv2-input--error' : ''}`}
+                      type="text"
+                      placeholder="ORD-001"
+                      value={store.orderDraft.orderNumber}
+                      onChange={(e) => store.setOrderNumber(e.target.value)}
+                      disabled={isReadOnly}
+                      style={isDuplicateOrderNumber ? { borderColor: 'var(--color-danger, #e53935)', background: 'rgba(229, 57, 53, 0.08)' } : undefined}
+                      title={isDuplicateOrderNumber ? 'Este número de orden ya existe en órdenes guardadas' : undefined}
+                    />
+                    {isDuplicateOrderNumber && (
+                      <span style={{ color: 'var(--color-danger, #e53935)', fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap', marginTop: '1px' }}>
+                        ⚠️ Ya existe esta orden
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          {/* Batch table */}
-          <div className="pv2-glass pv2-table-panel">
-            <div className="pv2-table-header">
-              <h3 className="pv2-table-title">
-                <span className="material-symbols-outlined pv2-icon-red" style={{ fontSize: 18 }}>list_alt</span>
-                Lote de Producción Activo
-              </h3>
-              <span className="pv2-badge">
-                {store.cuttingGroups.length > 0 ? 'En Proceso' : 'Vacío'}
-              </span>
+              {/* B. KPIs del Lote — 4 Pills Compactas con fallback em-dash */}
+              <div className="pv2-batch-kpis">
+                <div className="pv2-kpi-pill">
+                  <span className="pv2-kpi-pill-val">{summary.curtains}</span>
+                  <span className="pv2-kpi-pill-lbl">{summary.curtains === 1 ? 'Cortina' : 'Cortinas'}</span>
+                </div>
+                <div className="pv2-kpi-pill">
+                  <span className="pv2-kpi-pill-val">{summary.cuts}</span>
+                  <span className="pv2-kpi-pill-lbl">{summary.cuts === 1 ? 'Corte' : 'Cortes'}</span>
+                </div>
+                <div className={`pv2-kpi-pill ${summary.curtains > 0 && summary.efficiency >= 90 ? 'pv2-kpi-pill--good' : summary.curtains > 0 ? 'pv2-kpi-pill--mid' : ''}`}>
+                  <span className="pv2-kpi-pill-val">
+                    {summary.curtains > 0 ? `${Math.round(summary.efficiency)}%` : '—'}
+                  </span>
+                  <span className="pv2-kpi-pill-lbl">Eficiencia</span>
+                </div>
+                <div className="pv2-kpi-pill">
+                  <span className="pv2-kpi-pill-val">
+                    {summary.curtains > 0 ? `${formatNumber(summary.totalWaste, 2)}m` : '—'}
+                  </span>
+                  <span className="pv2-kpi-pill-lbl">Desperdicio</span>
+                </div>
+              </div>
             </div>
 
-            <div className="pv2-table-scroll">
+            {/* C. Tabla de Cortes del Lote (Scroll interno cuando crece) */}
+            <div className="pv2-table-scroll" style={{ flex: '0 1 auto', maxHeight: '180px', minHeight: '110px' }}>
               <table className="pv2-table">
                 <thead>
                   <tr className="pv2-thead-row">
-                    <th className="pv2-th">Fila de Corte</th>
+                    <th className="pv2-th">Fila</th>
                     <th className="pv2-th">Rollo</th>
                     <th className="pv2-th">Utilizado</th>
-                    <th className="pv2-th">Piezas</th>
+                    <th className="pv2-th">Piezas en este corte</th>
                     <th className="pv2-th">Eficiencia</th>
                     <th className="pv2-th pv2-th-right"></th>
                   </tr>
@@ -662,7 +798,11 @@ export function ProductionModuleV2() {
                   {store.cuttingGroups.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="pv2-table-empty">
-                        Agrega cortinas al lote para ver los cortes optimizados
+                        <div className="pv2-empty-state-clean">
+                          <span className="material-symbols-outlined pv2-empty-state-icon">inventory_2</span>
+                          <strong className="pv2-empty-state-title">El lote está vacío</strong>
+                          <p className="pv2-empty-state-subtitle">Agrega una persiana para comenzar</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -675,15 +815,15 @@ export function ProductionModuleV2() {
                       const pieces = group.items.length;
                       return (
                         <tr key={group.id ?? idx} className="pv2-tbody-row">
-                          <td className="pv2-td pv2-td-mono" data-label="Fila de Corte">{rowId}</td>
+                          <td className="pv2-td pv2-td-mono" data-label="Fila">{rowId}</td>
                           <td className="pv2-td pv2-td-muted" data-label="Rollo">{formatNumber(rollW, 2)}m</td>
                           <td className="pv2-td pv2-td-mono" data-label="Utilizado">{formatNumber(usedWidth, 2)}m</td>
                           <td className="pv2-td" data-label="Piezas">
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontWeight: '500' }}>{pieces} {pieces === 1 ? 'Cortina' : 'Cortinas'}</span>
+                              <span style={{ fontWeight: '600' }}>{pieces} {pieces === 1 ? 'Cortina' : 'Cortinas'}</span>
                               {group.items.map((item: any) => (
                                 <span key={item.id} style={{ fontSize: '11px', color: '#9ca3af' }}>
-                                  {formatNumber(item.input.widthMeters, 2)}m x {formatNumber(item.input.heightMeters, 2)}m
+                                  {formatNumber(item.input.widthMeters, 2)}m × {formatNumber(item.input.heightMeters, 2)}m
                                 </span>
                               ))}
                             </div>
@@ -703,14 +843,14 @@ export function ProductionModuleV2() {
                           </td>
                           <td className="pv2-td pv2-td-right" data-label="Acción">
                             <button
+                              type="button"
                               className="pv2-row-action"
                               onClick={() => {
                                 if (isReadOnly) return;
-                                // Remove all items from this group
                                 group.items.forEach((item: any) => store.removeProductionItem(item.id));
                               }}
                               disabled={isReadOnly}
-                              title={isReadOnly ? "No tienes permisos" : "Eliminar fila"}
+                              title={isReadOnly ? "No tienes permisos" : "Eliminar fila del lote"}
                             >
                               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
                             </button>
@@ -722,368 +862,503 @@ export function ProductionModuleV2() {
                 </tbody>
               </table>
             </div>
-          </div>
 
-          {displayResult?.fabricSubstitution?.wasSubstituted && (
-            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-                <div>
-                  <strong>No hay stock en ancho {formatNumber(displayResult.fabricSubstitution.originalWidthMeters ?? 0, 2)}m. Se usará ancho {formatNumber(displayResult.fabricSubstitution.selectedWidthMeters ?? 0, 2)}m porque cubre el requerimiento.</strong>
-                  {displayResult.fabricSubstitution.requiredYd2 != null && displayResult.fabricSubstitution.availableYd2 != null && (
-                    <p style={{ marginTop: '0.25rem' }}>
-                      Requiere {formatNumber(displayResult.fabricSubstitution.requiredYd2, 2)} yd². Disponible: {formatNumber(displayResult.fabricSubstitution.availableYd2, 2)} yd².
-                    </p>
+            {/* D. PREVIEW DE FABRICACIÓN COMPACTO (Informativo, Read-Only, Plegable) */}
+            <div className="pv2-mfg-preview-card" style={{ marginTop: '8px' }}>
+              <div className="pv2-mfg-preview-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-outlined pv2-icon-red" style={{ fontSize: 16 }}>precision_manufacturing</span>
+                  <span className="pv2-mfg-preview-title">
+                    {store.cuttingGroups.length > 0 ? 'Preview de Fabricación' : hasValidDimensions && displayResult ? 'Vista Previa Estimada' : 'Vista Previa de Fabricación'}
+                  </span>
+                  {store.cuttingGroups.length > 0 ? (
+                    <span className="pv2-mfg-badge">{store.cuttingGroups.length} {store.cuttingGroups.length === 1 ? 'corte activo' : 'cortes activos'}</span>
+                  ) : hasValidDimensions && displayResult ? (
+                    <span className="pv2-mfg-badge pv2-mfg-badge--estimate">Estimación actual</span>
+                  ) : null}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {(store.cuttingGroups.length > 0 || (hasValidDimensions && Boolean(displayResult))) && (
+                    <button
+                      type="button"
+                      className="pv2-btn-ghost-sm"
+                      onClick={() => setIsPreviewDetailOpen(true)}
+                      style={{ fontSize: '11px', color: '#60a5fa', padding: '2px 6px', fontWeight: 600 }}
+                      aria-label="Ver detalle completo de fabricación"
+                    >
+                      Ver detalle
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="pv2-btn-ghost-sm"
+                    onClick={() => setIsPreviewCollapsed(v => !v)}
+                    style={{ fontSize: '11px', padding: '2px 6px' }}
+                    aria-expanded={!isPreviewCollapsed}
+                  >
+                    {isPreviewCollapsed ? 'Mostrar' : 'Ocultar'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Contenido del Preview: Lote activo o Estimación del formulario */}
+              {!isPreviewCollapsed && (
+                store.cuttingGroups.length > 0 ? (
+                  <div className="pv2-mfg-preview-body">
+                    {store.cuttingGroups.map((group, gIdx) => {
+                      const rollW = group.rollWidth || 2.50;
+                      const usedW = group.totalCutWidth;
+                      const wasteW = Math.max(0, group.waste);
+                      const eff = rollW > 0 ? Math.min((usedW / rollW) * 100, 100) : 0;
+                      const firstItem = group.items[0];
+                      const orientation = firstItem?.result?.orientationUsed ?? 'normal';
+                      const isEdge = Boolean(firstItem?.result?.edgeRollFit);
+                      const tubeDesc = firstItem?.result?.tubeRecommendation || 'Tubo Estándar';
+
+                      return (
+                        <div key={group.id ?? gIdx} className="pv2-mfg-group-row">
+                          {/* Sub-header técnico compacto */}
+                          <div className="pv2-mfg-compact-techline">
+                            <span>Estructura: <strong>{tubeDesc}</strong></span>
+                            <span>·</span>
+                            <span>Rollo: <strong>{formatNumber(rollW, 2)}m</strong></span>
+                            {orientation === 'volteada' && <span className="pv2-pill-rotated">↻ Rotada 90°</span>}
+                            {isEdge && <span className="pv2-pill-edge">Fit al Rollo</span>}
+                          </div>
+
+                          {/* Diagrama Gráfico de Rollo / Cortes */}
+                          <div className="pv2-roll-diagram">
+                            <div className="pv2-roll-bar-header">
+                              <span className="pv2-roll-tag">ROLLO {formatNumber(rollW, 2)}m</span>
+                              <span className="pv2-roll-util">Utilización: {Math.round(eff)}%</span>
+                            </div>
+                            <div className="pv2-roll-track" role="img" aria-label={`Diagrama de corte de rollo de ${formatNumber(rollW, 2)}m`}>
+                              {group.items.map((item: any, pIdx: number) => {
+                                const pieceW = item.input.widthMeters;
+                                const pct = Math.max(8, Math.min((pieceW / rollW) * 100, 100));
+                                return (
+                                  <div
+                                    key={item.id ?? pIdx}
+                                    className="pv2-roll-piece"
+                                    style={{ width: `${pct}%` }}
+                                    title={`Cortina ${pIdx + 1} (${formatNumber(pieceW, 2)}m × ${formatNumber(item.input.heightMeters, 2)}m)`}
+                                  >
+                                    <span className="pv2-roll-piece-label">P{pIdx + 1} · {formatNumber(pieceW, 2)}m</span>
+                                  </div>
+                                );
+                              })}
+                              {wasteW > 0.01 && (
+                                <div
+                                  className="pv2-roll-waste"
+                                  style={{ width: `${Math.max(8, (wasteW / rollW) * 100)}%` }}
+                                  title={`Merma: ${formatNumber(wasteW, 2)}m`}
+                                >
+                                  <span className="pv2-roll-waste-label">Merma {formatNumber(wasteW, 2)}m</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="pv2-roll-meta-row">
+                              <span>Utilizado: <strong>{formatNumber(usedW, 2)}m ({Math.round(eff)}%)</strong></span>
+                              <span>·</span>
+                              <span>Desperdicio: <strong>{formatNumber(wasteW, 2)}m</strong></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : hasValidDimensions && displayResult ? (
+                  /* Estimación con Formulario Actual */
+                  <div className="pv2-mfg-preview-body">
+                    {(() => {
+                      const rollW = displayResult.recommendedRollWidthMeters || displayResult.fabricSubstitution?.selectedWidthMeters || 2.50;
+                      const usedW = parsedFormValues?.widthMeters ?? displayResult.cutWidthMeters ?? 0;
+                      const wasteW = Math.max(0, displayResult.wasteWidthMeters ?? (rollW - usedW));
+                      const eff = rollW > 0 ? Math.min((usedW / rollW) * 100, 100) : 0;
+                      const orientation = displayResult.orientationUsed ?? 'normal';
+                      const isEdge = Boolean(displayResult.edgeRollFit);
+                      const tubeDesc = displayResult.tubeRecommendation || (tubeItem ? bomDisplayLabel(tubeItem.componente, tubeItem.skuFinal) : 'Tubo Estándar');
+
+                      return (
+                        <div className="pv2-mfg-group-row">
+                          {/* Sub-header técnico compacto */}
+                          <div className="pv2-mfg-compact-techline">
+                            <span>Estructura: <strong>{tubeDesc}</strong></span>
+                            <span>·</span>
+                            <span>Rollo: <strong>{formatNumber(rollW, 2)}m</strong></span>
+                            {orientation === 'volteada' && <span className="pv2-pill-rotated">↻ Rotada 90°</span>}
+                            {isEdge && <span className="pv2-pill-edge">Fit al Rollo</span>}
+                          </div>
+
+                          {/* Diagrama Gráfico de Rollo */}
+                          <div className="pv2-roll-diagram">
+                            <div className="pv2-roll-bar-header">
+                              <span className="pv2-roll-tag">ROLLO {formatNumber(rollW, 2)}m</span>
+                              <span className="pv2-roll-util">Utilización: {Math.round(eff)}%</span>
+                            </div>
+                            <div className="pv2-roll-track" role="img" aria-label={`Diagrama de corte estimado sobre rollo de ${formatNumber(rollW, 2)}m`}>
+                              <div
+                                className="pv2-roll-piece"
+                                style={{ width: `${Math.max(10, Math.min((usedW / rollW) * 100, 100))}%` }}
+                                title={`Cortina estimada: ${formatNumber(usedW, 2)}m`}
+                              >
+                                <span className="pv2-roll-piece-label">Cortina 1 · {formatNumber(usedW, 2)}m</span>
+                              </div>
+                              {wasteW > 0.01 && (
+                                <div
+                                  className="pv2-roll-waste"
+                                  style={{ width: `${Math.max(8, (wasteW / rollW) * 100)}%` }}
+                                  title={`Merma estimada: ${formatNumber(wasteW, 2)}m`}
+                                >
+                                  <span className="pv2-roll-waste-label">Merma {formatNumber(wasteW, 2)}m</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="pv2-roll-meta-row">
+                              <span>Utilizado: <strong>{formatNumber(usedW, 2)}m ({Math.round(eff)}%)</strong></span>
+                              <span>·</span>
+                              <span>Desperdicio: <strong>{formatNumber(wasteW, 2)}m</strong></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  /* Estado Vacío Informativo */
+                  <div className="pv2-mfg-empty">
+                    <span className="material-symbols-outlined pv2-mfg-empty-icon">precision_manufacturing</span>
+                    <strong className="pv2-mfg-empty-title">Configura una persiana</strong>
+                    <p className="pv2-mfg-empty-subtitle">Ingresa dimensiones para ver la disposición de corte en el rollo</p>
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* E. SECCIÓN: OPCIONES AVANZADAS (Acordeón Plegable en Panel Derecho) */}
+            <div className="pv2-advanced-accordion" style={{ marginTop: '10px' }}>
+              <button
+                type="button"
+                className="pv2-advanced-toggle"
+                onClick={() => setIsAdvancedOpen(v => !v)}
+                aria-expanded={isAdvancedOpen}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 15 }}>tune</span>
+                  <span>Opciones avanzadas</span>
+                  {toneOverride !== null && (
+                    <span className="pv2-advanced-badge">Tono manual</span>
+                  )}
+                  {usingWaste && (
+                    <span className="pv2-advanced-badge">Retazo activo</span>
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {!displayResult?.fabricSubstitution?.wasSubstituted && displayResult?.fabricSubstitution?.warnings?.some(w => w.severity === 'error') && (
-            <div className="pv2-alert pv2-alert--warning">
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-              <div>
-                <strong>No hay stock suficiente para la tela seleccionada. La orden podría fallar al sincronizar inventario.</strong>
-              </div>
-            </div>
-          )}
-
-          {displayResult?.oversizedRotated ? (
-            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-                <div>
-                  <strong>Fabricación rotada requerida</strong>
-                  <p>Esta cortina supera los 3.00 m de ancho. Para fabricarla debe hacerse rotada, usando el ancho del rollo como alto disponible. Verifica que el alto más el extra de enrollo quepa dentro del rollo.</p>
-                </div>
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  checked={oversizedRotatedAccepted}
-                  onChange={(e) => setOversizedRotatedAccepted(e.target.checked)}
-                  style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
-                />
-                Confirmo fabricar esta cortina rotada
-              </label>
-            </div>
-          ) : displayResult?.forcedRotatedByRollLimit ? (
-            <div className="pv2-alert pv2-alert--warning" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-                <div>
-                  <strong>Fabricación rotada por ancho de rollo</strong>
-                  <p>Esta tela no tiene un ancho de rollo suficiente para fabricar la cortina en orientación normal. Se fabricará rotada, usando el ancho del rollo como alto disponible. Verifica que el alto más el extra de enrollo quepa dentro del rollo.</p>
-                </div>
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  checked={forcedRotatedAccepted}
-                  onChange={(e) => setForcedRotatedAccepted(e.target.checked)}
-                  style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
-                />
-                Confirmo fabricar esta cortina rotada
-              </label>
-            </div>
-          ) : displayResult?.orientationUsed === 'volteada' && (
-            <div className="pv2-alert pv2-alert--info">
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>rotate_90_degrees_ccw</span>
-              <div>
-                <strong>Fabricación Rotada (90°)</strong>
-                <p>Esta cortina debe fabricarse girada para cumplir con las medidas.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Edge Roll Fit alert */}
-          {displayResult?.edgeRollFit && (
-            <div className="pv2-alert pv2-alert--warning">
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>fit_screen</span>
-              <div>
-                <strong>Corte justo al rollo</strong>
-                <p>La medida final cabe en el rollo, pero el encuadre estándar excede el ancho disponible. Se permitirá fabricar sin encuadre lateral.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Tubo reforzado alert */}
-          {displayResult?.requiresReinforcedTube && !displayResult?.oversizedRotated && (
-            <div className="pv2-alert pv2-alert--warning">
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-              <div>
-                <strong>Aviso de Estructura</strong>
-                <p>{displayResult.tubeRecommendation}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Fabric preview — imagen real del catálogo */}
-          <div className="pv2-glass pv2-fabric-preview">
-            {selectedFabricPreview?.imageUrl ? (
-              <img
-                src={selectedFabricPreview.imageUrl}
-                alt={selectedFabricPreview.color}
-                className="pv2-fabric-img"
-              />
-            ) : (
-              <div
-                className="pv2-fabric-swatch"
-                style={{ background: selectedSwatchColor }}
-              />
-            )}
-            <div className="pv2-fabric-info">
-              <h4 className="pv2-fabric-name">
-                {fabricLabel}
-              </h4>
-              <p className="pv2-fabric-sku">
-                {selectedFabricPreview
-                  ? `Rollo: ${formatNumber(selectedFabricPreview.widthMeters ?? 0, 2)}m ancho`
-                  : 'Selecciona una tela para ver detalles'}
-              </p>
-              <div className="pv2-fabric-tags">
-                {selectedFabricPreview && (
-                  <>
-                    <span className="pv2-fabric-tag">
-                      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>straighten</span>
-                      {formatNumber(selectedFabricPreview.widthMeters ?? 0, 2)}m ancho
-                    </span>
-                    {displayResult && (
-                      <span className="pv2-fabric-tag">
-                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>inventory_2</span>
-                        {formatNumber(displayResult.fabricDownloadedYd2, 2)} yd² este corte
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ══ EXTRA PANEL: Herrajes BOM ══════════════════════════════════ */}
-        <section className="pv2-extra">
-          <div className="pv2-glass pv2-sys-panel" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-
-
-            {/* Header */}
-            <div className="pv2-config-header" style={{ justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="material-symbols-outlined pv2-icon-red">construction</span>
-                <h2 className="pv2-headline">Herrajes · BOM</h2>
-              </div>
-              {hwItems.length > 0 && (
-                <span className="pv2-badge" style={{ background: '#334155', fontSize: '0.6rem' }}>
-                  {hwItems.length} componentes
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {isAdvancedOpen ? 'expand_less' : 'expand_more'}
                 </span>
-              )}
-            </div>
+              </button>
 
-            {/* Accionamiento */}
-            <div className="pv2-sys-section">
-              <span className="pv2-label">Accionamiento</span>
-              <div className="pv2-sys-toggle-group">
-                {(['manual', 'motorized'] as const).map((dt) => (
-                  <button
-                    key={dt}
-                    className={`pv2-sys-toggle ${(store.formValues.driveType ?? 'manual') === dt ? 'pv2-sys-toggle--active' : ''}`}
-                    onClick={() => store.setFormValue('driveType', dt)}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                      {dt === 'manual' ? 'settings_remote' : 'electric_bolt'}
-                    </span>
-                    {dt === 'manual' ? 'Manual' : 'Motorizado'}
-                  </button>
-                ))}
-              </div>
-              {store.formValues.driveType === 'motorized' && (
-                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', padding: '0.5rem 0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', lineHeight: 1.4 }}>
-                  ⚠️ <strong>Configuración motorizada no disponible en esta versión</strong> (reglas de motor pendientes de catálogo).
+              {isAdvancedOpen && (
+                <div className="pv2-advanced-body">
+                  {/* Tono de herrajes */}
+                  <div className="pv2-field">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span className="pv2-label" style={{ margin: 0 }}>Tono de Herrajes</span>
+                      {toneOverride !== null && (
+                        <button
+                          type="button"
+                          onClick={() => setToneOverride(null)}
+                          style={{ fontSize: '0.65rem', color: '#9ca3af', background: 'none', border: '1px solid #374151', borderRadius: 4, padding: '2px 6px', cursor: 'pointer' }}
+                          title="Volver al tono automático"
+                        >
+                          ↺ Auto
+                        </button>
+                      )}
+                    </div>
+                    <div className="pv2-segmented-control">
+                      {([
+                        { val: 'white',  label: 'White',  dot: '#f0ece4' },
+                        { val: 'ivory',  label: 'Ivory',  dot: '#d4c8b0' },
+                        { val: 'grey',   label: 'Grey',   dot: '#838b91' },
+                        { val: 'bronze', label: 'Bronze', dot: '#a07840' },
+                      ] as const).map(({ val, label, dot }) => {
+                        const isAuto = val === autoTone && toneOverride === null;
+                        const isActive = selectedTone === val;
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            className={`pv2-segmented-btn ${isActive ? 'pv2-segmented-btn--active' : ''}`}
+                            onClick={() => setToneOverride(val)}
+                            title={isAuto ? 'Auto-detectado del color de tela' : ''}
+                          >
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                            <span>{label}</span>
+                            {isAuto && <span style={{ fontSize: '0.5rem', opacity: 0.7, marginLeft: 2 }}>AUTO</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Panel de Retazo */}
+                  {displayResult && (
+                    <div className="pv2-retazo-panel" style={{ marginTop: '10px' }}>
+                      <div className="pv2-retazo-header">
+                        <span className="material-symbols-outlined pv2-retazo-icon">content_cut</span>
+                        <span className="pv2-retazo-title">Gestión de Retazos</span>
+                        {hasRetazos && (
+                          <span className="pv2-retazo-badge">{typedMatches.length} en stock</span>
+                        )}
+                        <button
+                          type="button"
+                          className="pv2-waste-toggle"
+                          onClick={() => setScrapsOpen(v => !v)}
+                        >
+                          {scrapsOpen ? 'Cerrar' : 'Expandir'}
+                        </button>
+                      </div>
+
+                      {scrapsOpen && (
+                        <div className="pv2-retazo-body">
+                          {hasRetazos && (
+                            <>
+                              <p className="pv2-retazo-section-title">Piezas disponibles en inventario</p>
+                              <div className="pv2-waste-list">
+                                <button
+                                  type="button"
+                                  className={`pv2-waste-option ${!usingWaste ? 'pv2-waste-option--active' : ''}`}
+                                  onClick={() => store.setSelectedWastePieceId(null)}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>fiber_new</span>
+                                  <span>Rollo nuevo</span>
+                                </button>
+                                {typedMatches.map((match) => {
+                                  const p = match.wastePiece;
+                                  const isSelected = store.selectedWastePieceId === p.id;
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      className={`pv2-waste-option ${isSelected ? 'pv2-waste-option--active' : ''}`}
+                                      onClick={() => store.setSelectedWastePieceId(p.id)}
+                                    >
+                                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cut</span>
+                                      <span>
+                                        {formatNumber(p.widthMeters, 2)}m × {formatNumber(p.heightMeters, 2)}m
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+
+                          <label className="pv2-retazo-toggle-row" style={{ marginTop: '8px' }}>
+                            <input
+                              type="checkbox"
+                              className="pv2-retazo-checkbox"
+                              checked={useManualRetazo}
+                              onChange={(e) => {
+                                setUseManualRetazo(e.target.checked);
+                                if (!e.target.checked) setManualRetazoSqYd('');
+                              }}
+                            />
+                            <span>Ingresar retazo manual en Y²</span>
+                          </label>
+
+                          {useManualRetazo && (
+                            <div className="pv2-retazo-manual" style={{ marginTop: '6px' }}>
+                              <input
+                                className="pv2-input"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00 yd²"
+                                value={manualRetazoSqYd}
+                                onChange={(e) => setManualRetazoSqYd(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-            {/* Sistema de Montaje */}
-            <div className="pv2-sys-section">
-              <span className="pv2-label">Sistema de Montaje</span>
-              <div className="pv2-sys-toggle-group" style={{ flexWrap: "wrap" }}>
-                {([
-                  { val: 'standard'       as const, label: 'Est\u00e1ndar',      icon: 'grid_view' },
-                  { val: 'pin_endplug'   as const, label: 'Pin EndPlug',   icon: 'push_pin' },
-                  { val: 'double_bracket' as const, label: 'Bracket Doble', icon: 'view_column' },
-                ]).map(({ val, label, icon }) => {
-                  const isActive = (store.mountingSystem ?? 'standard') === val;
-                  return (
-                    <button
-                      key={val}
-                      className={isActive ? "pv2-sys-toggle pv2-sys-toggle--active" : "pv2-sys-toggle"}
-                      onClick={() => store.setMountingSystem(val)}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+
+            {/* F. CTA Primario de Guardado de Orden (Sticky al fondo del panel derecho) */}
+            <div className="pv2-batch-footer-action">
+              <button
+                type="button"
+                className={`pv2-btn-save-order ${isReadOnly || !canSave ? 'pv2-btn-save-order--disabled' : ''}`}
+                onClick={handleSaveOrder}
+                disabled={isReadOnly || !canSave || isSaving}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>save</span>
+                <span>
+                  {isSaving ? 'Guardando orden...' : `Guardar Orden · ${summary.curtains} ${summary.curtains === 1 ? 'persiana' : 'persianas'}`}
+                </span>
+              </button>
             </div>
-
-
-            {/* Tono de herrajes — auto + override manual */}
-            <div className="pv2-sys-section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                <span className="pv2-label" style={{ margin: 0 }}>Tono de Herrajes</span>
-                {toneOverride !== null && (
-                  <button
-                    onClick={() => setToneOverride(null)}
-                    style={{ fontSize: '0.55rem', color: '#6b7280', background: 'none', border: '1px solid #374151', borderRadius: 4, padding: '0.1rem 0.35rem', cursor: 'pointer' }}
-                    title="Volver al tono automático"
-                  >
-                    ↺ Auto
-                  </button>
-                )}
-              </div>
-              <div className="pv2-sys-toggle-group" style={{ flexWrap: 'wrap' }}>
-                {([
-                  { val: 'white',  label: 'White',  dot: '#f0ece4' },
-                  { val: 'ivory',  label: 'Ivory',  dot: '#d4c8b0' },
-                  { val: 'grey',   label: 'Grey',   dot: '#838b91' },
-                  { val: 'bronze', label: 'Bronze', dot: '#a07840' },
-                ] as const).map(({ val, label, dot }) => {
-                  const isAuto = val === autoTone && toneOverride === null;
-                  const isActive = selectedTone === val;
-                  return (
-                    <button
-                      key={val}
-                      className={`pv2-sys-toggle ${isActive ? 'pv2-sys-toggle--active' : ''}`}
-                      onClick={() => setToneOverride(val)}
-                      title={isAuto ? 'Auto-detectado del color de tela' : ''}
-                    >
-                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
-                      {label}
-                      {isAuto && <span style={{ fontSize: '0.48rem', opacity: 0.7, marginLeft: 1 }}>AUTO</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedTone === null && (
-                <div style={{ marginTop: '0.5rem', color: '#fca5a5', fontSize: '0.72rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
-                  <span>No hay tono automático configurado para este color. Selecciona el tono manualmente.</span>
-                </div>
-              )}
-            </div>
-
-            {/* BOM Table — SKU + cantidad, sin inventario */}
-            {hwItems.length > 0 ? (
-              <div style={{ flex: 1, overflowY: 'auto', marginTop: '0.25rem' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(0,0,0,0.35)' }}>
-                      {['Componente', 'SKU', 'Cant.'].map(h => (
-                        <th key={h} style={{ padding: '0.35rem 0.5rem', textAlign: 'left', color: '#6b7280', fontWeight: 600, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hwItems.map((item, i) => (
-                      <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '0.35rem 0.5rem' }}>
-                          <div style={{ color: '#e5e7eb', fontSize: '0.66rem', fontWeight: 600 }}>
-                            {bomDisplayLabel(item.componente, item.skuFinal)}
-                          </div>
-                          <div style={{ color: '#6b7280', fontSize: '0.55rem', marginTop: '1px' }}>
-                            {getHWDesc(item.skuFinal) ?? item.componente}
-                          </div>
-                        </td>
-                        <td style={{ padding: '0.35rem 0.5rem', fontWeight: 700, color: '#f9fafb', fontFamily: 'monospace', fontSize: '0.62rem' }}>
-                          {item.skuFinal}
-                        </td>
-                        <td style={{ padding: '0.35rem 0.5rem', color: '#a5b4fc', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.65rem' }}>
-                          {item.unidad === 'm'
-                            ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft`
-                            : `${item.cantidadCalculada} EA`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.5rem', color: '#4b5563' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, opacity: 0.3 }}>construction</span>
-                <span style={{ fontSize: '0.75rem' }}>Ingresa dimensiones para ver el BOM</span>
-              </div>
-            )}
 
           </div>
         </section>
+
       </div>
 
-      {/* ── Fixed footer status bar ────────────────────────────────────────── */}
-      <footer className="pv2-footer">
-        <div className="pv2-footer-left">
-          <div className="pv2-footer-kpi pv2-footer-kpi--red">
-            <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>bolt</span>
-            <span>Eficiencia: {Math.round(summary.efficiency)}%</span>
-          </div>
-          <div className="pv2-footer-kpi">
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>recycling</span>
-            <span>Desperdicio: {formatNumber(summary.totalWaste, 2)}m</span>
+      {/* ══ MANUFACTURING PREVIEW DETAIL DRAWER (PORTAL OVERLAY) ═════════ */}
+      {isPreviewDetailOpen && (
+        <div className="pv2-bom-drawer-backdrop" onClick={() => setIsPreviewDetailOpen(false)}>
+          <div
+            className="pv2-bom-drawer"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detalle Completo de Fabricación y Corte"
+          >
+            <div className="pv2-bom-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined pv2-icon-red">precision_manufacturing</span>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#fff' }}>Detalle de Fabricación y Corte</h3>
+              </div>
+              <button
+                type="button"
+                className="pv2-bom-drawer-close"
+                onClick={() => setIsPreviewDetailOpen(false)}
+                aria-label="Cerrar detalle de fabricación"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+              <div className="pv2-section-group">
+                <span className="pv2-section-title">Especificaciones Técnicas</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', marginTop: '6px' }}>
+                  <div><span style={{ color: '#9ca3af' }}>Tela:</span> <strong>{fabricLabel}</strong></div>
+                  <div><span style={{ color: '#9ca3af' }}>Montaje:</span> <strong>{store.mountingSystem === 'pin_endplug' ? 'Pin EndPlug' : store.mountingSystem === 'double_bracket' ? 'Bracket Doble' : 'Estándar'}</strong></div>
+                  <div><span style={{ color: '#9ca3af' }}>Medidas:</span> <strong>{parsedFormValues?.widthMeters ?? 0}m × {parsedFormValues?.heightMeters ?? 0}m</strong></div>
+                  <div><span style={{ color: '#9ca3af' }}>Tubo:</span> <strong>{displayResult?.tubeRecommendation ?? 'Estándar'}</strong></div>
+                </div>
+              </div>
+
+              {displayResult && (
+                <div className="pv2-section-group">
+                  <span className="pv2-section-title">Consumo y Rendimiento de Tela</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', marginTop: '6px' }}>
+                    <div><span style={{ color: '#9ca3af' }}>Descargado:</span> <strong>{formatNumber(displayResult.fabricDownloadedYd2 ?? 0, 2)} yd²</strong></div>
+                    <div><span style={{ color: '#9ca3af' }}>Útil:</span> <strong>{formatNumber(displayResult.fabricUsefulYd2 ?? 0, 2)} yd²</strong></div>
+                    <div><span style={{ color: '#9ca3af' }}>Desperdicio:</span> <strong>{formatNumber(displayResult.wasteYd2 ?? 0, 2)} yd² ({Math.round(displayResult.wastePercentage ?? 0)}%)</strong></div>
+                    <div><span style={{ color: '#9ca3af' }}>Orientación:</span> <strong>{displayResult.orientationUsed === 'volteada' ? 'Rotada 90°' : 'Normal'}</strong></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pv2-bom-drawer-footer">
+              <button
+                type="button"
+                className="pv2-btn-primary"
+                onClick={() => setIsPreviewDetailOpen(false)}
+                style={{ width: '100%' }}
+              >
+                Cerrar Detalle
+              </button>
+            </div>
           </div>
         </div>
-        <div className="pv2-footer-right">
-          <div className="pv2-footer-stat">
-            <span className="pv2-footer-stat-label">Total Cortinas:</span>
-            <span className="pv2-footer-stat-value">{summary.curtains}</span>
-          </div>
-          <div className="pv2-footer-stat">
-            <span className="pv2-footer-stat-label">Cortes Realizados:</span>
-            <span className="pv2-footer-stat-value">{summary.cuts}</span>
-          </div>
-          <div className="pv2-footer-stat pv2-footer-stat--sep">
-            <span className="pv2-status-pip" />
-            <span className="pv2-footer-active">Mesa de Corte: Activa</span>
+      )}
+
+      {/* ══ SLIDING BOM DRAWER (PORTAL OVERLAY) ════════════════════════════ */}
+      {isBomDrawerOpen && (
+        <div className="pv2-bom-drawer-backdrop" onClick={() => setIsBomDrawerOpen(false)}>
+          <div
+            className="pv2-bom-drawer"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Desglose Completo de Herrajes BOM"
+          >
+            <div className="pv2-bom-drawer-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="material-symbols-outlined pv2-icon-red">construction</span>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#fff' }}>Desglose de Herrajes · BOM V2</h3>
+              </div>
+              <button
+                type="button"
+                className="pv2-bom-drawer-close"
+                onClick={() => setIsBomDrawerOpen(false)}
+                aria-label="Cerrar desglose BOM"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="pv2-bom-drawer-meta">
+              <span><strong>Sistema:</strong> {store.mountingSystem === 'pin_endplug' ? 'Pin EndPlug' : store.mountingSystem === 'double_bracket' ? 'Bracket Doble' : 'Estándar'}</span>
+              <span><strong>Tono:</strong> {activeTone.toUpperCase()}</span>
+              <span><strong>Medida:</strong> {parsedFormValues?.widthMeters ?? 0}m × {parsedFormValues?.heightMeters ?? 0}m</span>
+            </div>
+
+            <div className="pv2-bom-drawer-table-wrap">
+              <table className="pv2-table pv2-table--compact">
+                <thead>
+                  <tr className="pv2-thead-row">
+                    <th className="pv2-th">Componente</th>
+                    <th className="pv2-th">SKU</th>
+                    <th className="pv2-th pv2-th-right">Cantidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hwItems.map((item, idx) => (
+                    <tr key={idx} className="pv2-tbody-row">
+                      <td className="pv2-td">
+                        <div style={{ fontWeight: 600, color: '#e5e7eb' }}>
+                          {bomDisplayLabel(item.componente, item.skuFinal)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                          {getHWDesc(item.skuFinal) ?? item.componente}
+                        </div>
+                      </td>
+                      <td className="pv2-td pv2-td-mono" style={{ fontSize: '12px', color: '#f3f4f6' }}>
+                        {item.skuFinal}
+                      </td>
+                      <td className="pv2-td pv2-td-right" style={{ fontWeight: 700, color: '#a5b4fc' }}>
+                        {item.unidad === 'm'
+                          ? `${(item.cantidadCalculada * M_TO_FT).toFixed(2)} ft`
+                          : `${item.cantidadCalculada} EA`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pv2-bom-drawer-footer">
+              <button
+                type="button"
+                className="pv2-btn-primary"
+                onClick={() => setIsBomDrawerOpen(false)}
+                style={{ width: '100%' }}
+              >
+                Cerrar Desglose
+              </button>
+            </div>
           </div>
         </div>
-      </footer>
+      )}
 
       {/* ── Bracket Doble width guard modal (portal) ─────────────────────── */}
       {widthGuard.needsConfirmation && (
         <DoubleBracketWidthAlert
           widthM={parsedFormValues?.widthMeters ?? 0}
-          onCancel={widthGuard.handleCancel}
           onConfirm={widthGuard.handleConfirm}
+          onCancel={widthGuard.handleCancel}
         />
       )}
 
-      {/* ── Fabricación especial inline badge ────────────────────────────── */}
-      {widthGuard.approvalState === 'risk_accepted' && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '4.5rem',
-            right: '1rem',
-            zIndex: 8000,
-            background: 'rgba(239,68,68,0.12)',
-            border: '1px solid rgba(239,68,68,0.4)',
-            borderRadius: 10,
-            padding: '0.45rem 0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            fontSize: '0.72rem',
-            color: '#fca5a5',
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>warning</span>
-          Fabricación Especial · Riesgo asumido por cliente
-        </div>
-      )}
     </div>
   );
 }
-
-
-

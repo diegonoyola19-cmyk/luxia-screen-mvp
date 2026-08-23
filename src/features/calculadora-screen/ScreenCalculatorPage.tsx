@@ -335,11 +335,36 @@ export function ScreenCalculatorPage() {
       >
         <div className="app-sidebar__inner">
           <div className="app-sidebar__header">
-            <LuxiaIcon width={32} height={32} />
-            <div className="app-sidebar__header-text">
-              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.04em', color: 'var(--text)', lineHeight: 1 }}>LUXIA</span>
-              <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '0.55rem', fontWeight: 500, letterSpacing: '0.01em', color: 'var(--text-muted, #6E6E73)', marginTop: '2px' }}>Powered by Vertilux</span>
+            <div className="app-sidebar__brand">
+              <div className="app-sidebar__logo">
+                <LuxiaIcon width={32} height={32} />
+              </div>
+              <div className="app-sidebar__header-text">
+                <span className="app-sidebar__brand-title">LUXIA</span>
+                <span className="app-sidebar__brand-subtitle">Powered by Vertilux</span>
+              </div>
             </div>
+            {!isMobile && (
+              <button 
+                type="button"
+                className="app-sidebar__toggle" 
+                onClick={() => {
+                  if (isPinned) {
+                    setIsPinned(false);
+                    setForceCollapsed(true);
+                  } else {
+                    setIsPinned(true);
+                    setForceCollapsed(false);
+                  }
+                }}
+                title={isPinned ? "Contraer menú" : "Expandir menú"}
+                aria-label={isPinned ? "Contraer menú" : "Expandir menú"}
+              >
+                <span className="material-symbols-outlined app-sidebar__toggle-icon" style={{ fontSize: '18px' }}>
+                  {isPinned ? 'left_panel_close' : 'left_panel_open'}
+                </span>
+              </button>
+            )}
           </div>
 
           <nav className="app-sidebar__nav">
@@ -359,24 +384,6 @@ export function ScreenCalculatorPage() {
               </button>
             ))}
           </nav>
-
-          {!isMobile && (
-            <button 
-              className="app-sidebar__toggle" 
-              onClick={() => {
-                if (isPinned) {
-                  setIsPinned(false);
-                  setForceCollapsed(true);
-                } else {
-                  setIsPinned(true);
-                  setForceCollapsed(false);
-                }
-              }}
-              title={isPinned ? "Colapsar menú" : "Fijar menú expandido"}
-            >
-              <span className="app-sidebar__toggle-icon">»</span>
-            </button>
-          )}
         </div>
       </aside>
 

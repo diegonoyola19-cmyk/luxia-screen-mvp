@@ -53,7 +53,8 @@ export function getAvailableFabricWidths(
     item.payload?.source === 'vertilux_api' &&
     item.payload?.family === family && 
     item.payload?.openness === openness && 
-    item.payload?.color === color
+    item.payload?.color === color &&
+    (family === 'Pinpointe' || !areRollWidthsEquivalent(Number(item.payload?.width_meters), 1.83))
   );
 
   const widths = rolls

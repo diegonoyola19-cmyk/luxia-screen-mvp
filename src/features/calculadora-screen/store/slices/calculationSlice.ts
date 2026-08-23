@@ -1,4 +1,4 @@
-﻿import { StateCreator } from 'zustand';
+import { StateCreator } from 'zustand';
 import { CalculatorStore, CalculationSlice } from '../types';
 import { DEFAULT_FORM_VALUES, generateId } from '../../../../domain/curtains/constants';
 import { getRollerFabricSelectionDefaults, getRollerFabricOpennessOptions, getRollerFabricColorOptions } from '../../../../lib/priceCatalog';
@@ -75,7 +75,13 @@ export const createCalculationSlice = (
     
     setFormValue: (field, value) => set((state) => {
       const nextValues = { ...state.formValues, [field]: value };
-      return { formValues: nextValues, errors: { ...state.errors, general: undefined }, selectedWastePieceId: null };
+      const resetRoll = field === 'widthMeters' || field === 'heightMeters';
+      return { 
+        formValues: nextValues, 
+        errors: { ...state.errors, general: undefined }, 
+        selectedWastePieceId: null,
+        ...(resetRoll ? { selectedRollWidth: null } : {})
+      };
     }),
 
     setFabricFamily: (value) => set((state) => {
@@ -90,7 +96,8 @@ export const createCalculationSlice = (
           fabricColor: nextColor,
         },
         errors: { ...state.errors, fabricFamily: undefined, fabricOpenness: undefined, fabricColor: undefined, general: undefined },
-        selectedWastePieceId: null
+        selectedWastePieceId: null,
+        selectedRollWidth: null,
       };
     }),
 
@@ -103,14 +110,16 @@ export const createCalculationSlice = (
           fabricColor: nextColor,
         },
         errors: { ...state.errors, fabricOpenness: undefined, fabricColor: undefined, general: undefined },
-        selectedWastePieceId: null
+        selectedWastePieceId: null,
+        selectedRollWidth: null,
       };
     }),
 
     setFabricColor: (value) => set((state) => ({
       formValues: { ...state.formValues, fabricColor: value },
       errors: { ...state.errors, fabricColor: undefined, general: undefined },
-      selectedWastePieceId: null
+      selectedWastePieceId: null,
+      selectedRollWidth: null,
     })),
 
     setErrors: (updater) => set((state) => ({ errors: typeof updater === 'function' ? updater(state.errors) : updater })),
@@ -216,38 +225,10 @@ export const createCalculationSlice = (
       });
     },
 
-    recalculateOptimizedGroups: (fetchWidths) => {
-      const { itemsAProducir, ruleConfig } = get();
-      if (itemsAProducir.length === 0) {
-        set({ cuttingGroups: [] });
-        return;
-      }
-
-      const itemsByFabric = new Map<string, typeof itemsAProducir>();
-
-      itemsAProducir.filter((item) => !item.reusedWastePiece).forEach((item) => {
-        const key = [
-          item.input.fabricFamily,
-          item.input.fabricOpenness,
-          item.input.fabricColor,
-        ].join('||');
-        const current = itemsByFabric.get(key) ?? [];
-        current.push(item);
-        itemsByFabric.set(key, current);
-      });
-
-      const nextGroups = [...itemsByFabric.values()].flatMap((groupItems) => {
-        const firstItem = groupItems[0];
-        const widths = fetchWidths(
-          firstItem.input.fabricFamily,
-          firstItem.input.fabricOpenness,
-          firstItem.input.fabricColor,
-        );
-
-        return optimizeCuts(groupItems, widths, ruleConfig);
-      });
-
-      set({ cuttingGroups: nextGroups });
-    }
+    recalculateOptimizedGroups: (getAvailableWidthsFn) => {
+      const state = get();
+      const groups = buildOptimizedGroups(state.itemsAProducir, state.ruleConfig);
+      set({ cuttingGroups: groups });
+    },
   };
 };

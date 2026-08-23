@@ -11,6 +11,7 @@ import { resolveGroupBom } from '../../../../logic/doubleBracketBom';
 import type { CurtainOrderLine } from '../../../../domain/curtains/roller-bom-rules.types';
 import rollerBomRulesConfig from '../../../../data/roller-bom-rules-v2.json';
 import { normalizeOrderStatus } from '../../../../domain/orders/orderStatus';
+import { getNextOrderNumber } from '../../utils';
 
 const LINEAR_STOCK_FEET = 19;
 const LINEAR_DISCOUNT_METERS = 0.03;
@@ -61,7 +62,7 @@ export const createOrderSlice: StateCreator<
   OrderSlice
 > = (set, get) => ({
   orderDraft: {
-    orderNumber: '',
+    orderNumber: getNextOrderNumber([]),
     items: [],
   },
   savedOrders: [],
@@ -198,7 +199,7 @@ export const createOrderSlice: StateCreator<
 
   clearOrder: () => set((state) => ({
     orderDraft: {
-      orderNumber: '',
+      orderNumber: getNextOrderNumber(state.savedOrders),
       items: [],
     },
     sessionWastePieces: [],
@@ -210,6 +211,7 @@ export const createOrderSlice: StateCreator<
   saveOrder: () => {
     const {
       orderDraft,
+      savedOrders,
       itemsAProducir,
       cuttingGroups,
       productionInventory,
@@ -221,6 +223,19 @@ export const createOrderSlice: StateCreator<
 
     if (trimmedOrderNumber === '') {
       set((state) => ({ errors: { ...state.errors, general: 'Ingresa un numero de orden antes de guardarla.' } }));
+      return;
+    }
+
+    const isDuplicate = savedOrders.some(
+      (o) => o.orderNumber.trim().toLowerCase() === trimmedOrderNumber.toLowerCase()
+    );
+    if (isDuplicate) {
+      set((state) => ({
+        errors: {
+          ...state.errors,
+          general: `El número de orden "${trimmedOrderNumber}" ya existe en las órdenes guardadas. Elige un número diferente.`,
+        },
+      }));
       return;
     }
 
@@ -527,19 +542,22 @@ export const createOrderSlice: StateCreator<
     // El backend lo hará atómicamente y emitirá eventos realtime.
     // ───────────────────────────────────────────────────────────────────────
 
-    set((state) => ({
-      savedOrders: [savedOrder, ...state.savedOrders],
-      selectedOrderId: savedOrder.id,
-      orderDraft: { orderNumber: '', items: [] },
-      itemsAProducir: [],
-      cuttingGroups: [],
-      sessionWastePieces: [],
-      result: null,
-      selectedWastePieceId: null,
-      selectedRollWidth: null,
-      errors: {},
-      activeView: 'orders'
-    }));
+    set((state) => {
+      const nextSavedOrders = [savedOrder, ...state.savedOrders];
+      return {
+        savedOrders: nextSavedOrders,
+        selectedOrderId: savedOrder.id,
+        orderDraft: { orderNumber: getNextOrderNumber(nextSavedOrders), items: [] },
+        itemsAProducir: [],
+        cuttingGroups: [],
+        sessionWastePieces: [],
+        result: null,
+        selectedWastePieceId: null,
+        selectedRollWidth: null,
+        errors: {},
+        activeView: 'orders'
+      };
+    });
 
     // Encolar offline con consumo global
     get().markOrderPending(savedOrder.id, 'upsert_with_inventory');
@@ -648,7 +666,17 @@ export const createOrderSlice: StateCreator<
 
   setSelectedOrderId: (id) => set({ selectedOrderId: id }),
 
-  setSavedOrders: (updater) => set((state) => ({ savedOrders: typeof updater === 'function' ? updater(state.savedOrders) : updater })),
+  setSavedOrders: (updater) => set((state) => {
+    const nextSavedOrders = typeof updater === 'function' ? updater(state.savedOrders) : updater;
+    const currentDraftNumber = (state.orderDraft.orderNumber || '').trim();
+    const shouldAutoUpdate = currentDraftNumber === '' || (state.savedOrders.length === 0 && currentDraftNumber === 'ORD-001' && nextSavedOrders.length > 0);
+    return {
+      savedOrders: nextSavedOrders,
+      orderDraft: shouldAutoUpdate
+        ? { ...state.orderDraft, orderNumber: getNextOrderNumber(nextSavedOrders) }
+        : state.orderDraft
+    };
+  }),
 
   importOrders: (importedOrders) => {
     let newMergedOrders: SavedOrder[] = [];

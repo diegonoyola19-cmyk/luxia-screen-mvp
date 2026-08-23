@@ -414,15 +414,15 @@ describe('selectFabricWithStock', () => {
 
   it('8. getAvailableFabricWidths consolida anchos equivalentes', () => {
     const inventory = [
-      createInventoryItem('r1', 1.8288, 10),
-      createInventoryItem('r2', 1.83, 10),
-      createInventoryItem('r3', 2.500122, 10),
-      createInventoryItem('r4', 2.5, 10),
-      createInventoryItem('r5', 2.999994, 10),
-      createInventoryItem('r6', 3.0, 10)
+      createInventoryItem('r1', 1.8288, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r2', 1.83, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r3', 2.500122, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r4', 2.5, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r5', 2.999994, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r6', 3.0, 10, 'available', 'roll', 'Pinpointe', 'Blackout', 'White')
     ];
 
-    const widths = getAvailableFabricWidths('Screen', '5%', 'White', inventory, candidateFabrics);
+    const widths = getAvailableFabricWidths('Pinpointe', 'Blackout', 'White', inventory, candidateFabrics);
     
     expect(widths).toHaveLength(3);
     // Debido a que normaliza al primer ancho que encuentra, esperamos que los agrupe
@@ -431,15 +431,25 @@ describe('selectFabricWithStock', () => {
     expect(widths[2]).toBeCloseTo(3.0, 1);
   });
 
-  it('9. Optimización: [1.83, 2.50, 3.00], required 1.70 -> usa 1.83 sin warning', () => {
+  it('9. Optimización: [1.83, 2.50, 3.00], required 1.70 -> usa 1.83 sin warning en Pinpointe', () => {
+    const pinpointeFabric: FabricSelectionSnapshot = {
+      family: 'Pinpointe',
+      openness: 'Blackout',
+      color: 'White',
+      itemCode: 'pin-183',
+      description: 'Pinpointe 183',
+      imageUrl: null,
+      widthMeters: 2.50,
+      costPerYd2: 3.5
+    };
     const inventory = [
-      createInventoryItem('r183', 1.83, 100),
-      createInventoryItem('r250', 2.50, 100),
-      createInventoryItem('r300', 3.00, 100)
+      createInventoryItem('r183', 1.83, 100, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r250', 2.50, 100, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'),
+      createInventoryItem('r300', 3.00, 100, 'available', 'roll', 'Pinpointe', 'Blackout', 'White')
     ];
     const result = selectFabricWithStock({
-      preferredFabric, // ancho original 2.50
-      candidateFabrics,
+      preferredFabric: pinpointeFabric, // ancho original 2.50
+      candidateFabrics: [pinpointeFabric],
       inventoryItems: inventory,
       cutLengthMeters,
       requiredCutWidthMeters: 1.70
@@ -515,14 +525,24 @@ describe('selectFabricWithStock', () => {
     expect(result.warnings).toHaveLength(0);
   });
 
-  it('14. Stock: si ancho óptimo real existe pero no tiene stock, usa siguiente ancho mayor con warning', () => {
+  it('14. Stock: si ancho óptimo real existe pero no tiene stock, usa siguiente ancho mayor con warning en Pinpointe', () => {
+    const pinpointeFabric: FabricSelectionSnapshot = {
+      family: 'Pinpointe',
+      openness: 'Blackout',
+      color: 'White',
+      itemCode: 'pin-183',
+      description: 'Pinpointe 183',
+      imageUrl: null,
+      widthMeters: 1.83,
+      costPerYd2: 3.5
+    };
     const inventory = [
-      createInventoryItem('r183', 1.83, 0), // AGOTADO
-      createInventoryItem('r250', 2.50, 100)
+      createInventoryItem('r183', 1.83, 0, 'available', 'roll', 'Pinpointe', 'Blackout', 'White'), // AGOTADO
+      createInventoryItem('r250', 2.50, 100, 'available', 'roll', 'Pinpointe', 'Blackout', 'White')
     ];
     const result = selectFabricWithStock({
-      preferredFabric,
-      candidateFabrics,
+      preferredFabric: pinpointeFabric,
+      candidateFabrics: [pinpointeFabric],
       inventoryItems: inventory,
       cutLengthMeters,
       requiredCutWidthMeters: 1.70 // El óptimo sería 1.83

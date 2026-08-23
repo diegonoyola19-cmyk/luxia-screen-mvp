@@ -217,3 +217,20 @@ export function applyRollOverrideToResult(
     fabricSavingsCost: 0,
   };
 }
+
+export function getNextOrderNumber(savedOrders: { orderNumber?: string }[] = []): string {
+  let maxNumber = 0;
+  for (const order of savedOrders) {
+    const str = (order.orderNumber || '').trim();
+    const match = str.match(/(\d+)(?!.*\d)/);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxNumber) {
+        maxNumber = num;
+      }
+    }
+  }
+  const next = maxNumber + 1;
+  const padded = String(next).padStart(3, '0');
+  return `ORD-${padded}`;
+}
