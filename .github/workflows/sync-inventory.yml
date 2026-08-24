@@ -1,9 +1,6 @@
 name: Scheduled Inventory Sync
 
 on:
-  schedule:
-    # Runs twice a day at 06:00 and 18:00 UTC
-    - cron: '0 6,18 * * *'
   workflow_dispatch:
 
 jobs:
