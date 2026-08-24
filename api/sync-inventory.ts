@@ -17,8 +17,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey =
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey || !anonKey) {
     return sendJson(res, 500, { error: 'Server configuration error: Missing Supabase credentials' });
@@ -55,10 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       trigger: 'manual',
       triggeredByUserId: user.id,
       apiConfig: {
-        apiKey: process.env.VERTILUX_API_KEY || '',
-        user: process.env.VERTILUX_API_USER || '',
-        password: process.env.VERTILUX_API_PASSWORD || '',
-        country: process.env.VERTILUX_API_COUNTRY || 'SLV',
+        apiKey: process.env.VERTILUX_API_KEY || process.env.VITE_VERTILUX_API_KEY || '',
+        user: process.env.VERTILUX_API_USER || process.env.VITE_VERTILUX_API_USER || '',
+        password: process.env.VERTILUX_API_PASSWORD || process.env.VITE_VERTILUX_API_PASSWORD || '',
+        country: process.env.VERTILUX_API_COUNTRY || process.env.VITE_VERTILUX_API_COUNTRY || 'SLV',
       },
     });
 
