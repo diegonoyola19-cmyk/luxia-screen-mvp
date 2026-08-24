@@ -1,6 +1,9 @@
 name: Scheduled Inventory Sync
 
 on:
+  schedule:
+    # Runs twice a day at 06:00 and 18:00 UTC
+    - cron: '0 6,18 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,5 +13,11 @@ jobs:
       - name: Trigger Vercel Sync Endpoint
         run: |
           echo "Triggering LUXIA inventory sync..."
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "https://luxia-screen-mvp.vercel.app/api/cron/sync-inventory")
-          echo "$RESPONSE"
+          if [ -n "${{ secrets.CRON_SECRET }}" ]; then
+            curl --fail-with-body -sS -X GET \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              "https://luxia-screen-mvp.vercel.app/api/cron/sync-inventory"
+          else
+            curl --fail-with-body -sS -X GET \
+              "https://luxia-screen-mvp.vercel.app/api/cron/sync-inventory"
+          fi
