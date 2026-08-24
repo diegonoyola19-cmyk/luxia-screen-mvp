@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { executeVertiluxSync } from '../src/services/apiSyncService';
+import { executeVertiluxSync } from './_lib/apiSyncService.ts';
 
 function sendJson(res: any, statusCode: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.is_active === false || (profile.role !== 'admin' && profile.role !== 'produccion')) {
+    if (!profile || profile.is_active === false || (profile.role !== 'admin' && profile.role !== 'produccion' && profile.role !== 'bodega')) {
       return sendJson(res, 403, { error: 'Forbidden: No tienes permisos para sincronizar el catálogo' });
     }
 

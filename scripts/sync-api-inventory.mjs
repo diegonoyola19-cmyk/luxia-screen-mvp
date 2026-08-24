@@ -37,7 +37,7 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   console.log('Fetching data from Vertilux API...');
-  const response = await fetch('http://ims.vertilux.com/api/catp/catp.php', {
+  const response = await fetch('https://ims.vertilux.com/api/catp/catp.php', {
     method: 'GET',
     headers: {
       'X-API-KEY': apiKey,

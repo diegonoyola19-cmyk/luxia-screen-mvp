@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { executeVertiluxSync } from '../../src/services/apiSyncService';
+import { executeVertiluxSync } from '../_lib/apiSyncService.ts';
 
 function sendJson(res: any, statusCode: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {
@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (cronSecret) {
     if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: 'Unauthorized cron trigger' });
+      return sendJson(res, 401, { error: 'Unauthorized cron trigger' });
     }
   }
 
@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return res.status(500).json({ error: 'Server configuration error: Missing Supabase service credentials' });
+    return sendJson(res, 500, { error: 'Server configuration error: Missing Supabase service credentials' });
   }
 
   try {
@@ -48,21 +48,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (result.status === 'failed') {
-      return res.status(502).json({
+      return sendJson(res, 502, {
         success: false,
         message: 'Scheduled sync failed during execution',
         result,
       });
     }
 
-    return res.status(200).json({
+    return sendJson(res, 200, {
       success: true,
       message: 'Scheduled sync executed successfully',
       result,
     });
   } catch (err: any) {
     console.error('[VercelCron:sync-inventory] Fatal error:', err);
-    return res.status(500).json({
+    return sendJson(res, 500, {
       success: false,
       error: err?.message || 'Internal server error',
     });
