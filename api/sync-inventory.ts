@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { executeVertiluxSync } from './_lib/apiSyncService.ts';
+import { executeVertiluxSync } from './_lib/apiSyncService.js';
 
 function sendJson(res: any, statusCode: number, data: any) {
   if (typeof res.status === 'function' && typeof res.json === 'function') {

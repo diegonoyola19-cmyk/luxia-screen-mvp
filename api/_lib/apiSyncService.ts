@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { mapVertiluxApiInventoryItem, type VertiluxApiRawItem } from './mapVertiluxApiInventoryItem.ts';
-import { planSyncForItem, buildUpsertPayload, type InventoryItemRecord } from './syncVertiluxInventoryPlan.ts';
+import { mapVertiluxApiInventoryItem, type VertiluxApiRawItem } from './mapVertiluxApiInventoryItem.js';
+import { planSyncForItem, buildUpsertPayload, type InventoryItemRecord } from './syncVertiluxInventoryPlan.js';
 
 export interface VertiluxApiConfig {
   apiUrl?: string;

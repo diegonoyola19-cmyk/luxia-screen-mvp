@@ -1,4 +1,4 @@
-import type { MapVertiluxResult } from './mapVertiluxApiInventoryItem.ts';
+import type { MapVertiluxResult } from './mapVertiluxApiInventoryItem.js';
 
 export type InventoryItemRecord = {
   id: string;
