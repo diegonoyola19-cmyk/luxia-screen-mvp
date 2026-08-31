@@ -285,6 +285,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
     hasPermission: (permissionId) => {
       const { permissions, role } = get();
 
+      if (permissions.includes('*')) {
+        return true;
+      }
+
       if (permissions.length > 0) {
         return permissions.includes(permissionId);
       }

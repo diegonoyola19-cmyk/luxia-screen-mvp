@@ -1,0 +1,63 @@
+name: LUXIA AI Synthetic QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI: true
+  QA_MODE: ci
+  QA_SANDBOX: "true"
+  QA_BLOCK_PRODUCTION: "true"
+  VITE_SUPABASE_URL: "https://cisxgxttmfpxoslepybp.supabase.co"
+  VITE_SUPABASE_ANON_KEY: "mock-anon-key-for-ci-sandbox"
+
+jobs:
+  qa-quality-gate:
+    name: AI Synthetic QA Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium with OS dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck & Build LUXIA
+        run: npm run build
+
+      - name: Run Unit Tests (Vitest)
+        run: npx vitest run
+
+      - name: Run AI Synthetic QA Standard Suite
+        run: npm run test:agent
+
+      - name: Upload QA Artifacts on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-qa-artifacts-pr-${{ github.event.number || github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
