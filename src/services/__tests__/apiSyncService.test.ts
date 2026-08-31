@@ -68,8 +68,22 @@ describe('apiSyncService - executeVertiluxSync', () => {
         if (table === 'inventory_items') {
           return {
             select: vi.fn(() => ({
-              eq: vi.fn().mockResolvedValue({ data: [...mockInventoryItems], error: null }),
+              eq: vi.fn(() => ({
+                range: vi.fn((from: number, to: number) => {
+                  return Promise.resolve({
+                    data: mockInventoryItems.slice(from, to + 1),
+                    error: null,
+                  });
+                }),
+                then: (resolve: any) => resolve({ data: [...mockInventoryItems], error: null }),
+              })),
             })),
+            insert: vi.fn((items: any[]) => {
+              for (const item of items) {
+                mockInventoryItems.push({ id: `item-${Date.now()}-${Math.random()}`, ...item });
+              }
+              return Promise.resolve({ error: null });
+            }),
             upsert: vi.fn((items: any[]) => {
               for (const item of items) {
                 const existingIdx = mockInventoryItems.findIndex(
@@ -288,6 +302,132 @@ describe('apiSyncService - executeVertiluxSync', () => {
       'https://ims.vertilux.com/api/catp/catp.php',
       expect.objectContaining({ method: 'GET' })
     );
+  });
+
+  it('6. Deduplicación: respuestas de la API con ITEMNO duplicado no generan IDs duplicados en upsert', async () => {
+    const upsertSpy = vi.fn().mockResolvedValue({ error: null });
+    const insertSpy = vi.fn().mockResolvedValue({ error: null });
+
+    const customSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'api_sync_logs') {
+          return {
+            insert: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn().mockResolvedValue({ data: { id: 'log-dedup' }, error: null }),
+              })),
+            })),
+            update: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                gte: vi.fn(() => ({
+                  limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                })),
+              })),
+            })),
+          };
+        }
+        if (table === 'inventory_items') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                range: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        id: 'existing-uuid-1',
+                        code: 'DUP-001',
+                        status: 'available',
+                        payload: {},
+                        inventory_movements: [],
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+            })),
+            insert: insertSpy,
+            upsert: upsertSpy,
+          };
+        }
+        return {} as any;
+      }),
+    };
+
+    // Mock API response with duplicate items for existing item and new item
+    const mockApiResponse = [
+      {
+        ITEMNO: 'DUP-001',
+        DESCRIPTION: 'Screen 5% White 2.50m (98")',
+        UNIT: 'YD',
+        QTYONHAND: 50,
+        QTYSALORDR: 0,
+        QTYONORDER: 0,
+        QTYOFFSET: 50,
+      },
+      {
+        ITEMNO: 'DUP-001', // duplicate of existing
+        DESCRIPTION: 'Screen 5% White 2.50m (98")',
+        UNIT: 'YD',
+        QTYONHAND: 75,
+        QTYSALORDR: 0,
+        QTYONORDER: 0,
+        QTYOFFSET: 75,
+      },
+      {
+        ITEMNO: 'NEW-002', // new item
+        DESCRIPTION: 'Screen 1% Grey 3.00m (118")',
+        UNIT: 'YD',
+        QTYONHAND: 100,
+        QTYSALORDR: 0,
+        QTYONORDER: 0,
+        QTYOFFSET: 100,
+      },
+      {
+        ITEMNO: 'NEW-002', // duplicate of new item
+        DESCRIPTION: 'Screen 1% Grey 3.00m (118")',
+        UNIT: 'YD',
+        QTYONHAND: 120,
+        QTYSALORDR: 0,
+        QTYONORDER: 0,
+        QTYOFFSET: 120,
+      },
+    ];
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue(mockApiResponse),
+    });
+
+    const result = await executeVertiluxSync({
+      supabase: customSupabase as any,
+      trigger: 'scheduled',
+      apiConfig: {
+        apiKey: 'test-key',
+        user: 'test-user',
+        password: 'test-password',
+        country: 'SLV',
+      },
+      fetchFn: mockFetch as any,
+    });
+
+    expect(result.status).toBe('success');
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+
+    // Verify upsert was called with exactly 1 item (no duplicates)
+    const upsertedBatch = upsertSpy.mock.calls[0][0];
+    expect(upsertedBatch).toHaveLength(1);
+    expect(upsertedBatch[0].id).toBe('existing-uuid-1');
+
+    // Verify insert was called with exactly 1 item (no duplicates)
+    const insertedBatch = insertSpy.mock.calls[0][0];
+    expect(insertedBatch).toHaveLength(1);
+    expect(insertedBatch[0].code).toBe('NEW-002');
   });
 });
 

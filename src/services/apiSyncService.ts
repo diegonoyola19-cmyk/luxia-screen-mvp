@@ -155,40 +155,59 @@ export async function executeVertiluxSync(options: SyncExecutionOptions): Promis
 
     const recordsReceived = rawData.length;
 
-    // 4. Fetch existing API items from Supabase to reconcile without wiping user cuts/scraps
-    const { data: existingData, error: existingError } = await supabase
-      .from('inventory_items')
-      .select('id, code, status, payload, inventory_movements(count)')
-      .eq('source', 'vertilux_api');
-
-    if (existingError) {
-      throw new Error(`Error querying existing inventory items: ${existingError.message}`);
-    }
-
+    // 4. Fetch existing API items from Supabase with pagination to avoid 1000-row limit
     const existingMap = new Map<string, InventoryItemRecord>();
-    for (const item of (existingData || [])) {
-      const movementsCount = Array.isArray(item.inventory_movements)
-        ? item.inventory_movements[0]?.count ?? 0
-        : (item.inventory_movements as any)?.count ?? 0;
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-      existingMap.set(item.code, {
-        id: item.id,
-        code: item.code,
-        status: item.status,
-        payload: item.payload,
-        movements_count: movementsCount,
-      });
+    while (hasMore) {
+      const { data: existingData, error: existingError } = await supabase
+        .from('inventory_items')
+        .select('id, code, status, payload, inventory_movements(count)')
+        .eq('source', 'vertilux_api')
+        .range(from, from + pageSize - 1);
+
+      if (existingError) {
+        throw new Error(`Error querying existing inventory items: ${existingError.message}`);
+      }
+
+      for (const item of (existingData || [])) {
+        const movementsCount = Array.isArray(item.inventory_movements)
+          ? item.inventory_movements[0]?.count ?? 0
+          : (item.inventory_movements as any)?.count ?? 0;
+
+        const record: InventoryItemRecord = {
+          id: item.id,
+          code: item.code,
+          status: item.status,
+          payload: item.payload,
+          movements_count: movementsCount,
+        };
+
+        const prev = existingMap.get(item.code);
+        // If code appears multiple times, prioritize the record that has local movements recorded
+        if (!prev || (movementsCount > 0 && (prev.movements_count ?? 0) === 0)) {
+          existingMap.set(item.code, record);
+        }
+      }
+
+      if (!existingData || existingData.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+      }
     }
 
-    // 5. Map and categorize records
+    // 5. Map and categorize records with in-memory deduplication
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
     let reconciledCount = 0;
 
     const byCategory = { fabric: 0, tube: 0, bottom: 0, component: 0 };
-    const inserts: any[] = [];
-    const updates: any[] = [];
+    const insertsMap = new Map<string, any>(); // code -> insert payload
+    const updatesMap = new Map<string, any>(); // id -> update payload
 
     const syncTimestamp = new Date().toISOString();
     let processed = 0;
@@ -208,7 +227,19 @@ export async function executeVertiluxSync(options: SyncExecutionOptions): Promis
         byCategory[category as keyof typeof byCategory]++;
       }
 
-      const existingItem = existingMap.get(mapped.item.code);
+      const code = mapped.item.code;
+
+      // Check if we already scheduled an insert for this code in the current batch
+      if (insertsMap.has(code)) {
+        const plan = planSyncForItem(mapped, undefined);
+        const payload = buildUpsertPayload(plan, undefined);
+        if (payload) {
+          insertsMap.set(code, payload);
+        }
+        continue;
+      }
+
+      const existingItem = existingMap.get(code);
       const plan = planSyncForItem(mapped, existingItem);
       const payload = buildUpsertPayload(plan, existingItem);
 
@@ -218,34 +249,55 @@ export async function executeVertiluxSync(options: SyncExecutionOptions): Promis
       }
 
       if (plan.action === 'insert') {
-        createdCount++;
-        inserts.push(payload);
+        if (!insertsMap.has(code)) {
+          createdCount++;
+        }
+        insertsMap.set(code, payload);
       } else if (plan.action === 'update') {
-        updatedCount++;
-        updates.push(payload);
+        const id = (existingItem as InventoryItemRecord).id;
+        if (!updatesMap.has(id)) {
+          updatedCount++;
+        }
+        updatesMap.set(id, payload);
       } else if (plan.action === 'reconcile') {
-        reconciledCount++;
-        updates.push(payload);
+        const id = (existingItem as InventoryItemRecord).id;
+        if (!updatesMap.has(id)) {
+          reconciledCount++;
+        }
+        updatesMap.set(id, payload);
       }
     }
 
+    const inserts = Array.from(insertsMap.values());
+    const updates = Array.from(updatesMap.values());
+
     // 6. Batch upsert into database (chunks of 500)
-    const chunkAndUpsert = async (dataList: any[]) => {
+    const chunkAndUpsert = async (dataList: any[], isInsert = false) => {
       const chunkSize = 500;
       for (let i = 0; i < dataList.length; i += chunkSize) {
         const chunk = dataList.slice(i, i + chunkSize);
-        const { error: upsertErr } = await supabase
-          .from('inventory_items')
-          .upsert(chunk, { onConflict: 'id' });
+        
+        let upsertErr;
+        if (isInsert) {
+          const { error } = await supabase
+            .from('inventory_items')
+            .insert(chunk);
+          upsertErr = error;
+        } else {
+          const { error } = await supabase
+            .from('inventory_items')
+            .upsert(chunk, { onConflict: 'id' });
+          upsertErr = error;
+        }
 
         if (upsertErr) {
-          throw new Error(`Error upserting inventory chunk ${i / chunkSize + 1}: ${upsertErr.message}`);
+          throw new Error(`Error ${isInsert ? 'inserting' : 'upserting'} inventory chunk ${Math.floor(i / chunkSize) + 1}: ${upsertErr.message}`);
         }
       }
     };
 
-    if (inserts.length > 0) await chunkAndUpsert(inserts);
-    if (updates.length > 0) await chunkAndUpsert(updates);
+    if (inserts.length > 0) await chunkAndUpsert(inserts, true);
+    if (updates.length > 0) await chunkAndUpsert(updates, false);
 
     const finishedAt = new Date().toISOString();
     const durationMs = Date.now() - startTime;

@@ -1,21 +1,20 @@
 import { useDeferredValue, useMemo, useRef, useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
 import { useAuthStore } from '../../../store/useAuthStore';
 import type { SavedOrder } from '../../../domain/curtains/types';
 import { formatDate, formatNumber } from '../../../lib/format';
-import { summarizeOrdersProduction, summarizeProduction } from '../../../lib/production';
+import { summarizeProduction } from '../../../lib/production';
 import { useCalculatorStore } from '../store/useCalculatorStore';
-import { downloadSavedOrders, importSavedOrdersFile } from '../../../lib/orderTransfer';
-import { downloadCsvReport } from '../../../lib/csvExport';
+import { importSavedOrdersFile } from '../../../lib/orderTransfer';
 import { downloadSageOrderEntry, getSageExportableLineCount } from '../../../lib/sageExport';
 import { generateRollerBOM, type BOMItem } from '../../../logic/generateRollerBOM';
-import { getHWDesc, type Tone } from '../../../logic/rollerEngineV3';
+import { type Tone } from '../../../logic/rollerEngineV3';
 import { MaterialReviewModal } from './MaterialReviewModal';
 import { validateOrderBeforeSage } from '../../../domain/orders/validateOrderBeforeSage';
 import { normalizeOrderStatus, SavedOrderStatus } from '../../../domain/orders/orderStatus';
-import { supabase } from '../../../lib/supabase';
+import { cancelOrderInventoryTransaction } from '../../../lib/supabaseOrderInventory';
 import { logAppActivity } from '../../../lib/logAppActivity';
+import { toast } from 'sonner';
 import './SavedOrdersTable.css';
 
 // ── BOM display helpers ──────────────
@@ -67,29 +66,30 @@ function bomDisplayLabel(componente: string, skuFinal: string): string {
   return color ? `${short} ${color}` : short;
 }
 
-interface OrderReportRow {
+export interface OrderReportRow {
   order: SavedOrder;
   summary: ReturnType<typeof summarizeProduction>;
   wastePercentage: number;
   reusePercentage: number;
 }
 
-type OrderSortMode = 'recent' | 'waste' | 'cost' | 'curtains';
-type OrderStatusFilter = 'all' | SavedOrderStatus;
-type DateRange = 'all' | 'today' | 'week' | 'month';
+export type OrderSortOption = 'priority' | 'newest' | 'oldest';
+export type QuickFilterTab = 'all' | 'workshop' | 'review' | 'sage';
+export type OrderStatusFilter = 'all' | SavedOrderStatus;
+export type DateRange = 'all' | 'today' | 'week' | 'month';
 
-function getOrderStatus(order: SavedOrder) {
+export function getOrderStatus(order: SavedOrder): SavedOrderStatus {
   return normalizeOrderStatus(order.status);
 }
 
-function getOrderStatusLabel(order: SavedOrder) {
+export function getOrderStatusLabel(order: SavedOrder): string {
   const st = getOrderStatus(order);
   switch (st) {
     case 'draft': return 'Borrador';
-    case 'ready_for_production': return 'Lista para producción';
+    case 'ready_for_production': return 'Lista para prod.';
     case 'in_production': return 'En producción';
-    case 'materials_checked': return 'Materiales revisados';
-    case 'sent_to_sage': return 'Enviada a Sage';
+    case 'materials_checked': return 'Revisada';
+    case 'sent_to_sage': return 'Sage';
     case 'completed': return 'Completada';
     case 'cancelled': return 'Cancelada';
     default: return 'Pendiente';
@@ -110,7 +110,7 @@ function deriveAutoTone(fabricColor: string): Tone {
   return 'white';
 }
 
-function getOrderReportRow(order: SavedOrder): OrderReportRow {
+export function getOrderReportRow(order: SavedOrder): OrderReportRow {
   const items = Array.isArray(order?.items) ? order.items : [];
   const summary = summarizeProduction(items);
   const reusedArea = items.reduce(
@@ -132,53 +132,7 @@ function getOrderReportRow(order: SavedOrder): OrderReportRow {
   };
 }
 
-function getRelativeDateLabel(value: string | null | undefined) {
-  if (!value) return '—';
-  const orderDate = new Date(value);
-  if (isNaN(orderDate.getTime())) return '—';
-  const now = new Date();
-  const dayMs = 24 * 60 * 60 * 1000;
-  const diffDays = Math.floor(
-    (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
-      Date.UTC(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate())) /
-      dayMs,
-  );
-
-  if (diffDays <= 0) return 'Hoy';
-  if (diffDays === 1) return 'Ayer';
-  if (diffDays < 7) return `Hace ${diffDays} dias`;
-  return formatDate(value);
-}
-
-// ── Nuevos Componentes Visuales ──────────────
-
-function StatusBadge({ status }: { status: SavedOrderStatus | string }) {
-  let badgeClass = 'badge-status--draft';
-  switch (status) {
-    case 'draft': badgeClass = 'badge-status--draft'; break;
-    case 'ready_for_production': badgeClass = 'badge-status--ready'; break;
-    case 'in_production': badgeClass = 'badge-status--production'; break;
-    case 'materials_checked': badgeClass = 'badge-status--checked'; break;
-    case 'sent_to_sage': badgeClass = 'badge-status--sage'; break;
-    case 'completed': badgeClass = 'badge-status--completed'; break;
-    case 'cancelled': badgeClass = 'badge-status--cancelled'; break;
-  }
-
-  let label = 'Pendiente';
-  switch (status) {
-    case 'draft': label = 'Borrador'; break;
-    case 'ready_for_production': label = 'Lista para prod.'; break;
-    case 'in_production': label = 'En producción'; break;
-    case 'materials_checked': label = 'Revisado'; break;
-    case 'sent_to_sage': label = 'Sage'; break;
-    case 'completed': label = 'Completada'; break;
-    case 'cancelled': label = 'Cancelada'; break;
-  }
-
-  return <span className={`badge-status ${badgeClass}`}>{label}</span>;
-}
-
-function inventoryErrorLabel(code: string): string {
+export function inventoryErrorLabel(code: string): string {
   switch (code) {
     case 'INSUFFICIENT_STOCK':   return 'Stock insuficiente en bodega';
     case 'ITEM_NOT_AVAILABLE':   return 'Material o retazo no disponible';
@@ -188,42 +142,68 @@ function inventoryErrorLabel(code: string): string {
   }
 }
 
-function OrderListItem({ row, isActive, syncStatus, onClick }: { row: OrderReportRow, isActive: boolean, syncStatus?: import('../store/types').SyncStatus, onClick: () => void }) {
-  const status = getOrderStatus(row.order);
+// ── Mini-Stepper Component (Purely Informational) ──────────────
 
-  let syncIcon = null;
-  if (syncStatus) {
-    if (syncStatus.status === 'pending') {
-      syncIcon = <span title="Pendiente de subir" style={{ marginLeft: 6, fontSize: '0.9em' }}>⏳</span>;
-    } else if (syncStatus.status === 'error') {
-      const errorTitle = syncStatus.inventoryErrorCode
-        ? inventoryErrorLabel(syncStatus.inventoryErrorCode)
-        : syncStatus.errorMessage || 'No se pudo sincronizar';
-      syncIcon = <span title={`Error: ${errorTitle}`} style={{ marginLeft: 6, fontSize: '0.9em' }}>🔴</span>;
-    }
+interface StepperProps {
+  status: SavedOrderStatus;
+}
+
+export function OrderMiniStepper({ status }: StepperProps) {
+  if (status === 'completed') {
+    return (
+      <div className="order-stepper order-stepper--terminal" aria-label="Progreso: Completada">
+        <span className="stepper-badge stepper-badge--completed">✓ Completada</span>
+      </div>
+    );
   }
 
+  if (status === 'cancelled') {
+    return (
+      <div className="order-stepper order-stepper--terminal" aria-label="Progreso: Cancelada">
+        <span className="stepper-badge stepper-badge--cancelled">× Cancelada</span>
+      </div>
+    );
+  }
+
+  // 4 main stages
+  // 1: Preparada (ready_for_production, in_production, materials_checked, sent_to_sage)
+  // 2: Taller (in_production, materials_checked, sent_to_sage)
+  // 3: Materiales (materials_checked, sent_to_sage)
+  // 4: SAGE (sent_to_sage)
+  const isStep1Done = ['ready_for_production', 'in_production', 'materials_checked', 'sent_to_sage'].includes(status);
+  const isStep2Done = ['in_production', 'materials_checked', 'sent_to_sage'].includes(status);
+  const isStep3Done = ['materials_checked', 'sent_to_sage'].includes(status);
+  const isStep4Done = status === 'sent_to_sage';
+
+  const isStep1Current = status === 'ready_for_production';
+  const isStep2Current = status === 'in_production';
+  const isStep3Current = status === 'materials_checked';
+  const isStep4Current = status === 'sent_to_sage';
+
   return (
-    <div className={`order-list-card ${isActive ? 'order-list-card--active' : ''}`} onClick={onClick}>
-      <div className="order-list-card__top">
-        <span className="order-list-card__title">
-          {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}
-          {syncIcon}
-        </span>
-        <StatusBadge status={status} />
+    <div className="order-stepper" role="group" aria-label={`Progreso de orden: ${status}`}>
+      <div className={`stepper-step ${isStep1Done ? 'stepper-step--done' : ''} ${isStep1Current ? 'stepper-step--current' : ''}`}>
+        <span className="stepper-dot" />
+        <span className="stepper-label">Prep.</span>
       </div>
-      <div className="order-list-card__meta">
-        {getRelativeDateLabel(row.order.createdAt)} • {formatDate(row.order.createdAt)}
+      <span className={`stepper-line ${isStep2Done ? 'stepper-line--done' : ''}`} />
+      <div className={`stepper-step ${isStep2Done ? 'stepper-step--done' : ''} ${isStep2Current ? 'stepper-step--current' : ''}`}>
+        <span className="stepper-dot" />
+        <span className="stepper-label">Taller</span>
       </div>
-      <div className="order-list-card__metrics">
-        <div><span className="val">{row.summary.curtains}</span> piezas</div>
-        <div><span className="val">{formatNumber(row.wastePercentage)}%</span> merma</div>
-        <div><span className="val">${formatNumber(row.summary.totalOrderCost)}</span></div>
+      <span className={`stepper-line ${isStep3Done ? 'stepper-line--done' : ''}`} />
+      <div className={`stepper-step ${isStep3Done ? 'stepper-step--done' : ''} ${isStep3Current ? 'stepper-step--current' : ''}`}>
+        <span className="stepper-dot" />
+        <span className="stepper-label">Mat.</span>
+      </div>
+      <span className={`stepper-line ${isStep4Done ? 'stepper-line--done' : ''}`} />
+      <div className={`stepper-step ${isStep4Done ? 'stepper-step--done' : ''} ${isStep4Current ? 'stepper-step--current' : ''}`}>
+        <span className="stepper-dot" />
+        <span className="stepper-label">SAGE</span>
       </div>
     </div>
   );
 }
-
 
 // ── Main Component ──────────────
 
@@ -236,7 +216,8 @@ export function SavedOrdersPanel() {
   const isReadOnly = role === 'consulta';
   
   const [query, setQuery] = useState('');
-  const [sortMode, setSortMode] = useState<OrderSortMode>('recent');
+  const [quickTab, setQuickTab] = useState<QuickFilterTab>('all');
+  const [sortOption, setSortOption] = useState<OrderSortOption>('priority');
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -245,26 +226,62 @@ export function SavedOrdersPanel() {
   const ITEMS_PER_PAGE = 10;
   
   const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
-  const reviewingOrder = useMemo(() => store.savedOrders.find(o => o.id === reviewingOrderId) ?? null, [store.savedOrders, reviewingOrderId]);
+  const [cancelErrorMessage, setCancelErrorMessage] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const reviewingOrder = useMemo(
+    () => store.savedOrders.find(o => o.id === reviewingOrderId) ?? null,
+    [store.savedOrders, reviewingOrderId]
+  );
+  
+  const cancellingOrder = useMemo(
+    () => store.savedOrders.find(o => o.id === cancellingOrderId) ?? null,
+    [store.savedOrders, cancellingOrderId]
+  );
+
+  const deletingOrder = useMemo(
+    () => store.savedOrders.find(o => o.id === deletingOrderId) ?? null,
+    [store.savedOrders, deletingOrderId]
+  );
+
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [deferredQuery, sortMode, dateRange, statusFilter]);
+  }, [deferredQuery, sortOption, dateRange, statusFilter, quickTab]);
 
   useEffect(() => {
-    if (!deletingOrderId) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDeletingOrderId(null);
+      if (e.key === 'Escape') {
+        setCancellingOrderId(null);
+        setDeletingOrderId(null);
+        setSelectedOrderModal(null);
+        setActionMenuOpenId(null);
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [deletingOrderId]);
+  }, []);
 
-  // Accordion states
-  const [accBOM, setAccBOM] = useState(true);
-  const [accPieces, setAccPieces] = useState(false);
+  // Quick Tab Counts (computed from real data)
+  const tabCounts = useMemo(() => {
+    const counts = { all: reportRows.length, workshop: 0, review: 0, sage: 0 };
+    reportRows.forEach(row => {
+      const st = getOrderStatus(row.order);
+      if (st === 'ready_for_production' || st === 'in_production') {
+        counts.workshop++;
+      }
+      if (st === 'in_production') {
+        counts.review++;
+      }
+      if (st === 'materials_checked') {
+        counts.sage++;
+      }
+    });
+    return counts;
+  }, [reportRows]);
 
   const filteredRows = useMemo(() => {
     const now = new Date();
@@ -274,7 +291,7 @@ export function SavedOrdersPanel() {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const nextRows = reportRows.filter((row) => {
-      const orderDate = new Date(row.order.createdAt);
+      const orderDate = new Date(row.order.createdAt || 0);
       const isDateValid = !isNaN(orderDate.getTime());
       if (dateRange === 'today' && (!isDateValid || orderDate < today)) return false;
       if (dateRange === 'week' && (!isDateValid || orderDate < startOfWeek)) return false;
@@ -282,6 +299,17 @@ export function SavedOrdersPanel() {
 
       const orderStatus = getOrderStatus(row.order);
       if (statusFilter !== 'all' && orderStatus !== statusFilter) return false;
+
+      // Quick Tab Filtering
+      if (quickTab === 'workshop' && !['ready_for_production', 'in_production'].includes(orderStatus)) {
+        return false;
+      }
+      if (quickTab === 'review' && orderStatus !== 'in_production') {
+        return false;
+      }
+      if (quickTab === 'sage' && orderStatus !== 'materials_checked') {
+        return false;
+      }
 
       if (!deferredQuery) {
         return true;
@@ -307,25 +335,52 @@ export function SavedOrdersPanel() {
       return searchable.includes(deferredQuery);
     });
 
-    return nextRows.sort((left, right) => {
-      switch (sortMode) {
-        case 'waste':
-          return right.wastePercentage - left.wastePercentage;
-        case 'cost':
-          return right.summary.totalOrderCost - left.summary.totalOrderCost;
-        case 'curtains':
-          return right.summary.curtains - left.summary.curtains;
-        default: {
-          const lDate = new Date(left.order.createdAt || 0).getTime();
-          const rDate = new Date(right.order.createdAt || 0).getTime();
-          return (isNaN(rDate) ? 0 : rDate) - (isNaN(lDate) ? 0 : lDate);
-        }
+    // Status Weights for Operational Priority
+    const getStatusWeight = (st: SavedOrderStatus): number => {
+      switch (st) {
+        case 'in_production': return 1;
+        case 'ready_for_production': return 2;
+        case 'materials_checked': return 3;
+        case 'sent_to_sage': return 4;
+        case 'draft': return 5;
+        case 'completed': return 6;
+        case 'cancelled': return 7;
+        default: return 8;
       }
+    };
+
+    return nextRows.sort((left, right) => {
+      const lDate = new Date(left.order.createdAt || 0).getTime();
+      const rDate = new Date(right.order.createdAt || 0).getTime();
+      const validLDate = isNaN(lDate) ? 0 : lDate;
+      const validRDate = isNaN(rDate) ? 0 : rDate;
+
+      if (sortOption === 'newest') {
+        return validRDate - validLDate;
+      }
+      if (sortOption === 'oldest') {
+        return validLDate - validRDate;
+      }
+
+      // Operational Priority (Default)
+      const lWeight = getStatusWeight(getOrderStatus(left.order));
+      const rWeight = getStatusWeight(getOrderStatus(right.order));
+
+      if (lWeight !== rWeight) {
+        return lWeight - rWeight;
+      }
+
+      // Within active tasks (weights 1-4): oldest first to avoid delays
+      if (lWeight <= 4) {
+        return validLDate - validRDate;
+      }
+
+      // For terminal/draft: newest first
+      return validRDate - validLDate;
     });
-  }, [deferredQuery, reportRows, sortMode, dateRange, statusFilter]);
+  }, [deferredQuery, reportRows, sortOption, dateRange, statusFilter, quickTab]);
 
   const filteredOrders = useMemo(() => filteredRows.map((r) => r.order), [filteredRows]);
-  const globalSummary = useMemo(() => summarizeOrdersProduction(filteredOrders), [filteredOrders]);
 
   const exportableSageOrders = useMemo(
     () => filteredOrders.filter((order) => getSageExportableLineCount([order]) > 0),
@@ -377,7 +432,7 @@ export function SavedOrdersPanel() {
         const bom = generateRollerBOM(
           item?.input?.widthMeters ?? 0,
           item?.input?.heightMeters ?? 0,
-          tone as import('../../../logic/generateRollerBOM').Tone,
+          tone as Tone,
           mounting
         );
         for (const bomItem of bom.items) {
@@ -421,23 +476,17 @@ export function SavedOrdersPanel() {
 
     try {
       const currentRemainders = store.remainders || [];
-      if (import.meta.env.DEV) {
-        console.log("[SavedOrdersPanel] currentRemainders before", currentRemainders);
-      }
-      
       const { updatedRemainders, orderSnapshots } = downloadSageOrderEntry(validOrders, currentRemainders);
       
-      if (import.meta.env.DEV) {
-        console.log("[SavedOrdersPanel] updatedRemainders received", updatedRemainders);
-      }
-      
       store.setRemainders(updatedRemainders);
-      
       store.markOrdersSentToSage(exportedOrderIds, orderSnapshots);
+      
+      toast.success(`Se exportaron ${validOrders.length} órdenes a SAGE exitosamente.`);
+      
       if (errors.length > 0) {
         store.setErrors((prev) => ({
           ...prev,
-          general: `Se enviaron ${validOrders.length} órdenes, pero hubo errores: ` + errors.join(' | ')
+          general: `Se enviaron ${validOrders.length} órdenes, pero hubo alertas: ` + errors.join(' | ')
         }));
       }
     } catch (error: any) {
@@ -445,16 +494,88 @@ export function SavedOrdersPanel() {
         ...prev,
         general: error.message || 'No se pudo generar el archivo para Sage.'
       }));
+      toast.error(error.message || 'Error al generar exportación SAGE.');
+    }
+  };
+
+  const handlePrintAndStartProduction = async (order: SavedOrder) => {
+    try {
+      const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+      await generateOrderMaterialsPdf(order, store.productionInventory, store.inventoryMovements);
+      
+      if (isReadOnly) return;
+      
+      const currentStatus = getOrderStatus(order);
+      if (currentStatus === 'ready_for_production' || currentStatus === 'draft') {
+        store.updateSavedOrderStatus(order.id, 'in_production', {
+          productionStartedAt: new Date().toISOString(),
+          productionStartTrigger: 'materials_pdf_generated'
+        });
+        toast.success(`Orden ${order.orderNumber}: Hoja de taller generada y pasada a Producción.`);
+      } else {
+        toast.success(`Orden ${order.orderNumber}: Hoja de materiales generada.`);
+      }
+    } catch (err: any) {
+      toast.error(`Error generando PDF: ${err.message}`);
+    }
+  };
+
+  const handleReprintPdf = async (order: SavedOrder) => {
+    try {
+      const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
+      await generateOrderMaterialsPdf(order, store.productionInventory, store.inventoryMovements);
+      toast.success(`Orden ${order.orderNumber}: Documento reimpreso.`);
+    } catch (err: any) {
+      toast.error(`Error reimprimiendo PDF: ${err.message}`);
+    }
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!cancellingOrderId || !cancellingOrder) return;
+    setIsCancelling(true);
+    setCancelErrorMessage(null);
+
+    try {
+      // Call transactional RPC
+      await cancelOrderInventoryTransaction(cancellingOrderId);
+      
+      // Update local state to cancelled
+      store.updateSavedOrderStatus(cancellingOrderId, 'cancelled');
+      
+      logAppActivity({
+        event_type: 'order.deleted',
+        entity_type: 'order',
+        entity_id: cancellingOrderId,
+        metadata: {
+          orderNumber: cancellingOrder.orderNumber,
+          action: 'cancelled_with_inventory_rollback',
+        }
+      });
+
+      toast.success(`Orden ${cancellingOrder.orderNumber} cancelada. Inventario revertido exitosamente.`);
+      setCancellingOrderId(null);
+      window.dispatchEvent(new Event('sync-inventory'));
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('SCRAP_ALREADY_USED')) {
+        setCancelErrorMessage('No se puede cancelar esta orden automáticamente porque uno de sus retazos generados ya fue utilizado por otra orden.');
+      } else if (msg.includes('CANNOT_CANCEL_COMPLETED_ORDER')) {
+        setCancelErrorMessage('No se puede cancelar una orden que ya fue completada.');
+      } else if (msg.includes('PERMISSION_DENIED') || err?.name === 'PermissionError') {
+        setCancelErrorMessage('No tienes permisos suficientes para cancelar esta orden.');
+      } else {
+        setCancelErrorMessage(msg || 'Ocurrió un error inesperado al cancelar la orden.');
+      }
+    } finally {
+      setIsCancelling(false);
     }
   };
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / ITEMS_PER_PAGE));
   const paginatedRows = filteredRows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const getClientReference = (order: SavedOrder) => {
-    // clientName y clientReference no existen en el modelo base actual.
-    // Usamos orderNumber u otro identificador si lo hubiera.
-    return order.orderNumber || 'Sin referencia';
+  const getClientReference = (_order: SavedOrder) => {
+    return '—';
   };
 
   const getMainFabricLabel = (order: SavedOrder) => {
@@ -477,7 +598,7 @@ export function SavedOrdersPanel() {
         <div className="modal-content">
           <div className="modal-header">
             <h2>Detalles: {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}</h2>
-            <button className="modal-close-btn" onClick={() => setSelectedOrderModal(null)}>
+            <button className="modal-close-btn" onClick={() => setSelectedOrderModal(null)} aria-label="Cerrar modal">
               <span className="material-symbols-outlined">close</span>
             </button>
           </div>
@@ -553,40 +674,17 @@ export function SavedOrdersPanel() {
             </div>
           </div>
           <div className="modal-footer">
-            <Button type="button" variant="secondary" onClick={async () => {
-              try {
-                const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
-                await generateOrderMaterialsPdf(row.order, store.productionInventory, store.inventoryMovements);
-                if (isReadOnly) return;
-                let newStatus = orderStatus;
-                if (orderStatus === 'ready_for_production') {
-                  newStatus = 'in_production';
-                } else if (orderStatus === 'draft') {
-                  const hasValidMaterialLines = modalItems.some(
-                    (item) => item.materialLines && item.materialLines.length > 0
-                  );
-                  if (hasValidMaterialLines) {
-                    newStatus = 'in_production';
-                  }
-                }
-                if (newStatus !== orderStatus) {
-                  store.updateSavedOrderStatus(row.order.id, newStatus as any, {
-                    productionStartedAt: new Date().toISOString(),
-                    productionStartTrigger: 'materials_pdf_generated'
-                  });
-                }
-              } catch (err: any) { alert(err.message); }
-            }}>
-              📄 PDF
+            <Button type="button" variant="secondary" onClick={() => handleReprintPdf(row.order)}>
+              📄 Ver PDF
             </Button>
             {orderStatus === 'ready_for_production' && (
-              <Button type="button" variant="secondary" onClick={() => store.updateSavedOrderStatus(row.order.id, 'in_production')} disabled={isReadOnly}>
-                Pasar a Producción
+              <Button type="button" variant="primary" onClick={() => handlePrintAndStartProduction(row.order)} disabled={isReadOnly}>
+                Imprimir y pasar a Taller
               </Button>
             )}
             {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(orderStatus) && (
               <Button type="button" variant="secondary" onClick={() => setReviewingOrderId(row.order.id)}>
-                👀 Materiales
+                👀 Revisar Materiales
               </Button>
             )}
             {orderStatus === 'sent_to_sage' && (
@@ -602,24 +700,88 @@ export function SavedOrdersPanel() {
 
   return (
     <div className="orders-table-container" onClick={() => setActionMenuOpenId(null)}>
+      
+      {/* Header with Title & Primary Action */}
       <div className="orders-table-header">
         <div className="orders-table-title">
           <h1>Órdenes de Producción</h1>
+          <span className="orders-subtitle">{filteredRows.length} órdenes registradas</span>
         </div>
-        <div className="orders-table-actions">
+        <div className="orders-header-actions">
+          <Button 
+            variant="secondary" 
+            onClick={onExportSage} 
+            disabled={exportableSageOrders.length === 0 || isReadOnly}
+          >
+            <span className="material-symbols-outlined" style={{fontSize: 18, marginRight: 6}}>upload_file</span>
+            Exportar a SAGE ({exportableSageOrders.length})
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => store.setActiveView('production-v2')}
+          >
+            <span className="material-symbols-outlined" style={{fontSize: 18, marginRight: 6}}>add</span>
+            Nueva Orden
+          </Button>
+        </div>
+      </div>
+
+      {/* Operational Filter Bar */}
+      <div className="orders-filter-bar">
+        {/* Quick Tabs */}
+        <div className="filter-tabs" role="tablist" aria-label="Filtrar por etapa operativa">
+          <button 
+            role="tab"
+            aria-selected={quickTab === 'all'}
+            className={`filter-tab ${quickTab === 'all' ? 'filter-tab--active' : ''}`}
+            onClick={() => setQuickTab('all')}
+          >
+            Todas <span className="tab-count">{tabCounts.all}</span>
+          </button>
+          <button 
+            role="tab"
+            aria-selected={quickTab === 'workshop'}
+            className={`filter-tab ${quickTab === 'workshop' ? 'filter-tab--active' : ''}`}
+            onClick={() => setQuickTab('workshop')}
+          >
+            En Taller <span className="tab-count">{tabCounts.workshop}</span>
+          </button>
+          <button 
+            role="tab"
+            aria-selected={quickTab === 'review'}
+            className={`filter-tab ${quickTab === 'review' ? 'filter-tab--active' : ''}`}
+            onClick={() => setQuickTab('review')}
+          >
+            Por Revisar <span className="tab-count">{tabCounts.review}</span>
+          </button>
+          <button 
+            role="tab"
+            aria-selected={quickTab === 'sage'}
+            className={`filter-tab ${quickTab === 'sage' ? 'filter-tab--active' : ''}`}
+            onClick={() => setQuickTab('sage')}
+          >
+            Listas SAGE <span className="tab-count">{tabCounts.sage}</span>
+          </button>
+        </div>
+
+        {/* Search & Selectors */}
+        <div className="filter-controls">
           <div className="orders-search-bar">
             <span className="material-symbols-outlined" style={{color: 'var(--muted)'}}>search</span>
             <input 
               type="text" 
-              placeholder="Buscar órdenes..." 
+              placeholder="Buscar orden, tela o SKU..." 
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="Buscar órdenes"
             />
           </div>
+
           <select 
             className="orders-filter-select"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
+            aria-label="Filtrar por estado"
           >
             <option value="all">Todos los estados</option>
             <option value="draft">Borrador</option>
@@ -630,35 +792,52 @@ export function SavedOrdersPanel() {
             <option value="completed">Completada</option>
             <option value="cancelled">Cancelada</option>
           </select>
-          <Button variant="secondary" onClick={onExportSage} disabled={exportableSageOrders.length === 0 || isReadOnly}>
-            Exportar a Sage ({exportableSageOrders.length})
-          </Button>
-          <Button variant="primary" onClick={() => {
-            alert('Para nueva orden, navega a la pestaña de Cotizador e ingresa los datos.');
-          }}>
-            <span className="material-symbols-outlined" style={{fontSize: 18, marginRight: 4}}>add</span>
-            Nueva Orden
-          </Button>
+
+          <select 
+            className="orders-filter-select"
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as any)}
+            aria-label="Filtrar por fecha"
+          >
+            <option value="all">Todas las fechas</option>
+            <option value="today">Hoy</option>
+            <option value="week">Esta semana</option>
+            <option value="month">Este mes</option>
+          </select>
+
+          <select 
+            className="orders-filter-select"
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as any)}
+            aria-label="Ordenar por"
+          >
+            <option value="priority">Prioridad operativa</option>
+            <option value="newest">Más recientes</option>
+            <option value="oldest">Más antiguas</option>
+          </select>
         </div>
       </div>
 
+      {/* Main Data Table */}
       <div className="orders-data-table-wrapper">
         <table className="orders-data-table">
           <thead>
             <tr>
               <th>Order ID</th>
-              <th>Cliente / Referencia</th>
-              <th>Quantity</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th style={{textAlign: 'right'}}>Actions</th>
+              <th>Cliente / Ref.</th>
+              <th>Cant.</th>
+              <th>Fecha</th>
+              <th>Progreso</th>
+              <th>Estado</th>
+              <th style={{textAlign: 'center'}}>Siguiente Acción</th>
+              <th style={{textAlign: 'right'}}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {paginatedRows.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
-                  No hay órdenes que coincidan con los filtros.
+                <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+                  No hay órdenes que coincidan con los filtros seleccionados.
                 </td>
               </tr>
             ) : (
@@ -681,21 +860,115 @@ export function SavedOrdersPanel() {
 
                 return (
                   <tr key={row.order.id}>
+                    {/* 1. Order ID */}
                     <td className="cell-order-id">
                       {row.order.orderNumber || `#${row.order.id.slice(0, 6)}`}
                       {syncIcon}
                     </td>
+
+                    {/* 2. Client / Reference */}
                     <td className="cell-client">
                       <span className="cell-client-name">{getClientReference(row.order)}</span>
                       <span className="cell-client-sub">{row.summary.curtains} persianas · {getMainFabricLabel(row.order)}</span>
                     </td>
-                    <td>{row.summary.curtains}</td>
+
+                    {/* 3. Quantity */}
+                    <td><strong>{row.summary.curtains}</strong></td>
+
+                    {/* 4. Date */}
                     <td className="cell-date">{formatDate(row.order.createdAt)}</td>
+
+                    {/* 5. Mini-Stepper */}
+                    <td className="cell-stepper">
+                      <OrderMiniStepper status={status} />
+                    </td>
+
+                    {/* 6. Status Pill */}
                     <td>
                       <span className={`status-pill status-${status}`}>
                         {getOrderStatusLabel(row.order)}
                       </span>
                     </td>
+
+                    {/* 7. Next Best Action (Single Primary Button) */}
+                    <td className="cell-next-action" style={{ textAlign: 'center' }}>
+                      {status === 'draft' && (
+                        <button 
+                          className="btn-next-action btn-next-action--secondary" 
+                          onClick={() => {
+                            setSelectedOrderModal(row);
+                            store.setSelectedOrderId(row.order.id);
+                          }}
+                        >
+                          Ver borrador
+                        </button>
+                      )}
+
+                      {status === 'ready_for_production' && (
+                        <button 
+                          className="btn-next-action btn-next-action--primary" 
+                          onClick={() => handlePrintAndStartProduction(row.order)}
+                          disabled={isReadOnly}
+                        >
+                          <span className="material-symbols-outlined" style={{fontSize: 16, marginRight: 4}}>print</span>
+                          Imprimir y pasar a Taller
+                        </button>
+                      )}
+
+                      {status === 'in_production' && (
+                        <button 
+                          className="btn-next-action btn-next-action--primary" 
+                          onClick={() => setReviewingOrderId(row.order.id)}
+                        >
+                          <span className="material-symbols-outlined" style={{fontSize: 16, marginRight: 4}}>inventory</span>
+                          Revisar materiales
+                        </button>
+                      )}
+
+                      {status === 'materials_checked' && (
+                        <span className="badge-next-ready" title="Validada para exportar a SAGE">
+                          ✓ Listo para SAGE
+                        </span>
+                      )}
+
+                      {status === 'sent_to_sage' && (
+                        <button 
+                          className="btn-next-action btn-next-action--secondary" 
+                          onClick={() => {
+                            setSelectedOrderModal(row);
+                            store.setSelectedOrderId(row.order.id);
+                          }}
+                        >
+                          Ver estado SAGE
+                        </button>
+                      )}
+
+                      {status === 'completed' && (
+                        <button 
+                          className="btn-next-action btn-next-action--secondary" 
+                          onClick={() => {
+                            setSelectedOrderModal(row);
+                            store.setSelectedOrderId(row.order.id);
+                          }}
+                        >
+                          Ver resumen
+                        </button>
+                      )}
+
+                      {status === 'cancelled' && (
+                        <button 
+                          className="btn-next-action btn-next-action--secondary" 
+                          onClick={() => {
+                            setSelectedOrderModal(row);
+                            store.setSelectedOrderId(row.order.id);
+                          }}
+                        >
+                          Ver auditoría
+                        </button>
+                      )}
+                    </td>
+
+                    {/* 8. Context Actions Menu */}
                     <td className="cell-actions">
                       <button 
                         className="action-menu-btn" 
@@ -703,6 +976,7 @@ export function SavedOrdersPanel() {
                           e.stopPropagation();
                           setActionMenuOpenId(isMenuOpen ? null : row.order.id);
                         }}
+                        aria-label="Más opciones"
                       >
                         <span className="material-symbols-outlined">more_horiz</span>
                       </button>
@@ -716,76 +990,32 @@ export function SavedOrdersPanel() {
                           }}>
                             <span className="material-symbols-outlined">visibility</span> Ver detalles
                           </button>
-                          
-                          {status === 'draft' && (
-                            <button className="action-dropdown-item" onClick={() => {
-                              store.setOrderDraft(() => ({
-                                orderNumber: row.order.orderNumber,
-                                items: Array.isArray(row.order?.items) ? row.order.items : []
-                              }));
-                              alert('Orden cargada. Por favor navega a la pestaña de Cotizador para continuar.');
-                              setActionMenuOpenId(null);
-                            }} disabled={isReadOnly}>
-                              <span className="material-symbols-outlined">edit</span> Editar orden
-                            </button>
-                          )}
-
-                          {/*
-                          <button className="action-dropdown-item" onClick={async () => {
-                            setActionMenuOpenId(null);
-                            try {
-                              const { generateWorkOrderPdf } = await import('../../../lib/pdf/generateWorkOrderPdf');
-                              await generateWorkOrderPdf(row.order);
-                            } catch (err: any) { alert(err.message); }
-                          }}>
-                            <span className="material-symbols-outlined">print</span> Imprimir Orden
-                          </button>
-                          */}
-
-                          <button className="action-dropdown-item" onClick={async () => {
-                            setActionMenuOpenId(null);
-                            try {
-                              const { generateOrderMaterialsPdf } = await import('../../../lib/pdf/generateOrderMaterialsPdf');
-                              await generateOrderMaterialsPdf(row.order, store.productionInventory, store.inventoryMovements);
-                              if (isReadOnly) return;
-                              let newStatus = status;
-                              if (status === 'ready_for_production') {
-                                newStatus = 'in_production';
-                              } else if (status === 'draft') {
-                                const rowItems = Array.isArray(row.order?.items) ? row.order.items : [];
-                                const hasValidMaterialLines = rowItems.some(
-                                  (item) => item.materialLines && item.materialLines.length > 0
-                                );
-                                if (hasValidMaterialLines) {
-                                  newStatus = 'in_production';
-                                }
-                              }
-                              if (newStatus !== status) {
-                                store.updateSavedOrderStatus(row.order.id, newStatus as any, {
-                                  productionStartedAt: new Date().toISOString(),
-                                  productionStartTrigger: 'materials_pdf_generated'
-                                });
-                              }
-                            } catch (err: any) { alert(err.message); }
-                          }}>
-                            <span className="material-symbols-outlined">picture_as_pdf</span> Ver PDF
-                          </button>
 
                           {status === 'ready_for_production' && (
                             <button className="action-dropdown-item" onClick={() => {
                               store.updateSavedOrderStatus(row.order.id, 'in_production');
                               setActionMenuOpenId(null);
+                              toast.success(`Orden ${row.order.orderNumber} pasada a Producción.`);
                             }} disabled={isReadOnly}>
                               <span className="material-symbols-outlined">play_arrow</span> Pasar a Producción
                             </button>
                           )}
 
-                          {['ready_for_production', 'in_production', 'draft', 'materials_checked'].includes(status) && (
+                          {['in_production', 'materials_checked', 'sent_to_sage', 'completed'].includes(status) && (
+                            <button className="action-dropdown-item" onClick={() => {
+                              setActionMenuOpenId(null);
+                              handleReprintPdf(row.order);
+                            }}>
+                              <span className="material-symbols-outlined">picture_as_pdf</span> Reimprimir PDF
+                            </button>
+                          )}
+
+                          {['materials_checked', 'sent_to_sage'].includes(status) && (
                             <button className="action-dropdown-item" onClick={() => {
                               setReviewingOrderId(row.order.id);
                               setActionMenuOpenId(null);
                             }}>
-                              <span className="material-symbols-outlined">inventory</span> Confirmar Materiales
+                              <span className="material-symbols-outlined">edit_note</span> Reabrir revisión
                             </button>
                           )}
 
@@ -793,16 +1023,39 @@ export function SavedOrdersPanel() {
                             <button className="action-dropdown-item" onClick={() => {
                               store.updateSavedOrderStatus(row.order.id, 'materials_checked');
                               setActionMenuOpenId(null);
+                              toast.info(`Orden ${row.order.orderNumber} revertida a estado Revisado.`);
                             }} disabled={isReadOnly}>
                               <span className="material-symbols-outlined">undo</span> Revertir a Revisado
                             </button>
                           )}
+
+                          <div className="action-dropdown-divider" />
                           
-                          <button className="action-dropdown-item danger" onClick={() => {
-                            setDeletingOrderId(row.order.id);
-                            setActionMenuOpenId(null);
-                          }} disabled={isReadOnly}>
-                            <span className="material-symbols-outlined">delete</span> Eliminar
+                          {/* Cancel Order (Operational rollback) */}
+                          {status !== 'cancelled' && status !== 'completed' && (
+                            <button 
+                              className="action-dropdown-item danger" 
+                              onClick={() => {
+                                setCancellingOrderId(row.order.id);
+                                setCancelErrorMessage(null);
+                                setActionMenuOpenId(null);
+                              }} 
+                              disabled={isReadOnly}
+                            >
+                              <span className="material-symbols-outlined">cancel</span> Cancelar orden
+                            </button>
+                          )}
+
+                          {/* Soft Delete (Administrative) */}
+                          <button 
+                            className="action-dropdown-item danger-muted" 
+                            onClick={() => {
+                              setDeletingOrderId(row.order.id);
+                              setActionMenuOpenId(null);
+                            }} 
+                            disabled={isReadOnly}
+                          >
+                            <span className="material-symbols-outlined">delete</span> Eliminar registro
                           </button>
                         </div>
                       )}
@@ -814,20 +1067,24 @@ export function SavedOrdersPanel() {
           </tbody>
         </table>
         
+        {/* Pagination */}
         <div className="orders-pagination">
-          <span>Mostrando {filteredRows.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} – {Math.min(currentPage * ITEMS_PER_PAGE, filteredRows.length)} de {filteredRows.length}</span>
+          <span>Mostrando {filteredRows.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} – {Math.min(currentPage * ITEMS_PER_PAGE, filteredRows.length)} de {filteredRows.length} órdenes</span>
           <div className="pagination-controls">
             <button 
               className="pagination-btn" 
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
+              aria-label="Página anterior"
             >
               <span className="material-symbols-outlined" style={{fontSize: 18}}>chevron_left</span>
             </button>
+            <span className="pagination-page-indicator">Página {currentPage} de {totalPages}</span>
             <button 
               className="pagination-btn" 
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages || totalPages === 0}
+              aria-label="Página siguiente"
             >
               <span className="material-symbols-outlined" style={{fontSize: 18}}>chevron_right</span>
             </button>
@@ -835,37 +1092,87 @@ export function SavedOrdersPanel() {
         </div>
       </div>
 
+      {/* Order Details Modal */}
       {renderOrderDetails()}
 
+      {/* Material Review Modal */}
       {reviewingOrder && (
         <MaterialReviewModal order={reviewingOrder} onClose={() => setReviewingOrderId(null)} />
       )}
 
-      {deletingOrderId && (
+      {/* Modal: Cancelar Orden (Rollback Operativo) */}
+      {cancellingOrder && (
         <div 
           className="modal-overlay" 
-          onClick={(e) => { if (e.target === e.currentTarget) setDeletingOrderId(null); }}
+          onClick={(e) => { if (e.target === e.currentTarget && !isCancelling) setCancellingOrderId(null); }}
         >
-          <div className="modal-content" style={{maxWidth: 400}}>
+          <div className="modal-content" style={{maxWidth: 480}}>
             <div className="modal-header">
-              <h2>¿Eliminar orden {store.savedOrders.find(o => o.id === deletingOrderId)?.orderNumber}?</h2>
-              <button className="modal-close-btn" onClick={() => setDeletingOrderId(null)}>
+              <h2>¿Cancelar orden {cancellingOrder.orderNumber}?</h2>
+              <button className="modal-close-btn" onClick={() => setCancellingOrderId(null)} disabled={isCancelling} aria-label="Cerrar modal">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="modal-body">
-              <p>Esta acción eliminará la orden del historial local.</p>
-              <p>No modificará Sage ni los archivos ya exportados.</p>
+              <p>Esta acción operacional:</p>
+              <ul style={{ margin: '8px 0 16px 20px', padding: 0 }}>
+                <li><strong>Revertirá el inventario</strong> (telas y tubos) reintegrando stock a los rollos madre en Bodega.</li>
+                <li><strong>Conservará la orden</strong> en el historial con estado <em>Cancelada</em>.</li>
+                <li><strong>Será bloqueada</strong> si un retazo generado ya fue consumido por otra orden posterior.</li>
+              </ul>
+
+              {cancelErrorMessage && (
+                <div className="cancel-error-box" style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '12px', borderRadius: '8px', color: '#991b1b', fontSize: '13px', marginTop: '12px' }}>
+                  <strong>Aviso de Bloqueo:</strong> {cancelErrorMessage}
+                </div>
+              )}
             </div>
             <div className="modal-footer">
-              <Button type="button" variant="secondary" onClick={() => setDeletingOrderId(null)}>Cancelar</Button>
+              <Button type="button" variant="secondary" onClick={() => setCancellingOrderId(null)} disabled={isCancelling}>
+                Volver
+              </Button>
               <Button 
                 type="button" 
                 variant="danger" 
-                style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
+                style={{ backgroundColor: '#dc2626', color: 'white', borderColor: '#dc2626' }}
+                onClick={handleConfirmCancelOrder}
+                disabled={isCancelling || isReadOnly}
+              >
+                {isCancelling ? 'Cancelando...' : 'Cancelar orden'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Eliminar Registro (Soft-Delete Administrativo) */}
+      {deletingOrder && (
+        <div 
+          className="modal-overlay" 
+          onClick={(e) => { if (e.target === e.currentTarget) setDeletingOrderId(null); }}
+        >
+          <div className="modal-content" style={{maxWidth: 440}}>
+            <div className="modal-header">
+              <h2>¿Eliminar registro {deletingOrder.orderNumber}?</h2>
+              <button className="modal-close-btn" onClick={() => setDeletingOrderId(null)} aria-label="Cerrar modal">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Esta acción administrativa <strong>retira el registro</strong> de la vista activa de órdenes.</p>
+              <p style={{ color: 'var(--muted)', fontSize: '13px' }}>El registro quedará archivado como borrado lógico (soft delete) en la base de datos.</p>
+            </div>
+            <div className="modal-footer">
+              <Button type="button" variant="secondary" onClick={() => setDeletingOrderId(null)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="button" 
+                variant="danger" 
+                style={{ backgroundColor: '#7f1d1d', color: 'white', borderColor: '#7f1d1d' }}
                 onClick={async () => {
-                  const orderToDelete = store.savedOrders.find(o => o.id === deletingOrderId);
-                  store.deleteSavedOrder(deletingOrderId);
+                  const orderToDelete = deletingOrder;
+                  store.deleteSavedOrder(deletingOrder.id);
                   setDeletingOrderId(null);
                   
                   if (orderToDelete) {
@@ -880,10 +1187,11 @@ export function SavedOrdersPanel() {
                       }
                     });
                   }
+                  toast.success(`Registro ${orderToDelete.orderNumber} eliminado.`);
                 }}
                 disabled={isReadOnly}
               >
-                Eliminar
+                Eliminar registro
               </Button>
             </div>
           </div>
@@ -900,11 +1208,11 @@ export function SavedOrdersPanel() {
           if (file) {
             importSavedOrdersFile(file)
               .then((imported) => store.importOrders(imported))
-              .catch(() => store.setErrors((prev) => ({ ...prev, general: 'Error importando.' })));
+              .catch(() => store.setErrors((prev) => ({ ...prev, general: 'Error importando archivo.' })));
             event.target.value = '';
           }
         }}
       />
     </div>
   );
-}
+}

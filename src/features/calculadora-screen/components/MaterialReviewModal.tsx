@@ -119,8 +119,8 @@ export function MaterialReviewModal({ order, onClose }: Props) {
         curtainLabel: item.title,
         calculatedFabricSku: fabric?.itemCode,
         calculatedFabricDescription: fabric?.description,
-        calculatedWidthM: item.input.widthMeters,
-        calculatedHeightM: item.input.heightMeters,
+        calculatedWidthM: item.input?.widthMeters,
+        calculatedHeightM: item.input?.heightMeters,
         calculatedRollWidthM: rollWidth,
         calculatedConsumptionM: item.result?.cutLengthMeters,
         calculatedConsumptionYd: item.result?.fabricDownloadedYd2,
@@ -175,6 +175,64 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   });
 
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Helpers to determine review completeness per row
+  const isComponentAdjustmentComplete = (adj: ProductionMaterialAdjustment): boolean => {
+    if (!adj.action) return false;
+    if (adj.action === "confirmed") return true;
+    if (["substituted", "quantity_adjusted", "added"].includes(adj.action)) {
+      const skuValid = adj.action === "quantity_adjusted" 
+        ? true 
+        : (!!adj.actualSku && adj.actualSku.trim() !== "" && !/^X+$/i.test(adj.actualSku.trim()));
+      const qtyValid = adj.actualQuantity !== undefined && adj.actualQuantity > 0;
+      const reasonValid = !!adj.reason && adj.reason.trim() !== "";
+      return skuValid && qtyValid && reasonValid;
+    }
+    if (adj.action === "removed") {
+      return !!adj.reason && adj.reason.trim() !== "";
+    }
+    return false;
+  };
+
+  const isFabricAdjustmentComplete = (adj: ProductionFabricAdjustment): boolean => {
+    if (!adj.action) return false;
+    if (adj.action === "confirmed") {
+      return adj.actualAreaY2 !== undefined && adj.actualAreaY2 > 0;
+    }
+    if (adj.action === "removed") {
+      return !!adj.reason && adj.reason.trim() !== "";
+    }
+    if (["fabric_substituted", "roll_width_changed", "consumption_adjusted", "remnant_changed"].includes(adj.action)) {
+      const areaValid = adj.actualAreaY2 !== undefined && adj.actualAreaY2 > 0;
+      const skuValid = adj.action === "fabric_substituted" 
+        ? (!!adj.actualFabricSku && adj.actualFabricSku.trim() !== "" && !/^X+$/i.test(adj.actualFabricSku.trim()))
+        : true;
+      const reasonValid = !!adj.reason && adj.reason.trim() !== "";
+      let specificValid = true;
+      if (adj.action === "roll_width_changed" && !adj.actualRollWidthM) specificValid = false;
+      if (adj.action === "remnant_changed" && !adj.actualRemnantSize && !adj.actualRemnantId) specificValid = false;
+      return areaValid && skuValid && reasonValid && specificValid;
+    }
+    return false;
+  };
+
+  const reviewedComponentsCount = useMemo(() => {
+    return adjustments.filter(isComponentAdjustmentComplete).length;
+  }, [adjustments]);
+
+  const componentsProgressPercent = adjustments.length > 0
+    ? Math.round((reviewedComponentsCount / adjustments.length) * 100)
+    : 0;
+
+  const reviewedFabricsCount = useMemo(() => {
+    return fabricAdjustments.filter(isFabricAdjustmentComplete).length;
+  }, [fabricAdjustments]);
+
+  const fabricsProgressPercent = fabricAdjustments.length > 0
+    ? Math.round((reviewedFabricsCount / fabricAdjustments.length) * 100)
+    : 0;
+
+  const totalIncomplete = (adjustments.length - reviewedComponentsCount) + (fabricAdjustments.length - reviewedFabricsCount);
 
   // Update logic
   const handleUpdateAdjustment = (index: number, updates: Partial<ProductionMaterialAdjustment>) => {
@@ -349,7 +407,11 @@ export function MaterialReviewModal({ order, onClose }: Props) {
     return newErrors.length === 0;
   };
 
+  const orderItems = Array.isArray(order?.items) ? order.items : [];
+  const hasItems = orderItems.length > 0;
+
   const handleSaveDraft = () => {
+    if (!hasItems) return;
     const review: ProductionMaterialReview = {
       reviewedAt: new Date().toISOString(),
       status: "draft",
@@ -363,6 +425,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   };
 
   const handleComplete = () => {
+    if (!hasItems) return;
     if (!validate()) return;
 
     // Build the final lines
@@ -380,7 +443,6 @@ export function MaterialReviewModal({ order, onClose }: Props) {
     };
 
     // We simulate Sage Export input collection for this order
-    // But since collectIssueEngineInputs is in sageExport, let's just collect it here
     const inputs: import('../../../domain/orders/issueStrategies').IssueEngineInputLine[] = [];
     for (const line of finalFabricLines) {
       inputs.push({ sku: line.sku, description: line.description, quantity: line.quantity, unit: line.unit, orderId: order.id });
@@ -396,7 +458,6 @@ export function MaterialReviewModal({ order, onClose }: Props) {
     // Pre-calcular totales originales por SKU para distribuir ajustes consolidados
     const originalSkuTotals = new Map<string, number>();
     const originalSkuCounts = new Map<string, number>();
-    const orderItems = Array.isArray(order?.items) ? order.items : [];
 
     for (const item of orderItems) {
       if (!item?.materialLines) continue;
@@ -473,7 +534,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
       });
     }
 
-    // Convert to Sage units (similar to collectIssueEngineInputs)
+    // Convert to Sage units
     for (const line of inputs) {
       const catalogEntry = componentCatalogBySku[line.sku];
       const targetUnit = catalogEntry?.sageUnit?.toUpperCase();
@@ -505,6 +566,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   };
 
   const getStatusBadgeClass = () => {
+    if (!hasItems) return 'mrm-status-badge--warning';
     const status = normalizeOrderStatus(order.status);
     if (status === 'materials_checked' || status === 'sent_to_sage') return 'mrm-status-badge--completed';
     if (order.productionReview?.status === 'draft') return 'mrm-status-badge--pending';
@@ -512,6 +574,7 @@ export function MaterialReviewModal({ order, onClose }: Props) {
   };
 
   const getStatusBadgeLabel = () => {
+    if (!hasItems) return 'Datos Incompletos';
     const status = normalizeOrderStatus(order.status);
     if (status === 'sent_to_sage') return 'Completado y en Sage';
     if (status === 'materials_checked') return 'Revisión Completa';
@@ -568,13 +631,13 @@ export function MaterialReviewModal({ order, onClose }: Props) {
               className={`mrm-tab ${activeTab === 'components' ? 'active' : ''}`}
               onClick={() => setActiveTab('components')}
             >
-              Componentes / Herrajes
+              Componentes / Herrajes ({adjustments.length})
             </button>
             <button 
               className={`mrm-tab ${activeTab === 'fabrics' ? 'active' : ''}`}
               onClick={() => setActiveTab('fabrics')}
             >
-              Telas / Paños
+              Telas / Paños ({fabricAdjustments.length})
             </button>
           </div>
         </div>
@@ -589,256 +652,415 @@ export function MaterialReviewModal({ order, onClose }: Props) {
             </div>
           )}
 
-          {activeTab === 'components' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-                <Button variant="secondary" size="sm" onClick={handleAddMaterial}>+ Agregar Material Extra</Button>
+          {!hasItems ? (
+            <div className="mrm-empty-state--warning" role="alert">
+              <div className="mrm-empty-title">
+                <span style={{ fontSize: '20px' }}>⚠️</span> Esta orden no contiene persianas ni materiales registrados.
               </div>
-
-              {adjustments.length === 0 ? (
-                <div className="mrm-empty-state">No hay componentes para revisar.</div>
-              ) : (
-                adjustments.map((adj, index) => {
-                  const isConfirmed = adj.action === 'confirmed';
-                  const isAdded = adj.action === 'added';
-                  const isRemoved = adj.action === 'removed';
-                  const isSubstituted = adj.action === 'substituted';
-                  
-                  let cardClass = 'mrm-review-card--modified';
-                  if (isConfirmed) cardClass = 'mrm-review-card--confirmed';
-                  if (isAdded) cardClass = 'mrm-review-card--added';
-                  if (isRemoved) cardClass = 'mrm-review-card--removed';
-                  if (isSubstituted) cardClass = 'mrm-review-card--substituted';
-
-                  return (
-                    <div key={adj.id} className={`mrm-review-card ${cardClass}`}>
-                      {/* Identity */}
-                      <div className="mrm-card-zone mrm-card-zone--identity">
-                        {isAdded ? (
-                          <div className="mrm-pill mrm-pill--success">Material Extra / Nuevo</div>
-                        ) : (
-                          <>
-                            <div className="title">{adj.calculatedDescription}</div>
-                            <div className="sku">{adj.calculatedSku}</div>
-                            <div className="mrm-pill">Calc: {adj.calculatedQuantity} {adj.calculatedUnit}</div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Action */}
-                      <div className="mrm-card-zone">
-                        <select 
-                          className="mrm-select"
-                          value={adj.action} 
-                          onChange={e => handleUpdateAdjustment(index, { action: e.target.value as ProductionMaterialAdjustmentAction })}
-                        >
-                          {adj.calculatedSku && <option value="confirmed">Confirmar calc.</option>}
-                          {adj.calculatedSku && <option value="substituted">Sustituir SKU</option>}
-                          {adj.calculatedSku && <option value="quantity_adjusted">Ajustar Cant.</option>}
-                          {adj.calculatedSku && <option value="removed">Remover / No usar</option>}
-                          {adj.action === "added" && <option value="added">Agregado extra</option>}
-                        </select>
-                      </div>
-
-                      {/* Adjustment */}
-                      <div className="mrm-card-zone">
-                        {isConfirmed ? (
-                          <div className="mrm-card-status-text">Igual a calculado</div>
-                        ) : isRemoved ? (
-                          <div className="mrm-card-status-text" style={{ color: '#dc2626' }}>No se descontará de Sage</div>
-                        ) : (
-                          <>
-                            <input 
-                              type="text" 
-                              className="mrm-input"
-                              placeholder="SKU Real" 
-                              value={adj.actualSku || ''} 
-                              onChange={e => handleUpdateAdjustment(index, { actualSku: e.target.value })}
-                            />
-                            <div className="mrm-input-group">
-                              <input 
-                                type="number" 
-                                step="0.001"
-                                className="mrm-input"
-                                placeholder="Cant." 
-                                value={adj.actualQuantity ?? ''} 
-                                onChange={e => handleUpdateAdjustment(index, { actualQuantity: parseFloat(e.target.value) })}
-                              />
-                              <input 
-                                type="text" 
-                                className="mrm-input"
-                                placeholder="Unid." 
-                                value={adj.actualUnit || ''} 
-                                onChange={e => handleUpdateAdjustment(index, { actualUnit: e.target.value })}
-                              />
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Notes */}
-                      <div className="mrm-card-zone">
-                        {isConfirmed ? null : (
-                          <>
-                            <select 
-                              className="mrm-select"
-                              value={adj.reason || ''} 
-                              onChange={e => handleUpdateAdjustment(index, { reason: e.target.value as ProductionMaterialAdjustmentReason })}
-                            >
-                              <option value="" disabled>Motivo (Req)...</option>
-                              <option value="out_of_stock">Falta stock (Sustituido)</option>
-                              <option value="authorized_substitution">Sustitucion autorizada</option>
-                              <option value="bom_error">Error de calculo BOM</option>
-                              <option value="production_decision">Decision piso producción</option>
-                              <option value="additional_component">Componente extra req.</option>
-                              <option value="other">Otro</option>
-                            </select>
-                            <input 
-                              type="text" 
-                              className="mrm-input"
-                              placeholder="Notas adicionales..." 
-                              value={adj.notes || ''} 
-                              onChange={e => handleUpdateAdjustment(index, { notes: e.target.value })}
-                            />
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </>
-          )}
-
-          {activeTab === 'fabrics' && (
+              <div className="mrm-empty-subtitle">
+                Puede tratarse de una orden de prueba o de una orden creada con una versión anterior sin datos persistidos.
+              </div>
+            </div>
+          ) : (
             <>
-              {fabricAdjustments.length === 0 ? (
-                <div className="mrm-empty-state">No hay telas para revisar.</div>
-              ) : (
-                fabricAdjustments.map((adj, index) => {
-                  const isConfirmed = adj.action === 'confirmed';
-                  const isRemoved = adj.action === 'removed';
-                  const isSubstituted = adj.action === 'fabric_substituted';
-                  
-                  let cardClass = 'mrm-review-card--modified';
-                  if (isConfirmed) cardClass = 'mrm-review-card--confirmed';
-                  if (isRemoved) cardClass = 'mrm-review-card--removed';
-                  if (isSubstituted) cardClass = 'mrm-review-card--substituted';
+              {activeTab === 'components' && (
+                <div className="mrm-worklist-container">
+                  {/* Progress toolbar */}
+                  <div className="mrm-worklist-toolbar">
+                    <div className="mrm-progress-group">
+                      <span className="mrm-progress-label">
+                        Revisados <strong>{reviewedComponentsCount}</strong> de <strong>{adjustments.length}</strong>
+                      </span>
+                      <div className="mrm-progress-bar-track" title={`${componentsProgressPercent}% completado`}>
+                        <div 
+                          className="mrm-progress-bar-fill" 
+                          style={{ width: `${componentsProgressPercent}%` }} 
+                        />
+                      </div>
+                      <span className="mrm-progress-percent">{componentsProgressPercent}%</span>
+                    </div>
 
-                  return (
-                    <div key={adj.id} className={`mrm-review-card ${cardClass}`}>
-                      {/* Identity */}
-                      <div className="mrm-card-zone mrm-card-zone--identity">
-                        <div className="title">{adj.curtainLabel}</div>
-                        <div className="sku">{adj.calculatedFabricSku}</div>
-                        
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-                          <div className="mrm-pill">{adj.calculatedWidthM} x {adj.calculatedHeightM}m</div>
-                          <div className="mrm-pill mrm-pill--accent">
-                            {adj.calculatedSource === 'roll' ? `Rollo ${adj.calculatedRollWidthM}m` : `Retazo ${adj.calculatedRemnantSize}`}
-                          </div>
-                        </div>
-                        <div className="sku" style={{ marginTop: '4px' }}>Calc: {adj.calculatedAreaY2 ? adj.calculatedAreaY2.toFixed(2) : '—'} Y2</div>
+                    <Button variant="secondary" size="sm" onClick={handleAddMaterial} className="mrm-btn-add-extra">
+                      + Agregar Material Extra
+                    </Button>
+                  </div>
+
+                  {adjustments.length === 0 ? (
+                    <div className="mrm-empty-state mrm-empty-state--info">
+                      ℹ No hay componentes/herrajes que requieran revisión para esta orden.
+                    </div>
+                  ) : (
+                    <div className="mrm-table-wrapper">
+                      {/* Sticky Table Header */}
+                      <div className="mrm-table-header mrm-table-header--components">
+                        <div className="mrm-th mrm-th--material">MATERIAL / SKU</div>
+                        <div className="mrm-th mrm-th--calculated">CALCULADO</div>
+                        <div className="mrm-th mrm-th--action">REVISIÓN</div>
+                        <div className="mrm-th mrm-th--detail">DETALLE / AJUSTE</div>
+                        <div className="mrm-th mrm-th--status">ESTADO</div>
                       </div>
 
-                      {/* Action */}
-                      <div className="mrm-card-zone">
-                        <select 
-                          className="mrm-select"
-                          value={adj.action} 
-                          onChange={e => handleUpdateFabricAdjustment(index, { action: e.target.value as ProductionFabricAdjustmentAction })}
-                        >
-                          <option value="confirmed">Confirmar calc.</option>
-                          <option value="fabric_substituted">Sustituir Tela</option>
-                          <option value="roll_width_changed">Cambiar Ancho Rollo</option>
-                          <option value="remnant_changed">Usar Retazo</option>
-                          <option value="consumption_adjusted">Ajustar Área (Y2)</option>
-                          <option value="removed">Remover / No usar</option>
-                        </select>
-                      </div>
+                      {/* Table Rows */}
+                      <div className="mrm-table-body">
+                        {adjustments.map((adj, index) => {
+                          const isConfirmed = adj.action === 'confirmed';
+                          const isAdded = adj.action === 'added';
+                          const isRemoved = adj.action === 'removed';
+                          const isSubstituted = adj.action === 'substituted';
+                          const isQtyAdjusted = adj.action === 'quantity_adjusted';
+                          const isComplete = isComponentAdjustmentComplete(adj);
 
-                      {/* Adjustment */}
-                      <div className="mrm-card-zone">
-                        {isConfirmed ? (
-                          <div className="mrm-card-status-text">
-                            Final: {adj.actualAreaY2 ? adj.actualAreaY2.toFixed(2) : '—'} Y2
-                          </div>
-                        ) : isRemoved ? (
-                          <div className="mrm-card-status-text" style={{ color: '#dc2626' }}>No se descontará de Sage</div>
-                        ) : (
-                          <>
-                            <input 
-                              type="text" 
-                              className="mrm-input"
-                              placeholder="SKU Tela Final" 
-                              value={adj.actualFabricSku || ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { actualFabricSku: e.target.value })}
-                            />
-                            
-                            {(adj.action === 'roll_width_changed' || adj.action === 'fabric_substituted') && (
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                className="mrm-input"
-                                placeholder="Ancho rollo real (m)" 
-                                value={adj.actualRollWidthM || ''} 
-                                onChange={e => handleUpdateFabricAdjustment(index, { actualRollWidthM: parseFloat(e.target.value) })}
-                              />
-                            )}
-                            
-                            {adj.action === 'remnant_changed' && (
-                              <input 
-                                type="text" 
-                                className="mrm-input"
-                                placeholder="Medida Retazo (ej 1x1)" 
-                                value={adj.actualRemnantSize || ''} 
-                                onChange={e => handleUpdateFabricAdjustment(index, { actualRemnantSize: e.target.value })}
-                              />
-                            )}
+                          let rowClass = 'mrm-row';
+                          if (isConfirmed) rowClass += ' mrm-row--confirmed';
+                          if (isSubstituted) rowClass += ' mrm-row--substituted';
+                          if (isQtyAdjusted) rowClass += ' mrm-row--modified';
+                          if (isAdded) rowClass += ' mrm-row--added';
+                          if (isRemoved) rowClass += ' mrm-row--removed';
+                          if (!isComplete) rowClass += ' mrm-row--incomplete';
 
-                            <input 
-                              type="number" 
-                              step="0.001"
-                              className="mrm-input"
-                              placeholder="Área Final Sage (Y2)" 
-                              value={adj.actualAreaY2 ?? ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { actualAreaY2: parseFloat(e.target.value) })}
-                            />
-                          </>
-                        )}
-                      </div>
+                          return (
+                            <div key={adj.id} className={rowClass}>
+                              {/* 1. Material / SKU */}
+                              <div className="mrm-cell mrm-cell--material">
+                                <div className="mrm-cell-title" title={adj.calculatedDescription || adj.actualDescription || 'Línea extra'}>
+                                  {adj.calculatedDescription || adj.actualDescription || (isAdded ? 'Material Extra' : 'Componente')}
+                                </div>
+                                <div className="mrm-cell-sku">
+                                  {isAdded ? (
+                                    <span className="mrm-sku-badge mrm-sku-badge--extra">Extra</span>
+                                  ) : (
+                                    adj.calculatedSku
+                                  )}
+                                </div>
+                              </div>
 
-                      {/* Notes */}
-                      <div className="mrm-card-zone">
-                        {isConfirmed ? null : (
-                          <>
-                            <select 
-                              className="mrm-select"
-                              value={adj.reason || ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { reason: e.target.value as ProductionFabricAdjustmentReason })}
-                            >
-                              <option value="" disabled>Motivo (Req)...</option>
-                              <option value="out_of_stock">Falta stock tela/rollo</option>
-                              <option value="authorized_substitution">Sustitucion autorizada</option>
-                              <option value="fabric_error">Error en tela calculada</option>
-                              <option value="roll_width_change">Cambio ancho optimizar</option>
-                              <option value="remnant_decision">Uso de retazo (piso)</option>
-                              <option value="production_decision">Decision general piso</option>
-                              <option value="other">Otro</option>
-                            </select>
-                            <input 
-                              type="text" 
-                              className="mrm-input"
-                              placeholder="Notas adicionales..." 
-                              value={adj.notes || ''} 
-                              onChange={e => handleUpdateFabricAdjustment(index, { notes: e.target.value })}
-                            />
-                          </>
-                        )}
+                              {/* 2. Calculado */}
+                              <div className="mrm-cell mrm-cell--calculated">
+                                {isAdded ? (
+                                  <span className="mrm-muted-dash">—</span>
+                                ) : (
+                                  <span className="mrm-qty-display">
+                                    <strong>{adj.calculatedQuantity}</strong> {adj.calculatedUnit}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* 3. Acción */}
+                              <div className="mrm-cell mrm-cell--action">
+                                <select 
+                                  className="mrm-compact-select"
+                                  value={adj.action} 
+                                  onChange={e => handleUpdateAdjustment(index, { action: e.target.value as ProductionMaterialAdjustmentAction })}
+                                >
+                                  {adj.calculatedSku && <option value="confirmed">✓ Confirmar</option>}
+                                  {adj.calculatedSku && <option value="substituted">⇄ Sustituir SKU</option>}
+                                  {adj.calculatedSku && <option value="quantity_adjusted">± Ajustar Cant.</option>}
+                                  {adj.calculatedSku && <option value="removed">× Remover / No usar</option>}
+                                  {adj.action === "added" && <option value="added">+ Agregado extra</option>}
+                                </select>
+                              </div>
+
+                              {/* 4. Detalle / Ajuste */}
+                              <div className="mrm-cell mrm-cell--detail">
+                                {isConfirmed ? (
+                                  <span className="mrm-detail-confirmed">Igual a calculado</span>
+                                ) : isRemoved ? (
+                                  <div className="mrm-inline-edit-group">
+                                    <span className="mrm-detail-removed">No se descontará en Sage</span>
+                                    <select 
+                                      className="mrm-compact-select mrm-compact-select--reason"
+                                      value={adj.reason || ''} 
+                                      onChange={e => handleUpdateAdjustment(index, { reason: e.target.value as ProductionMaterialAdjustmentReason })}
+                                    >
+                                      <option value="" disabled>Motivo (Req)...</option>
+                                      <option value="out_of_stock">Falta stock</option>
+                                      <option value="authorized_substitution">Sustitución autorizada</option>
+                                      <option value="bom_error">Error de BOM</option>
+                                      <option value="production_decision">Decisión de piso</option>
+                                      <option value="other">Otro</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div className="mrm-inline-edit-group">
+                                    {(isSubstituted || isAdded) && (
+                                      <input 
+                                        type="text" 
+                                        className="mrm-compact-input mrm-compact-input--sku"
+                                        placeholder="SKU Real..." 
+                                        value={adj.actualSku || ''} 
+                                        onChange={e => handleUpdateAdjustment(index, { actualSku: e.target.value })}
+                                      />
+                                    )}
+
+                                    <div className="mrm-compact-qty-group">
+                                      <input 
+                                        type="number" 
+                                        step="0.001"
+                                        className="mrm-compact-input mrm-compact-input--qty"
+                                        placeholder="Cant." 
+                                        value={adj.actualQuantity ?? ''} 
+                                        onChange={e => handleUpdateAdjustment(index, { actualQuantity: parseFloat(e.target.value) })}
+                                      />
+                                      <input 
+                                        type="text" 
+                                        className="mrm-compact-input mrm-compact-input--unit"
+                                        placeholder="Unid." 
+                                        value={adj.actualUnit || ''} 
+                                        onChange={e => handleUpdateAdjustment(index, { actualUnit: e.target.value })}
+                                      />
+                                    </div>
+
+                                    <select 
+                                      className="mrm-compact-select mrm-compact-select--reason"
+                                      value={adj.reason || ''} 
+                                      onChange={e => handleUpdateAdjustment(index, { reason: e.target.value as ProductionMaterialAdjustmentReason })}
+                                    >
+                                      <option value="" disabled>Motivo (Req)...</option>
+                                      <option value="out_of_stock">Falta stock (Sustituido)</option>
+                                      <option value="authorized_substitution">Sustitución autorizada</option>
+                                      <option value="bom_error">Error de cálculo BOM</option>
+                                      <option value="production_decision">Decisión piso producción</option>
+                                      <option value="additional_component">Componente extra req.</option>
+                                      <option value="other">Otro</option>
+                                    </select>
+
+                                    <input 
+                                      type="text" 
+                                      className="mrm-compact-input mrm-compact-input--notes"
+                                      placeholder="Notas adicionales..." 
+                                      value={adj.notes || ''} 
+                                      onChange={e => handleUpdateAdjustment(index, { notes: e.target.value })}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 5. Estado Badge */}
+                              <div className="mrm-cell mrm-cell--status">
+                                {isConfirmed ? (
+                                  <span className="mrm-status-pill mrm-status-pill--confirmed">✓ Igual</span>
+                                ) : !isComplete ? (
+                                  <span className="mrm-status-pill mrm-status-pill--warning" title="Faltan datos requeridos (SKU, cantidad o motivo)">
+                                    ⚠ Revisar
+                                  </span>
+                                ) : isSubstituted ? (
+                                  <span className="mrm-status-pill mrm-status-pill--substituted">⇄ Sustituido</span>
+                                ) : isQtyAdjusted ? (
+                                  <span className="mrm-status-pill mrm-status-pill--modified">± Ajustado</span>
+                                ) : isAdded ? (
+                                  <span className="mrm-status-pill mrm-status-pill--added">+ Extra</span>
+                                ) : isRemoved ? (
+                                  <span className="mrm-status-pill mrm-status-pill--removed">× Removido</span>
+                                ) : (
+                                  <span className="mrm-status-pill mrm-status-pill--modified">Δ Modificado</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                })
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'fabrics' && (
+                <div className="mrm-worklist-container">
+                  {/* Progress toolbar */}
+                  <div className="mrm-worklist-toolbar">
+                    <div className="mrm-progress-group">
+                      <span className="mrm-progress-label">
+                        Revisadas <strong>{reviewedFabricsCount}</strong> de <strong>{fabricAdjustments.length}</strong>
+                      </span>
+                      <div className="mrm-progress-bar-track" title={`${fabricsProgressPercent}% completado`}>
+                        <div 
+                          className="mrm-progress-bar-fill" 
+                          style={{ width: `${fabricsProgressPercent}%` }} 
+                        />
+                      </div>
+                      <span className="mrm-progress-percent">{fabricsProgressPercent}%</span>
+                    </div>
+                  </div>
+
+                  {fabricAdjustments.length === 0 ? (
+                    <div className="mrm-empty-state mrm-empty-state--info">
+                      ℹ No hay telas/paños que requieran revisión para esta orden.
+                    </div>
+                  ) : (
+                    <div className="mrm-table-wrapper">
+                      {/* Sticky Table Header */}
+                      <div className="mrm-table-header mrm-table-header--fabrics">
+                        <div className="mrm-th mrm-th--material">CORTINA / TELA</div>
+                        <div className="mrm-th mrm-th--dims">MEDIDAS / ORIGEN</div>
+                        <div className="mrm-th mrm-th--calculated">CALCULADO</div>
+                        <div className="mrm-th mrm-th--action">REVISIÓN</div>
+                        <div className="mrm-th mrm-th--detail">DETALLE SAGE</div>
+                        <div className="mrm-th mrm-th--status">ESTADO</div>
+                      </div>
+
+                      {/* Table Rows */}
+                      <div className="mrm-table-body">
+                        {fabricAdjustments.map((adj, index) => {
+                          const isConfirmed = adj.action === 'confirmed';
+                          const isRemoved = adj.action === 'removed';
+                          const isSubstituted = adj.action === 'fabric_substituted';
+                          const isComplete = isFabricAdjustmentComplete(adj);
+
+                          let rowClass = 'mrm-row mrm-row--fabric';
+                          if (isConfirmed) rowClass += ' mrm-row--confirmed';
+                          if (isSubstituted) rowClass += ' mrm-row--substituted';
+                          if (isRemoved) rowClass += ' mrm-row--removed';
+                          if (!isComplete) rowClass += ' mrm-row--incomplete';
+
+                          return (
+                            <div key={adj.id} className={rowClass}>
+                              {/* 1. Cortina / Tela */}
+                              <div className="mrm-cell mrm-cell--material">
+                                <div className="mrm-cell-title">{adj.curtainLabel}</div>
+                                <div className="mrm-cell-sku">{adj.calculatedFabricSku}</div>
+                              </div>
+
+                              {/* 2. Medidas / Origen */}
+                              <div className="mrm-cell mrm-cell--dims">
+                                <div className="mrm-dims-text">{adj.calculatedWidthM} x {adj.calculatedHeightM}m</div>
+                                <div className="mrm-origin-pill">
+                                  {adj.calculatedSource === 'roll' ? `Rollo ${adj.calculatedRollWidthM}m` : `Retazo ${adj.calculatedRemnantSize}`}
+                                </div>
+                              </div>
+
+                              {/* 3. Calculado */}
+                              <div className="mrm-cell mrm-cell--calculated">
+                                <span className="mrm-qty-display">
+                                  <strong>{adj.calculatedAreaY2 ? adj.calculatedAreaY2.toFixed(2) : '—'}</strong> Y2
+                                </span>
+                              </div>
+
+                              {/* 4. Acción */}
+                              <div className="mrm-cell mrm-cell--action">
+                                <select 
+                                  className="mrm-compact-select"
+                                  value={adj.action} 
+                                  onChange={e => handleUpdateFabricAdjustment(index, { action: e.target.value as ProductionFabricAdjustmentAction })}
+                                >
+                                  <option value="confirmed">✓ Confirmar</option>
+                                  <option value="fabric_substituted">⇄ Sustituir Tela</option>
+                                  <option value="roll_width_changed">↔ Cambiar Ancho Rollo</option>
+                                  <option value="remnant_changed">▫ Usar Retazo</option>
+                                  <option value="consumption_adjusted">± Ajustar Área (Y2)</option>
+                                  <option value="removed">× Remover / No usar</option>
+                                </select>
+                              </div>
+
+                              {/* 5. Detalle Sage */}
+                              <div className="mrm-cell mrm-cell--detail">
+                                {isConfirmed ? (
+                                  <span className="mrm-detail-confirmed">
+                                    Final: <strong>{adj.actualAreaY2 ? adj.actualAreaY2.toFixed(2) : '—'}</strong> Y2
+                                  </span>
+                                ) : isRemoved ? (
+                                  <div className="mrm-inline-edit-group">
+                                    <span className="mrm-detail-removed">No se descontará en Sage</span>
+                                    <select 
+                                      className="mrm-compact-select mrm-compact-select--reason"
+                                      value={adj.reason || ''} 
+                                      onChange={e => handleUpdateFabricAdjustment(index, { reason: e.target.value as ProductionFabricAdjustmentReason })}
+                                    >
+                                      <option value="" disabled>Motivo (Req)...</option>
+                                      <option value="out_of_stock">Falta stock tela/rollo</option>
+                                      <option value="authorized_substitution">Sustitución autorizada</option>
+                                      <option value="production_decision">Decisión de piso</option>
+                                      <option value="other">Otro</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div className="mrm-inline-edit-group">
+                                    <input 
+                                      type="text" 
+                                      className="mrm-compact-input mrm-compact-input--sku"
+                                      placeholder="SKU Tela Final..." 
+                                      value={adj.actualFabricSku || ''} 
+                                      onChange={e => handleUpdateFabricAdjustment(index, { actualFabricSku: e.target.value })}
+                                    />
+
+                                    {(adj.action === 'roll_width_changed' || adj.action === 'fabric_substituted') && (
+                                      <input 
+                                        type="number" 
+                                        step="0.01"
+                                        className="mrm-compact-input mrm-compact-input--qty"
+                                        placeholder="Ancho rollo (m)" 
+                                        value={adj.actualRollWidthM || ''} 
+                                        onChange={e => handleUpdateFabricAdjustment(index, { actualRollWidthM: parseFloat(e.target.value) })}
+                                      />
+                                    )}
+
+                                    {adj.action === 'remnant_changed' && (
+                                      <input 
+                                        type="text" 
+                                        className="mrm-compact-input"
+                                        placeholder="Medida Retazo (1x1)" 
+                                        value={adj.actualRemnantSize || ''} 
+                                        onChange={e => handleUpdateFabricAdjustment(index, { actualRemnantSize: e.target.value })}
+                                      />
+                                    )}
+
+                                    <input 
+                                      type="number" 
+                                      step="0.001"
+                                      className="mrm-compact-input mrm-compact-input--qty"
+                                      placeholder="Área Final (Y2)" 
+                                      value={adj.actualAreaY2 ?? ''} 
+                                      onChange={e => handleUpdateFabricAdjustment(index, { actualAreaY2: parseFloat(e.target.value) })}
+                                    />
+
+                                    <select 
+                                      className="mrm-compact-select mrm-compact-select--reason"
+                                      value={adj.reason || ''} 
+                                      onChange={e => handleUpdateFabricAdjustment(index, { reason: e.target.value as ProductionFabricAdjustmentReason })}
+                                    >
+                                      <option value="" disabled>Motivo (Req)...</option>
+                                      <option value="out_of_stock">Falta stock tela/rollo</option>
+                                      <option value="authorized_substitution">Sustitución autorizada</option>
+                                      <option value="fabric_error">Error en tela calculada</option>
+                                      <option value="roll_width_change">Cambio ancho optimizar</option>
+                                      <option value="remnant_decision">Uso de retazo (piso)</option>
+                                      <option value="production_decision">Decisión general piso</option>
+                                      <option value="other">Otro</option>
+                                    </select>
+
+                                    <input 
+                                      type="text" 
+                                      className="mrm-compact-input mrm-compact-input--notes"
+                                      placeholder="Notas adicionales..." 
+                                      value={adj.notes || ''} 
+                                      onChange={e => handleUpdateFabricAdjustment(index, { notes: e.target.value })}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 6. Estado Badge */}
+                              <div className="mrm-cell mrm-cell--status">
+                                {isConfirmed ? (
+                                  <span className="mrm-status-pill mrm-status-pill--confirmed">✓ Igual</span>
+                                ) : !isComplete ? (
+                                  <span className="mrm-status-pill mrm-status-pill--warning" title="Faltan datos requeridos (área Y2 o motivo)">
+                                    ⚠ Revisar
+                                  </span>
+                                ) : isSubstituted ? (
+                                  <span className="mrm-status-pill mrm-status-pill--substituted">⇄ Sustituido</span>
+                                ) : isRemoved ? (
+                                  <span className="mrm-status-pill mrm-status-pill--removed">× Removido</span>
+                                ) : (
+                                  <span className="mrm-status-pill mrm-status-pill--modified">Δ Modificado</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -847,19 +1069,45 @@ export function MaterialReviewModal({ order, onClose }: Props) {
         {/* FOOTER */}
         <div className="mrm-footer">
           <div className="mrm-footer__left">
-            <Button variant="secondary" onClick={handleConfirmAll} className="mrm-btn-action">
+            <Button 
+              variant="secondary" 
+              onClick={handleConfirmAll} 
+              className="mrm-btn-action"
+              disabled={!hasItems}
+              title={!hasItems ? "No hay materiales para confirmar en esta orden." : undefined}
+            >
               ✓ Confirmar todo sin cambios
             </Button>
           </div>
           <div className="mrm-footer__right">
+            {hasItems && totalIncomplete > 0 && (
+              <div className="mrm-footer-alert" role="status">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>warning</span>
+                <span>{totalIncomplete} {totalIncomplete === 1 ? 'material con datos pendientes' : 'materiales con datos pendientes'}</span>
+              </div>
+            )}
             <Button variant="ghost" onClick={onClose} className="mrm-btn-action">Cancelar</Button>
-            <Button variant="secondary" onClick={handleSaveDraft} className="mrm-btn-action">Guardar Borrador</Button>
-            <Button variant="primary" onClick={handleComplete} className="mrm-btn-action" style={{ backgroundColor: 'var(--primary-dark)', borderColor: 'var(--primary-dark)', boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.3)' }}>
+            <Button 
+              variant="secondary" 
+              onClick={handleSaveDraft} 
+              className="mrm-btn-action"
+              disabled={!hasItems}
+              title={!hasItems ? "No hay materiales registrados para guardar borrador." : undefined}
+            >
+              Guardar Borrador
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={handleComplete} 
+              className="mrm-btn-action" 
+              style={{ backgroundColor: 'var(--primary-dark)', borderColor: 'var(--primary-dark)', boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.3)' }}
+              disabled={!hasItems}
+              title={!hasItems ? "No es posible completar la revisión porque la orden no contiene materiales registrados." : undefined}
+            >
               Completar Revisión
             </Button>
           </div>
         </div>
-
       </div>
     </div>
   );
