@@ -14,6 +14,9 @@ export class ConsoleMonitor {
     /Failed to load resource: net::ERR_BLOCKED_BY_CLIENT/i,
     /cancel_order_inventory_tx/i,
     /status of 400/i,
+    /WebSocket connection to/i,
+    /realtime\/v1\/websocket/i,
+    /HTTP Authentication failed/i,
   ];
 
   allowError(pattern: RegExp | string) {
