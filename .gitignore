@@ -39,3 +39,8 @@ scratch/
 # Ignore local maintenance scripts with hardcoded credentials
 scripts/check-user-roles.mjs
 scripts/import-api-catalog.mjs
+
+# Playwright Test Artifacts
+playwright-report/
+test-results/
+blob-report/

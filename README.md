@@ -30,8 +30,16 @@ npm run dev
 ## Scripts disponibles
 
 - `npm run dev`: levanta el proyecto en modo desarrollo
-- `npm run build`: genera el build de produccion
+- `npm run build`: genera el build de produccion y chequeo de tipos TypeScript
 - `npm run preview`: sirve el build localmente
+- `npm run test`: ejecuta las pruebas unitarias con Vitest
+- `npm run test:agent`: ejecuta la suite estándar del **AI Synthetic QA Agent** (E2E Playwright)
+- `npm run test:agent:headed`: ejecuta el QA Agent con interfaz gráfica visible
+- `npm run test:agent:edge`: ejecuta las pruebas de casos límite e idempotencia
+- `npm run test:agent:chaos`: ejecuta el Chaos Monkey con fuzzing determinista PRNG
+- `npm run test:agent:report`: abre el reporte interactivo HTML de Playwright
+
+Para más detalles sobre la arquitectura de pruebas autónomas, aislamiento de red y CI/CD, consulta la guía [docs/AI_SYNTHETIC_QA.md](docs/AI_SYNTHETIC_QA.md).
 
 ## Estructura principal
 

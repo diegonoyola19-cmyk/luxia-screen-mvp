@@ -1,0 +1,82 @@
+name: LUXIA Nightly AI Synthetic QA
+
+on:
+  schedule:
+    # Runs once every night at 04:00 UTC (22:00 CST)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      qa_seed:
+        description: 'PRNG Seed for Chaos Monkey (optional, auto-generated if omitted)'
+        required: false
+        type: string
+        default: ''
+      run_chaos:
+        description: 'Execute Chaos Monkey suite'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: nightly-ai-synthetic-qa
+  cancel-in-progress: false
+
+env:
+  CI: true
+  QA_MODE: nightly
+  QA_SANDBOX: "true"
+  QA_BLOCK_PRODUCTION: "true"
+  VITE_SUPABASE_URL: "https://cisxgxttmfpxoslepybp.supabase.co"
+  VITE_SUPABASE_ANON_KEY: "mock-anon-key-for-ci-sandbox"
+
+jobs:
+  nightly-regression:
+    name: Full Nightly Synthetic Regression (Standard + Edge + Chaos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium with OS dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck & Build LUXIA
+        run: npm run build
+
+      - name: Run Unit Tests (Vitest)
+        run: npx vitest run
+
+      - name: Step 1/3 - Run Standard QA Suite (Operator, Supervisor, Warehouse)
+        run: npm run test:agent
+
+      - name: Step 2/3 - Run Edge Cases & Idempotency Suite
+        run: npm run test:agent:edge
+
+      - name: Step 3/3 - Run Chaos Monkey Suite (PRNG Seeded Fuzzing)
+        if: ${{ github.event_name == 'schedule' || inputs.run_chaos == true }}
+        run: |
+          if [ -n "${{ inputs.qa_seed }}" ]; then
+            export QA_SEED="${{ inputs.qa_seed }}"
+          fi
+          npm run test:agent:chaos
+
+      - name: Upload Nightly QA Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-qa-artifacts-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
